@@ -50,13 +50,36 @@ register):
   list-in-cell parquet encoding causes a measured ~33× memory blow-up (C-40,
   C-66). The frame + a flat columnar disk format fix the scaling; a `TargetFrame`
   fixes the eval boundary.
+- **Observed in production (#181) — the thesis, measured.** A HydraNet eval run
+  (`main.py -r calibration -t -e -re`) is **OOM-killed (exit 137, ~16–18 GB)** in
+  the report tail; dropping the report flag → 2.4 GB (~7× less). A synthetic
+  micro-benchmark line-isolated it: the report builds **object-dtype** DataFrames
+  (list-in-cell `pred_{target}` + per-cell `np.array` actuals) over the **full
+  grid × full timeline** — **~50–160×** the dense float32 cost (~200–650 B/row vs
+  4). The dense numpy compute is *small* (~0.3 GB); the cost is the object
+  representation. It scales with `n_posterior_samples` (the collapse step is what
+  first materializes the full-sample tensor). This is C-40/C-66 firing for real —
+  pipeline-core **C-186**, the **first observed-in-production member** of the
+  Data-Contract Gap cluster, and the live use-case that motivates this package.
+  A dense, collapsed array frame is the fix. See
+  `perspectives/from_views-pipeline-core_perspective.md`.
 - **God-class data handler with leaked internals.** `_ViewsDataset`
   (`data/handlers.py`, ~950 LOC, C-36) is consumed across three repos by reaching
   into its **private** members (`_time_id`, `_entity_id`, `_get_entity_index`,
   `.dataframe`, `.to_tensor`) at ~56 sites (C-135), and views-reporting even
   **mutates** a core object across the repo boundary
-  (`pg_dataset.reconciled_dataframe = ...`, C-184). Frames are immutable value
-  objects with a *published* interface — the opposite of this.
+  (`pg_dataset.reconciled_dataframe = ...`,
+  `views-reporting/reconciliation/dataset_export.py:103,122`; C-184). Frames are
+  immutable value objects with a *published* interface — the opposite of this.
+- **Evaluation outputs scattered, then mis-read.** A model's evaluation metrics
+  are written to a local `eval_*.parquet` *and* logged to wandb, with no typed
+  output container. views-reporting's evaluation report scrapes them back out of
+  wandb (`get_latest_run().summary`) and — because that returns the latest
+  *created* run, not the latest run *with* metrics — renders the wrong run:
+  **22/25 constituents showed "not calculated"** in a real ensemble report while
+  the scores sat in an earlier run (views-reporting's own register, C-48). A
+  first-class **`MetricFrame`** (§4.2) is the typed output the report should
+  *receive*, not re-derive from a mutable mirror.
 - **Stable package, zero abstractions.** views-pipeline-core's `data/` is its
   most depended-on (most stable) package yet contains no protocols/ABCs (C-165,
   C-48). A stable component must be abstract (SAP). This package *is* the
@@ -89,6 +112,19 @@ unit)" that every model, evaluator, reconciler, and report agrees on.
 imports **no** `views_*` package, ever. If it ever needs to, the boundary is
 wrong. This is what makes it impossible to participate in a cycle (ADP) and what
 makes it safe to depend on from everywhere (SDP).
+
+> **Consumer perspectives.** A downstream repo's detailed view of how it uses
+> these frames lives in `perspectives/from_<repo>_perspective.md`. The first is
+> `perspectives/from_views-reporting_perspective.md` — the presentation layer that
+> *consumes* `PredictionFrame`, `TargetFrame`, and `MetricFrame` and routes its
+> data contract through this leaf (which is what breaks the
+> views-pipeline-core ↔ views-reporting cycle, reporting issue **#113**).
+>
+> `perspectives/from_views-pipeline-core_perspective.md` is the **origin/orchestration**
+> repo's view — not a pure downstream consumer but the repo that *owns these types
+> today* (`PredictionFrame`, `_ViewsDataset`, the converter) and hands the contract
+> off to this leaf. It carries the worked failure mode (#181 report-stage OOM,
+> C-186) and the migration mechanics (it does most of README §10).
 
 ---
 
@@ -147,7 +183,7 @@ Existing `PredictionFrame` contract (preserve on migration): `float32`;
 | **`TargetFrame`** (a.k.a. `ActualsFrame`) | `y_true: (N, 1)` | The **evaluation boundary** still takes pandas actuals (`adapter.py`). A target frame makes eval array-native and kills that pandas dependency. Structurally `PredictionFrame` with `S=1`. | **next** |
 | **`WeightFrame`** | `w: (N,)` or `(N, S)` | Weighted losses / weighted metrics. Same identifiers, different `values` meaning. | when weighting lands |
 | **`MaskFrame`** | `mask: (N,)` bool | Partial-data / sparse-actuals evaluation (C-26 silent truncation). Marks which (time, unit) cells are present. | when partial eval lands |
-| **`MetricFrame`** (a.k.a. `ScoreFrame`) | `(K, …)` keyed by `(target, step, unit)` | Evaluation **outputs** are currently scattered into wandb summaries + parquet. First-class array form. | exploratory |
+| **`MetricFrame`** (a.k.a. `ScoreFrame`) | `(K, …)` keyed by `(target, step, unit)` | Evaluation **outputs** are currently scattered into wandb summaries + parquet. First-class array form. **views-reporting's eval report is the consumer of record** — today it scrapes wandb and renders the wrong run (its C-48; see `perspectives/from_views-reporting_perspective.md`). | exploratory |
 
 **Already exists externally — do NOT rebuild:** `EvaluationFrame` lives in
 `views-evaluation` (aligned pred×actual×(origin, step)). `views-frames` should
@@ -259,8 +295,9 @@ Layout rules (these *are* the screaming-architecture requirements):
 
 The scaling failure in the platform today is the **list-in-cell `object`-dtype
 DataFrame** (a cell holds a Python list of S samples) — measured ~33× blow-up
-(C-40/C-66). `views-frames` standardizes two scalable formats and **bans
-list-in-cell**:
+(C-40/C-66), and ~50–160× per-row over dense float32 in the #181 report-stage
+investigation (C-186; `perspectives/from_views-pipeline-core_perspective.md`).
+`views-frames` standardizes two scalable formats and **bans list-in-cell**:
 
 - **Native (`io/npz.py`):** `values.npy` (contiguous float32) + `identifiers.npz`.
   Supports `mmap` load so peak RAM = working set, not full array. (This is the
@@ -358,7 +395,8 @@ in the wrong package — extract it to a consumer adapter.
 Resolves or directly addresses (views-pipeline-core register): **C-36**
 (`_ViewsDataset` god class — frames replace its transport role with a published
 interface), **C-40 / C-66** (list-in-cell memory blow-up — flat columnar +
-arrays), **C-48** (concrete dependencies → protocols), **C-135** (private-internal
+arrays) and **C-186** (the #181 report-stage OOM — the first observed-in-production
+instance of that blow-up), **C-48** (concrete dependencies → protocols), **C-135** (private-internal
 cross-repo leakage → published interface), **C-164** (unwired `DataFetchStrategy`
 — frames give the strategy a typed payload), **C-165** (stable package, zero
 abstractions — this *is* the abstraction), **C-167** (reconciliation I/O has no
@@ -366,6 +404,17 @@ typed contract → frame I/O contract), **C-184** (cross-repo mutation of
 `reconciled_dataframe` → immutable frames). Keystone for views-reporting **#113**
 (circular dependency) and informs **D-28** (relocate reconciliation) and **D-33**
 (collapse the `CMDataset/PGMDataset` hierarchy into a `SpatialLevel` value).
+
+From the **views-reporting** consumer (its own register; see
+`perspectives/from_views-reporting_perspective.md`) this package *forbids* its
+**C-184** (the `reconciled_dataframe` mutation) and the reporting side of
+**C-135** (private `_entity_id`/`_time_id` reads → published index protocol), and
+*enables* fixing **C-48** (wandb eval scrape → a typed `MetricFrame`) and **C-44**
+(undeclared wandb → isolated to one consumer adapter). It does **not** by itself
+resolve **C-22** (viewser metadata fetch) or **C-27** (wandb runtime dependency) —
+those remain consumer-side acquisition concerns; `views-frames` only gives their
+output a typed home. (Note: reporting's **C-48** is distinct from the
+pipeline-core **C-48** listed above — two registers, same number.)
 
 ---
 
@@ -383,7 +432,11 @@ typed contract → frame I/O contract), **C-184** (cross-repo mutation of
 4. **Minimum numpy version / typed-array (nptyping vs bare) policy.**
 5. **`metadata` schema:** free-form dict vs. a typed, validated header (provenance:
    model name, run_type, timestamp — note the #178 provenance work suggests a
-   stamped run identity belongs in frame metadata).
+   stamped run identity belongs in frame metadata). **From views-reporting this is
+   the highest-value open decision:** a stamped, stable run/eval identity in frame
+   metadata is the consumer-side cure for its C-48 (select *the* evaluation run,
+   not the latest-created) and C-34 (reports carry no provenance). See
+   `perspectives/from_views-reporting_perspective.md` §8.
 6. **Sample-axis convention:** is `S=1` an explicit axis or absent? (Affects
    `collapse`, `is_sample`, and every shape check — decide once.)
 
