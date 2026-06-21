@@ -112,7 +112,7 @@ class SpatioTemporalIndex:
 
     def argsort(self) -> NDArray[np.intp]:
         """Positions that sort the rows by ``(time, unit)`` (time-major)."""
-        return np.lexsort((self._unit, self._time))
+        return np.asarray(np.lexsort((self._unit, self._time)), dtype=np.intp)
 
     def searchsorted(self, other: SpatioTemporalIndex) -> NDArray[np.intp]:
         """For each row of ``other``, its position in ``self`` (-1 if absent).
