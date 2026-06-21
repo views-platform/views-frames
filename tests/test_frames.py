@@ -74,19 +74,8 @@ def test_prediction_frame_row_mismatch_raises():
         PredictionFrame(np.ones((2, 5), dtype=np.float32), _index(3))
 
 
-def test_prediction_frame_collapse_semantics():
-    y = np.array([[1.0, 3.0], [10.0, 20.0]], dtype=np.float32)
-    pf = PredictionFrame(y, _index(2))
-    collapsed = pf.collapse()
-    assert collapsed.values.shape == (2, 1)
-    assert np.allclose(collapsed.values[:, 0], [2.0, 15.0])
-    assert collapsed.is_sample is False
-
-
-def test_prediction_frame_collapse_unknown_method():
-    pf = PredictionFrame(np.ones((2, 2), dtype=np.float32), _index(2))
-    with pytest.raises(ValueError, match="Unknown aggregate"):
-        pf.collapse("median")
+# Sample-axis reduction (collapse/MAP/HDI) lives in views_frames_summarize (ADR-017);
+# its behaviour is tested in tests/test_summarize_*.py, not here.
 
 
 def test_prediction_frame_save_load_roundtrip(tmp_path):

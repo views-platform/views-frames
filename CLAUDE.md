@@ -11,14 +11,24 @@ only; depends on nothing internal; every other repo depends *toward* it.
 
 ## Architecture
 
-Single package `src/views_frames/`, one concept per file (README §6):
+**Two packages** under `src/` (datafactory multi-package pattern), strict one-way
+dependency `views_frames_summarize → views_frames`, enforced by
+`tests/test_import_enforcement.py`:
+
+**`src/views_frames/`** — the pure data contract (numpy-only; depends on nothing):
 
 - `index.py` — `SpatioTemporalIndex` (`{time, unit, level}` + same-level numpy alignment).
 - `spatial_level.py` — `SpatialLevel` (cm/pgm identifier vocabulary; labels only).
-- `protocols.py` — `Frame` / `SpatioTemporalIndexed` / `Sampled` / `Persistable`.
+- `protocols.py` — `Frame` / `SpatioTemporalIndexed` / `Sampled` (`sample_count`/`is_sample` only) / `Persistable`.
 - `_validation.py` — shared construction-time invariants.
 - `feature_frame.py`, `prediction_frame.py`, `target_frame.py` — sibling frames (no shared base; ADR-011 Option C).
-- `io/` — `npz` (native) + `arrow` (flat-columnar) serialization. **The only place `pyarrow` may be imported.**
+- `io/` — `npz` (native) + `arrow` (flat-columnar). **The only place `pyarrow` may be imported.**
+
+**`src/views_frames_summarize/`** — sample-axis posterior summarization *over* frames
+(ADR-017; numpy-only; depends on `views_frames`). Point estimates
+(`collapse(frame, reducer)`, `map_estimate`) return a `(N,…,1)` frame; intervals
+(`hdi`, `quantiles`) return arrays aligned to the frame's index. **Never** owns IO,
+domain data, scoring, or reconciliation.
 
 ## Tooling (uv + hatchling)
 

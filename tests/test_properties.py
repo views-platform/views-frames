@@ -38,14 +38,6 @@ def test_with_metadata_shares_the_values_buffer():
         assert other.metadata.model == "x"
 
 
-def test_collapse_allocates_a_new_reduced_buffer():
-    # A reduction is the one operation that allocates — and only the reduced array.
-    for frame in (_frames()[0], _frames()[1]):  # the sampled frames
-        collapsed = frame.collapse()
-        assert not np.shares_memory(frame.values, collapsed.values)
-        assert collapsed.values.shape[-1] == 1
-
-
 def test_intersect_is_commutative_and_associative_on_self():
     a = SpatioTemporalIndex(
         np.array([1, 2, 3], dtype=np.int64),

@@ -35,10 +35,11 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
 - Validates at construction: `values` contiguous `float32`, **no object dtype**;
   identifiers integer, length-`N`, complete; the sample axis is the **trailing** axis
   and always explicit (`S >= 1`; ADR-012).
-- Immutable: `collapse`, `select`, `with_metadata` return **new** frames. Structural /
-  metadata-only ops share the `values` buffer (zero-copy); `mmap` propagates; only a
-  reduction allocates the reduced array (register C-07).
-- `collapse(method)` reduces the trailing sample axis to `S == 1`.
+- Immutable: `with_metadata` returns a **new** frame sharing the `values` buffer
+  (zero-copy); `mmap` propagates (register C-07).
+- Sample-axis reduction (collapse/MAP/HDI) is **not** a method here — it lives in
+  `views_frames_summarize` (ADR-017). The frame exposes the structural `sample_count`/
+  `is_sample` only.
 - Carries a typed, optional-extensible `metadata` header (provenance; ADR-013).
 
 ---

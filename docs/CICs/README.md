@@ -68,6 +68,8 @@ These CICs govern the classes implemented in v0.1.0 (`src/views_frames/`).
 - `PredictionFrame.md` — model outputs `(N, S)`; numpy-only validation (not a verbatim move).
 - `FeatureFrame.md` — model inputs `(N, F, S)` + `feature_names` + typed metadata header.
 - `TargetFrame.md` — observed actuals `(N, 1)`; the array-native evaluation boundary.
+- `Summarize.md` — the `views_frames_summarize` sibling package (collapse / MAP / HDI /
+  quantiles / aggregation over frames; ADR-017).
 
 The `_validation` helper and the tiny `SpatialLevel` value object are governed primarily by
 tests (and ADR-015 for `SpatialLevel`) rather than a CIC.
