@@ -59,14 +59,19 @@ as each class is implemented**, when the twins are relocated and the leaf is sto
 
 ## Active Contracts
 
-No contracts yet. Create intent contracts as non-trivial classes emerge.
+The classes are **stubs** in Epic 1 (`src/views_frames/`); these CICs define the *intended*
+contracts the Epic-2 implementations must satisfy (as the ADRs define the intended architecture).
 
-The likely first subjects (from the ADR-001 ontology — names provisional, no files exist
-yet): `SpatioTemporalIndex` (the genuinely-reused primitive, owns the alignment laws), the
-frames (`PredictionFrame`, `FeatureFrame`, `TargetFrame`, …, which enforce construction
-invariants and define the data contract), and the protocols
-(`Frame`/`SpatioTemporalIndexed`/`Sampled`/`Persistable`). The `_validation` helper and the
-tiny `SpatialLevel` value object are governed primarily by tests rather than a CIC.
+- `SpatioTemporalIndex.md` — the genuinely-reused alignment primitive; same-level logic owned,
+  cross-level mapping injected (ADR-014).
+- `Protocols.md` — the published surface `Frame`/`SpatioTemporalIndexed`/`Sampled`/`Persistable`
+  (DIP/ISP; no shared base, ADR-011).
+- `PredictionFrame.md` — model outputs `(N, S)`; numpy-only validation (not a verbatim move).
+- `FeatureFrame.md` — model inputs `(N, F, S)` + `feature_names` + typed metadata header.
+- `TargetFrame.md` — observed actuals `(N, 1)`; the array-native evaluation boundary.
+
+The `_validation` helper and the tiny `SpatialLevel` value object are governed primarily by
+tests (and ADR-015 for `SpatialLevel`) rather than a CIC.
 
 ---
 
