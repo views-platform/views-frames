@@ -175,6 +175,19 @@ class SpatioTemporalIndex:
         rows = self._row_view(self._keys())
         return bool(len(np.unique(rows)) == rows.shape[0])
 
+    def select(
+        self, indexer: IntArray | NDArray[np.bool_]
+    ) -> SpatioTemporalIndex:
+        """A new index of the rows at integer positions **or** a boolean mask.
+
+        The row-selection primitive the frame-level ``select``/``reindex`` build on:
+        ``indexer`` is applied to ``time`` and ``unit`` by numpy fancy indexing
+        (so an integer position array reorders/repeats, a boolean mask filters).
+        """
+        return SpatioTemporalIndex(
+            time=self._time[indexer], unit=self._unit[indexer], level=self._level
+        )
+
     # ---- cross-level alignment (ADR-014) -----------------------------------
 
     def cross_level_align(
