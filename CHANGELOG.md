@@ -32,7 +32,8 @@ No new surface beyond a time-aware mapping; correctness, typing, and scale.
 ### Performance
 - `map_estimate` and `hdi` are vectorized over the trailing axis (no per-row Python
   loop); `map_estimate` runs a **row-blocked** batched histogram that caps peak memory
-  at `O(block × bins)` and stays bit-for-bit identical to v0.2.0 (register C-22/#181).
+  at `O(block × bins)` and stays identical to v0.2.0 to float32 precision —
+  bit-exact on numpy ≥ 2.0, ~1 ulp on the 1.26 floor (register C-22/#181, C-24).
   A `tracemalloc` scale guard asserts memory does not scale with `rows × bins`.
 
 ### Fixed

@@ -21,16 +21,19 @@ jobs:
       - run: uv run mypy src/
       - run: uv run pytest
 
-  # The declared numpy floor (1.26.4) has stricter generic stubs than the
-  # version uv resolves by default (2.x). `mypy --strict` must stay green at the
-  # boundary a consumer actually pins to (register C-19).
-  type-floor:
+  # The declared numpy floor (1.26.4) behaves differently from the version uv
+  # resolves by default (2.x): stricter generic stubs (register C-19) AND ~1-ulp
+  # float differences in histogram binning (register C-24). The boundary a
+  # consumer actually pins to must be both type- AND behaviour-checked, so this
+  # job runs mypy *and* pytest at the floor.
+  floor:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - run: uv python install 3.10
       - run: uv run --python 3.10 --with numpy==1.26.4 mypy --strict src/
+      - run: uv run --python 3.10 --with numpy==1.26.4 pytest
 
   build:
     runs-on: ubuntu-latest

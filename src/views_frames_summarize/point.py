@@ -9,9 +9,10 @@ The histogram is computed **batched in row-blocks** (no per-row Python loop) so
 it scales to the full grid (register C-22). Blocking caps peak memory at
 ``O(block * bins)`` regardless of row count — a whole-grid batch would allocate a
 ``rows × bins`` counts matrix and re-introduce the #181 OOM. The batched binning
-reproduces ``numpy.histogram``'s uniform-bin algorithm, so it selects the same
-densest bin as the per-row reference; the bin centre matches to float32 precision
-(proven by `test_summarize_scale.py`).
+reproduces ``numpy.histogram``'s uniform-bin **counts** and breaks ties on the
+integer counts (lowest-index), so the selected bin is **deterministic and
+identical on every numpy version** (register C-24); the bin centre matches the
+per-row reference to float32 precision (proven by `test_summarize_scale.py`).
 """
 
 from __future__ import annotations
@@ -91,13 +92,13 @@ def _batched_map(flat: NDArray[np.float32], bins: int) -> NDArray[np.float32]:
     offsets = idx + (np.arange(m)[:, None] * bins)
     counts = np.bincount(offsets.ravel(), minlength=m * bins).reshape(m, bins)
 
-    # Pick the densest bin the way ``np.histogram(..., density=True)`` does:
-    # density = counts / width (per-bin width cast to float64). The per-row total
-    # is constant so it drops out of the argmax — but the float64 widths are not
-    # exactly equal, and that tie-break must match the v0.2.0 reference.
-    widths = np.diff(edges, axis=1).astype(np.float64)
-    density = counts / widths
-    densest = np.argmax(density, axis=1)
+    # The densest bin = the one with the most samples. Tie-break on the **integer
+    # counts** (lowest-index wins), not on ``counts / width`` density: the bins are
+    # uniform so density and counts agree on the winner — *except* on ties, where
+    # the float64 bin widths differ by ~1 ulp across numpy versions and flip the
+    # argmax (register C-24). Integer ``argmax`` is deterministic and identical on
+    # every numpy build, so ``map_estimate`` is portable and reproducible.
+    densest = np.argmax(counts, axis=1)
 
     lo = np.take_along_axis(edges, densest[:, None], axis=1)[:, 0]
     hi = np.take_along_axis(edges, (densest + 1)[:, None], axis=1)[:, 0]
