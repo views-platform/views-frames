@@ -59,8 +59,7 @@ as each class is implemented**, when the twins are relocated and the leaf is sto
 
 ## Active Contracts
 
-The classes are **stubs** in Epic 1 (`src/views_frames/`); these CICs define the *intended*
-contracts the Epic-2 implementations must satisfy (as the ADRs define the intended architecture).
+These CICs govern the classes implemented in v0.1.0 (`src/views_frames/`).
 
 - `SpatioTemporalIndex.md` — the genuinely-reused alignment primitive; same-level logic owned,
   cross-level mapping injected (ADR-014).

@@ -6,9 +6,8 @@
 **Last reviewed:** 2026-06-21
 **Related ADRs:** ADR-001, ADR-002, ADR-009, ADR-014, ADR-015
 
-> Note: `SpatioTemporalIndex` is a **stub** in Epic 1 (`src/views_frames/index.py`
-> raises on construction). This contract defines the *intended* behaviour the Epic-2
-> implementation must satisfy.
+> Implemented in v0.1.0 (`src/views_frames/index.py`). This contract governs that
+> implementation.
 
 ---
 
