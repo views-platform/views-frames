@@ -19,7 +19,7 @@ from views_frames import (
     SpatialLevel,
     SpatioTemporalIndex,
 )
-from views_frames_summarize import hdi, map_estimate
+from views_frames_summarize import hdi, map_estimate, quantiles
 
 
 def _index(n):
@@ -131,4 +131,33 @@ def test_map_estimate_memory_is_bounded_at_grid_scale():
     assert peak < whole_grid_counts_bytes / 2, (
         f"peak {peak / 1e6:.0f} MB ~ scales with rows*bins "
         f"({whole_grid_counts_bytes / 1e6:.0f} MB) — blocking regressed"
+    )
+
+
+@pytest.mark.parametrize(
+    "fn, name",
+    [
+        (lambda pf: hdi(pf, mass=0.9), "hdi"),
+        (lambda pf: quantiles(pf, [0.05, 0.5, 0.95]), "quantiles"),
+    ],
+)
+def test_interval_memory_is_bounded_at_grid_scale(fn, name):
+    # hdi/quantiles must be row-blocked too (register C-25): unblocked they allocate
+    # a full-grid sorted copy (~rows*S). Assert the per-call working set stays below
+    # the size of the input array itself — blocking holds; unblocked would exceed it.
+    n, s = 1_000_000, 32
+    rng = np.random.default_rng(0)
+    pf = PredictionFrame(rng.random((n, s), dtype=np.float32), _index(n))
+
+    input_bytes = n * s * 4  # the float32 input the caller already holds
+    tracemalloc.start()
+    tracemalloc.reset_peak()
+    out = fn(pf)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+
+    assert out.shape[0] == n
+    assert peak < input_bytes, (
+        f"{name} peak {peak / 1e6:.0f} MB ~ scales with rows*S "
+        f"(input {input_bytes / 1e6:.0f} MB) — blocking regressed"
     )
