@@ -46,7 +46,7 @@
   PredictionFrame as separate sibling classes. We endorse the cross-level
   alignment resolution from the falsification audits: the leaf owns the
   *protocol*; the consumer (us) injects the *mapping* as producer-materialized
-  metadata — the pattern `views-faoapi` already uses in production (§8.7).
+  metadata — the pattern `views-faoapi` already uses in production (§8b).
 
 ---
 
@@ -266,7 +266,7 @@ with minimal follow-on work.
 > (always present, `(N, S)`). Until this is resolved, the two classes cannot share
 > a common validation path.
 
-**Steps (gated on blocking decisions being resolved first — see §8.7):**
+**Steps (gated on blocking decisions being resolved first — see §8b):**
 
 1. **Relocate `FeatureFrame`** to the leaf; re-export a shim from
    `datafactory_adapters/feature_frame.py` (`from views_frames import
