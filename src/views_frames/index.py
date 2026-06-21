@@ -23,7 +23,18 @@ from views_frames.spatial_level import SpatialLevel
 
 
 class SpatioTemporalIndex:
-    """An immutable ``{time, unit, level}`` row index with same-level alignment."""
+    """An immutable ``{time, unit, level}`` row index with same-level alignment.
+
+    **Row-uniqueness stance (register C-21).** A frame *may* contain duplicate
+    ``(time, unit)`` rows — ``cross_level_align`` deliberately produces them (many
+    pgm cells map to one country, to be summed by ``aggregate_distributions``), so
+    uniqueness is **not** a global invariant and is **not** validated at
+    construction. The **same-level joins** (``searchsorted``/``reindex``/
+    ``intersect``/``is_superset_of``), however, assume one row per ``(time, unit)``
+    and give undefined results on duplicates. A consumer that needs that guarantee
+    should check :meth:`has_unique_rows` before joining; the default path stays
+    allocation-free.
+    """
 
     def __init__(
         self,
@@ -152,6 +163,17 @@ class SpatioTemporalIndex:
         return SpatioTemporalIndex(
             time=keys[:, 0].copy(), unit=keys[:, 1].copy(), level=self._level
         )
+
+    def has_unique_rows(self) -> bool:
+        """True iff every ``(time, unit)`` row is unique (register C-21).
+
+        Duplicates are **allowed** in a frame, but the same-level joins
+        (``searchsorted``/``reindex``/``intersect``/``is_superset_of``) assume
+        uniqueness. Call this before joining if the caller cannot otherwise
+        guarantee it. ``O(n log n)``; not run by default.
+        """
+        rows = self._row_view(self._keys())
+        return bool(len(np.unique(rows)) == rows.shape[0])
 
     # ---- cross-level alignment (ADR-014) -----------------------------------
 
