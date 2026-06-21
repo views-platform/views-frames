@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
+from views_frames._typing import IntArray
 from views_frames._validation import coerce_values, validate_values
 from views_frames.index import SpatioTemporalIndex
 from views_frames.io import npz
@@ -66,7 +67,7 @@ class TargetFrame:
         return int(self._values.shape[0])
 
     @property
-    def identifiers(self) -> dict[str, NDArray[np.integer]]:
+    def identifiers(self) -> dict[str, IntArray]:
         """The integer identifier arrays from the index."""
         return self._index.identifiers
 

@@ -4,10 +4,13 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **implemented — v0.1.0** (Epic 2). This README is the design bible;
-> the contract it specifies is realised in `src/views_frames/` (index, frames, io,
-> conformance suite). The blocking design decisions are resolved (§13a) and ratified
-> as ADRs 011–016. Consumer adoption (re-export shims, pandas migration) is Epic 3.
+> **Status:** **implemented — v0.2.0.** This README is the design bible; the
+> contract it specifies is realised in `src/views_frames/` (index, frames, io,
+> conformance suite) plus the `src/views_frames_summarize/` sibling package
+> (sample-axis summarization — `collapse`/MAP/HDI/quantiles + cross-level
+> aggregation; ADR-017). The blocking design decisions are resolved (§13a) and
+> ratified as ADRs 011–017. Consumer adoption (re-export shims, pandas migration)
+> is the owner's migration, not this repo's.
 > If the code and this README disagree, that is a bug — reconcile before merging.
 
 ---
@@ -222,7 +225,7 @@ genuinely reused core. Build this once:
 - Fields: `time: int[N]`, `unit: int[N]`, `level: SpatialLevel` (cm/pgm), all
   numpy, integer dtype, no NaN, length N.
 - **Same-level operations (owned here, pure-numpy, no pandas):** `intersect`,
-  `align`/`reindex`, `is_superset_of`, `argsort`, `searchsorted`-based joins over
+  `reindex`, `is_superset_of`, `argsort`, `searchsorted`-based joins over
   `(time, unit)` **at a single `SpatialLevel`**. **This is the label-alignment
   that today drags pandas back in** — pred↔actual join, partial-overlap
   evaluation, same-level reindex. This alignment logic lives in the leaf
@@ -490,8 +493,9 @@ pipeline-core **C-48** listed above — two registers, same number.)
    third frame proves it. See §5.
 2. **Sample axis — decided: always an explicit trailing axis (`S ≥ 1`).**
    `PredictionFrame (N, S)`, `FeatureFrame (N, F, S)`, `TargetFrame (N, 1)`;
-   `is_sample` is `S > 1`; `collapse` reduces the trailing axis. One shape
-   contract, no `ndim` branching. See §4.1.
+   `is_sample` is `S > 1`; sample-axis reduction lives in
+   `views_frames_summarize` (point 7), not the leaf. One shape contract, no
+   `ndim` branching. See §4.1.
 3. **Metadata / identifier model — typed header + fixed identifiers.** `metadata`
    is a **typed, optional-extensible header** (not a free-form dict — that re-opens
    C-48 store-side and cannot be validated), carrying provenance (model, run_type,
@@ -551,7 +555,8 @@ pipeline-core **C-48** listed above — two registers, same number.)
   alignment logic; the genuinely reused primitive.
 - **`SpatialLevel`:** cm (country-month) | pgm (PRIO-GRID-month); defines the unit
   column.
-- **Sample axis (S):** posterior draws / ensemble members; `collapse` reduces it.
+- **Sample axis (S):** posterior draws / ensemble members; reduced by
+  `views_frames_summarize` (e.g. `collapse(frame, reducer)`), not the leaf.
 - **list-in-cell:** the banned `object`-dtype encoding (a DataFrame cell holding a
   Python list of samples); the actual non-scaler.
 

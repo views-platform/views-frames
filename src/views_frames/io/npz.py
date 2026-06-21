@@ -15,13 +15,15 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from views_frames._typing import IntArray
+
 
 def save(
     directory: Path | str,
     *,
     values: NDArray[np.float32],
-    time: NDArray[np.integer],
-    unit: NDArray[np.integer],
+    time: IntArray,
+    unit: IntArray,
     level: str,
     metadata: dict[str, Any],
     feature_names: list[str] | None = None,
