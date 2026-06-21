@@ -20,8 +20,6 @@ from views_frames.io import npz
 from views_frames.metadata import FrameMetadata
 from views_frames.spatial_level import SpatialLevel
 
-SUPPORTED_AGGREGATE_METHODS = ("arithmetic_mean",)
-
 
 class PredictionFrame:
     """Immutable model-output frame: ``(N, S)`` float32 + a spatiotemporal index."""
@@ -84,16 +82,6 @@ class PredictionFrame:
         return self.sample_count > 1
 
     # ---- operations ---------------------------------------------------------
-
-    def collapse(self, method: str = "arithmetic_mean") -> PredictionFrame:
-        """Reduce the trailing sample axis, returning a new ``(N, 1)`` frame."""
-        if method not in SUPPORTED_AGGREGATE_METHODS:
-            raise ValueError(
-                f"Unknown aggregate method '{method}'. "
-                f"Supported: {sorted(SUPPORTED_AGGREGATE_METHODS)}"
-            )
-        collapsed = self._values.mean(axis=-1, keepdims=True)
-        return PredictionFrame(collapsed, self._index, self._metadata)
 
     def with_metadata(self, metadata: FrameMetadata) -> PredictionFrame:
         """Return a new frame with replaced metadata, **sharing** the values buffer."""

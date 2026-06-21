@@ -265,8 +265,8 @@ Segregate the surface so no consumer depends on methods it does not use (ISP):
 
 - **`SpatioTemporalIndexed`** — `identifiers`, `n_rows`, `index: SpatioTemporalIndex`.
   (What a reconciler/aligner needs.)
-- **`Sampled`** — `sample_count`, `is_sample`, `collapse(method) -> Self`.
-  (What an ensemble/aggregator needs.)
+- **`Sampled`** — `sample_count`, `is_sample` (the *structural* sample-axis facts).
+  Reduction over the sample axis lives in `views_frames_summarize`, not here (ADR-017).
 - **`Persistable`** — `save(dir)`, `load(dir, mmap)`.
   (What I/O needs — and *only* I/O.)
 - **`Frame`** = the small composition the math layer needs: `values`, `index`,
@@ -303,7 +303,7 @@ views-frames/
 ├── README.md                      # this file (the design bible)
 ├── pyproject.toml                 # numpy core; [arrow] optional extra for io/arrow
 ├── LICENSE
-├── src/views_frames/
+├── src/views_frames/              # the pure data contract (numpy only, depends on nothing)
 │   ├── __init__.py                # EXPLICIT re-exports only (no `import *`)
 │   ├── index.py                   # SpatioTemporalIndex value object + alignment
 │   ├── spatial_level.py           # SpatialLevel enum (cm/pgm) — relocated here
@@ -311,13 +311,18 @@ views-frames/
 │   ├── _validation.py             # shared construction-time invariants (private helper)
 │   ├── feature_frame.py           # FeatureFrame              ── one concept per file
 │   ├── prediction_frame.py        # PredictionFrame
-│   ├── target_frame.py            # TargetFrame  (anticipated)
-│   ├── weight_frame.py            # WeightFrame  (anticipated)
-│   ├── mask_frame.py              # MaskFrame    (anticipated)
+│   ├── target_frame.py            # TargetFrame
+│   ├── conformance/               # the published contract suite consumers re-run (§9)
 │   └── io/                        # serialization adapters — SEPARATE from frames (SRP)
 │       ├── __init__.py
 │       ├── npz.py                 # native save()/load() (.npy + .npz)
 │       └── arrow.py               # flat columnar (.parquet) — the scalable disk format
+├── src/views_frames_summarize/    # sample-axis summarization OVER frames (ADR-017)
+│   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
+│   ├── collapse.py                # collapse(frame, reducer) — generic point fold
+│   ├── point.py                   # map_estimate (histogram MAP)
+│   ├── interval.py                # hdi, quantiles  → arrays aligned to the frame index
+│   └── aggregate.py               # conservation-correct cross-level aggregation
 └── tests/
     ├── conformance/               # the published contract suite consumers re-run (see §9)
     └── unit/
@@ -510,6 +515,13 @@ pipeline-core **C-48** listed above — two registers, same number.)
    may re-enter only if the index protocol is *deliberately* generalised to a
    non-spatiotemporal key — a v2 decision). The leaf may define the *key/index
    protocol* they conform to.
+7. **Sample-axis summarization is a sibling package, not the leaf (ADR-017, v0.2.0).**
+   `collapse`/MAP/HDI/quantiles and conservation-correct cross-level aggregation move
+   to `views_frames_summarize` (numpy-only, depends on `views_frames`, import-DAG
+   enforced). The leaf keeps only the *structural* `sample_count`/`is_sample`. This
+   de-duplicates the HDI/MAP logic faoapi and reporting each re-derive, and keeps the
+   leaf free of volatile statistics. (The older prose in §4.1/§5/§7/§9/§14 that lists
+   `collapse` as a frame method predates this and is superseded by ADR-017.)
 
 ### 13b. Still open (lower-stakes, resolve at/around first code)
 

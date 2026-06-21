@@ -30,7 +30,11 @@ class SpatioTemporalIndexed(Protocol):
 
 @runtime_checkable
 class Sampled(Protocol):
-    """What an ensemble / aggregator needs: the trailing sample axis (ADR-012)."""
+    """Structural facts about the trailing sample axis (ADR-012).
+
+    Reduction over the sample axis (mean/MAP/HDI/quantiles) is **not** here — it
+    lives in the ``views_frames_summarize`` sibling package (ADR-017).
+    """
 
     @property
     def sample_count(self) -> int:
@@ -40,10 +44,6 @@ class Sampled(Protocol):
     @property
     def is_sample(self) -> bool:
         """True iff ``sample_count > 1``."""
-        ...
-
-    def collapse(self, method: str = "arithmetic_mean") -> Sampled:
-        """Reduce the trailing sample axis, returning a new frame with ``S == 1``."""
         ...
 
 

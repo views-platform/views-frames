@@ -33,9 +33,9 @@ surface so no consumer depends on methods it does not use: a reconciler needs on
 ## 3. Responsibilities and Guarantees
 
 - `SpatioTemporalIndexed`: exposes `n_rows` and `identifiers` (integer arrays).
-- `Sampled`: exposes `sample_count`, `is_sample` (`S > 1`), and `collapse(method)`
-  which reduces the **trailing** sample axis and returns a new frame with `S == 1`
-  (ADR-012). The sample axis is always explicit (`S >= 1`).
+- `Sampled`: exposes `sample_count`, `is_sample` (`S > 1`) — the **structural** facts
+  about the trailing sample axis (always explicit, `S >= 1`; ADR-012). Reduction over
+  the sample axis is **not** here — it lives in `views_frames_summarize` (ADR-017).
 - `Persistable`: `save(directory)` and `load(directory, mmap)`; `mmap` propagates so
   peak RAM stays the working set (register C-07). Round-trips frame-declared state
   (a `__frame_state__`-style contract) so `io/` carries no per-frame schema (C-09).
