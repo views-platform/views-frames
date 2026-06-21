@@ -11,7 +11,7 @@ ADRs are divided into:
 
 1. **Constitutional ADRs (000–009)** — foundational architectural rules.
 2. **Governance ADRs (010)** — the technical risk register.
-3. **Project-Specific ADRs (011+)** — domain/implementation decisions (candidates below).
+3. **Project-Specific ADRs (011–016)** — the ratified contract decisions.
 
 ---
 
@@ -30,7 +30,7 @@ ADRs are divided into:
 
 ## Governance ADRs
 
-- **ADR-010** — [Technical Risk Register](010_technical_risk_register.md). Formalises `reports/technical_risk_register.md`. Greenfield: the register is created **empty** (prior critique/falsification findings live in `critiqus/` and can be registered later via `register-risk`).
+- **ADR-010** — [Technical Risk Register](010_technical_risk_register.md). Formalises `reports/technical_risk_register.md`, seeded 2026-06-21 with **17 concerns** (C-01..C-18) + **6 disagreements** (D-01..D-06) from the design critiques and falsification stubs.
 
 ---
 
@@ -50,17 +50,17 @@ Together, these define the invariant layer of the system.
 
 ---
 
-## Suggested Project-Specific ADRs (011+) — candidates from the resolved decisions
+## Project-Specific ADRs (011–016) — the ratified contract decisions
 
-These are *candidates* surfaced from the design bible's resolved decisions (README §13a)
-and still-open questions (§13b), not yet written as standalone ADRs:
+These ratify the six resolved decisions from the design bible (README §13a). All **Accepted**
+2026-06-21; each cites the risk-register IDs it resolves.
 
-- **ADR-011 (candidate):** Twin-unification model — ratify **Option C** (share only `SpatioTemporalIndex` + `_validation` + protocols + `io/`; relocate the frames as separate sibling classes; reject the `_BaseFrame` god-class; defer the composed header until a third frame proves it). README §5/§13a.1.
-- **ADR-012 (candidate):** Sample axis — always an explicit trailing axis (`S ≥ 1`); `is_sample` is `S > 1`; `collapse` reduces the trailing axis; one shape contract, no `ndim` branching. README §13a.2.
-- **ADR-013 (candidate):** Metadata / identifier model — typed optional-extensible header (not free-form); identifiers fixed `{time, unit}`, any future identifier optional-only (never required). README §13a.3.
-- **ADR-014 (candidate):** Cross-level alignment — leaf owns the `cross_level_align(index, mapping)` protocol; consumer injects the time-varying `priogrid→country` mapping; mapping never embedded/fetched/versioned in the leaf. README §13a.4; resolves `critiqus/critique_02.md`.
-- **ADR-015 (candidate):** `SpatialLevel` relocation — move it here as identifier vocabulary only, fixing the C-65 time-first index-tuple and the `priogrid_gid`/`priogrid_id` (gid-id) inconsistency, not porting them. README §13a.5.
-- **ADR-016 (candidate):** Conformance-floor + ownership — ship the conformance suite as a governed, installable artifact every consumer runs in CI; name the keystone's owner and the cross-repo MAJOR-bump process. README §13b.4–5.
+- **ADR-011** — [Twin-unification model (Option C)](011_twin_unification_option_c.md). Share only `SpatioTemporalIndex` + `_validation` + protocols + `io/`; relocate the frames as separate sibling classes; reject the `_BaseFrame` god-class (A); defer the composed header (B). Resolves D-03; relates to C-16, C-03.
+- **ADR-012** — [Sample axis convention](012_sample_axis_convention.md). Always an explicit trailing axis (`S ≥ 1`); `is_sample = S > 1`; `collapse` reduces the trailing axis; one shape contract. Relates to C-02, C-16, C-17.
+- **ADR-013** — [Metadata / identifier model](013_metadata_and_identifier_model.md). Typed optional-extensible header (not free-form); identifiers fixed `{time, unit}`, future identifiers optional-only. Relates to C-08, C-11, C-09, D-02.
+- **ADR-014** — [Cross-level alignment boundary](014_cross_level_alignment_boundary.md). Leaf owns the `cross_level_align(index, mapping)` protocol; consumer injects the time-varying mapping; never embedded/fetched. Resolves C-14, C-15, D-01.
+- **ADR-015** — [`SpatialLevel` relocation](015_spatiallevel_relocation.md). Identifier vocabulary only; fix the C-65 time-first index-tuple and the `priogrid_gid`/`priogrid_id` inconsistency, not port them. Resolves C-18.
+- **ADR-016** — [Conformance-floor + ownership/release](016_conformance_floor_and_ownership.md). Governed conformance-floor every consumer runs in CI; named owner + cross-repo MAJOR-bump process. Resolves C-05, C-10, C-13; carries deferred ADR-004's scope.
 
 ---
 
