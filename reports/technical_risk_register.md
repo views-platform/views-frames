@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-21                           |
-| Total Concerns    | 22                                   |
-| Open Concerns     | 12                                   |
+| Total Concerns    | 26                                   |
+| Open Concerns     | 16                                   |
 | Resolved Concerns | 10                                   |
 | Disagreements     | 6                                    |
 
@@ -197,6 +197,62 @@ The two real classes diverge structurally, most critically on sample-axis positi
 | Location | `views-pipeline-core/.../domain/spatial.py` (`_INDEX_NAMES`, `index_names` vs `entity_column`) |
 
 `SpatialLevel` is numpy-clean to relocate but carries a reversed index tuple (C-65) and a pre/post-rename `priogrid_gid`/`priogrid_id` self-inconsistency; relocating as-is ships both into the package every repo imports (critique_03 F-03, P5a). Resolution path: ADR-015 (fix-don't-port). (This entry subsumes the original C-04 "SpatialLevel slippery slope".)
+
+---
+
+### C-24: `map_estimate` equivalence test is non-portable — green in CI, red on the numpy floor
+
+| Field | Value |
+|-------|-------|
+| ID | C-24 |
+| Tier | 2 |
+| Source | expert-review / round02 (2026-06-21) |
+| Trigger | When a consumer pins `numpy==1.26.4` (inside the declared `numpy>=1.26` range) and runs `pytest` (or the published conformance suite, should a similar assertion land there), or when a CI job first runs the test suite at the floor. |
+| Location | `tests/test_summarize_scale.py:80` (`np.array_equal`), `src/views_frames_summarize/point.py` (`_batched_map`), `.github/workflows/ci.yml` (`type-floor` runs `mypy` only; `check` runs `pytest` on locked numpy 2.x), `CHANGELOG.md:35` ("bit-for-bit identical") |
+
+`test_map_estimate_matches_per_row_reference` asserts **bit-exact** (`np.array_equal`) float32 equality between the vectorized `map_estimate` and the per-row `numpy.histogram` reference. On `numpy==1.26.4` (the declared floor) the two float paths differ by ~1 ulp (max abs **1.86e-7**; `np.allclose(rtol=1e-5)` passes), so `pytest` reports **15 failed, 111 passed** — verified by direct run (`uv run --with numpy==1.26.4 pytest`). CI is green only because the `check` job runs pytest on the locked numpy 2.x (where the paths coincide) and the `type-floor` job runs `mypy` only — **no CI job runs pytest at the floor.** The library is correct (within-ulp); the *test over-asserts* and is non-portable across the package's own supported numpy range. This is the C-19 anti-pattern ("green in default env, red on the supported floor") recurring for *behaviour* instead of *types*, re-introduced by the very test added to prove the C-22 fix. The CHANGELOG's "bit-for-bit identical to v0.2.0" is an overclaim true only on numpy ≥ 2.0 (the `point.py` docstring correctly says "float32 precision" — the test is stricter than the code's documented contract). **Tier 2 (structural fragility, clear trigger):** the package's headline promise is "import our conformance suite into *your* CI," and the suite is non-portable; a consumer on the floor sees a red suite while the maintainer's green check hides it. Not Tier 1 (no silent corruption — output is within-ulp correct). Mitigation: assert selected-bin-index + centre-within-tolerance (or share one binning helper), add pytest at the floor to CI, scope the claim. See also C-19 (resolved; types), C-22 (resolved; the vectorization).
+
+---
+
+### C-25: `hdi`/`quantiles` allocate full-grid temporaries (not row-blocked) with no scale guard
+
+| Field | Value |
+|-------|-------|
+| ID | C-25 |
+| Tier | 3 |
+| Source | expert-review / round02 (2026-06-21) |
+| Trigger | When a consumer runs `hdi`/`quantiles` over the full grid (~10.5M rows, the #181 report-stage regime), or when a future change regresses interval-path memory (no guard would catch it). |
+| Location | `src/views_frames_summarize/interval.py:28,36,45`, `tests/test_summarize_scale.py:109` |
+
+`map_estimate` was deliberately row-blocked (`_ROW_BLOCK`) to bound peak memory, but its siblings were not: `hdi` does `np.sort(values, axis=-1)` (`interval.py:28`, a full-size sorted copy) then `widths = srt[...,k:] - srt[...,:s-k]` (`:36`, another ~full-size temp); `quantiles` calls `np.quantile(..., axis=-1)` (`:45`). The scale guard (`test_map_estimate_memory_is_bounded_at_grid_scale`, `:109`) covers **only** `map_estimate`. The interval temporaries are `O(rows × S)` — *data-proportional* (~2–3× input), not the `O(rows × bins)` *multiplier* C-22 killed — so the OOM risk is real but lesser; the sharper half is the **uncaught-regression** gap (no guard on the interval path). The #181 lesson was applied to one summarizer and not its family. Mitigation: apply the same blocking to `interval.py` and/or add a `tracemalloc` guard for `hdi`/`quantiles`; promote `_ROW_BLOCK` to a tunable kwarg. See also C-22 (resolved).
+
+---
+
+### C-26: `cross_level_align` injected mapping is a Python `dict` — O(N) caller allocation at grid scale
+
+| Field | Value |
+|-------|-------|
+| ID | C-26 |
+| Tier | 3 |
+| Source | expert-review / round02 (2026-06-21) |
+| Trigger | When a consumer injects a full-grid time-varying `(time, unit) → target` mapping (~10.5M keys) into `cross_level_align`/`aggregate_distributions`. |
+| Location | `src/views_frames/index.py:182,217,223`, `src/views_frames_summarize/aggregate.py` |
+
+The remap *internals* were vectorized in v0.3.0 (C-20), but the *interface* takes `Mapping[tuple[int,int],int]` (`index.py:182`) and materializes it via `np.array(list(mapping.keys()))` / `list(mapping.values())` (`:217,223`). At the full-grid time-varying regime the consumer must build, hold, and hand over a Python-object dict with ~10.5M tuple keys, and the leaf rebuilds it with O(N) Python `list(...)` — re-introducing, at the API boundary, the kind of cost the vectorization removed inside. The leaf optimized the cheap part and left the expensive part in the signature. Mitigation: offer an array-based overload (`map_keys:(M,2)`, `map_vals:(M,)`, or an injected callable) so a producer stays vectorized end-to-end — **benchmark first** (no review proved the dict is the real bottleneck at grid size). Additive (MINOR). See also C-20 (resolved), C-22 (resolved), C-15.
+
+---
+
+### C-27: conformance floor stale + bump policy unstated despite a breaking contract change
+
+| Field | Value |
+|-------|-------|
+| ID | C-27 |
+| Tier | 4 |
+| Source | expert-review / round02 (2026-06-21) |
+| Trigger | When a consumer relies on `CONFORMANCE_FLOOR` to determine which contract version its CI conforms to, after v0.3.0's breaking change to the published conformance surface. |
+| Location | `src/views_frames/conformance/__init__.py:24`, `tests/test_conformance.py:73`, `GOVERNANCE.md` |
+
+`CONFORMANCE_FLOOR` is still `"0.1.0"` (`conformance/__init__.py:24`) and `test_conformance.py:73` *pins* it there, even though v0.3.0 made a **breaking** `cross_level_align` signature change and **added** a published law (`assert_cross_level_alignment_law`). GOVERNANCE advertises a SemVer-for-contract floor, but it is unstated whether the floor tracks only the *structural frame contract* (genuinely unchanged) or the *whole published conformance surface* (changed). Tier 4 — a documentation/governance consistency gap, not a code defect; either answer is fine but should be written. Mitigation: state the floor-vs-surface policy next to `CONFORMANCE_FLOOR` and in GOVERNANCE; if it tracks the laws, bump it. See also C-10 (conformance-suite version-coordination).
 
 ---
 
