@@ -1,0 +1,91 @@
+"""The published conformance suite (ADR-016).
+
+A consumer re-runs these contract checks in CI against **its own** frame factories,
+at a single governed **conformance-floor** version, so every consumer tests the same
+contract (closes the cross-repo gap; register C-10). The checks are plain assertion
+functions (no pytest dependency) so they run anywhere.
+
+Usage in a consumer's test::
+
+    from views_frames.conformance import assert_frame_contract
+    assert_frame_contract(my_adapter_output())
+
+The floor is governed in ``GOVERNANCE.md``; ``CONFORMANCE_FLOOR`` records the version
+this suite belongs to.
+"""
+
+from __future__ import annotations
+
+import tempfile
+from typing import Any
+
+import numpy as np
+
+CONFORMANCE_FLOOR = "0.1.0"
+
+__all__ = ["CONFORMANCE_FLOOR", "assert_frame_contract", "assert_index_alignment_laws"]
+
+
+def assert_frame_contract(frame: Any) -> None:
+    """Assert ``frame`` satisfies the views-frames data contract.
+
+    Checks the structural invariants (float32 values, no object dtype, an explicit
+    trailing axis, complete integer identifiers of length ``n_rows``), the save/load
+    round-trip, and — for sampled frames — that ``collapse`` reduces the trailing
+    axis to one sample while preserving the rows.
+
+    Raises:
+        AssertionError: any part of the contract is violated.
+    """
+    values = frame.values
+    assert isinstance(values, np.ndarray), "values must be a numpy array"
+    assert values.dtype == np.float32, f"values must be float32, got {values.dtype}"
+    assert values.dtype != np.dtype(object), "object dtype is banned (list-in-cell)"
+    assert values.ndim >= 2, "values must have an explicit trailing sample axis"
+    assert values.shape[0] == frame.n_rows, "values rows must equal n_rows"
+
+    ids = frame.identifiers
+    for key in ("time", "unit"):
+        assert key in ids, f"missing required identifier '{key}'"
+        arr = ids[key]
+        assert np.issubdtype(arr.dtype, np.integer), f"'{key}' must be integer"
+        assert arr.shape == (frame.n_rows,), f"'{key}' must be length n_rows"
+
+    _assert_roundtrip(frame)
+
+    if hasattr(frame, "collapse") and getattr(frame, "is_sample", False):
+        collapsed = frame.collapse()
+        assert type(collapsed) is type(frame), "collapse must return the same type"
+        assert collapsed.values.shape[-1] == 1, "collapse must reduce S to 1"
+        assert collapsed.n_rows == frame.n_rows, "collapse must preserve rows"
+        assert collapsed.is_sample is False, "collapsed frame is not a sample"
+
+
+def _assert_roundtrip(frame: Any) -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        frame.save(directory)
+        loaded = type(frame).load(directory)
+        assert np.array_equal(loaded.values, frame.values), "save/load changed values"
+        for key, arr in frame.identifiers.items():
+            assert np.array_equal(loaded.identifiers[key], arr), (
+                f"save/load changed identifier '{key}'"
+            )
+
+
+def assert_index_alignment_laws(index_a: Any, index_b: Any) -> None:
+    """Assert the same-level alignment laws hold for two indices at the same level.
+
+    - intersection is commutative;
+    - an index is a superset of itself (reflexive);
+    - ``searchsorted`` against itself is an identity round-trip.
+
+    Raises:
+        AssertionError: a law is violated.
+    """
+    assert index_a.intersect(index_b) == index_b.intersect(index_a), (
+        "intersect must be commutative"
+    )
+    assert index_a.is_superset_of(index_a) is True, "is_superset_of must be reflexive"
+    pos = index_a.searchsorted(index_a)
+    assert np.array_equal(index_a.time[pos], index_a.time), "searchsorted self-identity"
+    assert np.array_equal(index_a.unit[pos], index_a.unit), "searchsorted self-identity"

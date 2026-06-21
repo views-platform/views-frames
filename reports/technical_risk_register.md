@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-21                           |
 | Total Concerns    | 17                                   |
-| Open Concerns     | 17                                   |
-| Resolved Concerns | 0                                    |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 5                                    |
 | Disagreements     | 6                                    |
 
 ---
@@ -102,20 +102,6 @@ The package is load-bearing for ~12 register items across 3+ repos yet specifies
 
 ---
 
-### C-07: copy-vs-view semantics unspecified vs the scaling thesis
-
-| Field | Value |
-|-------|-------|
-| ID | C-07 |
-| Tier | 3 |
-| Source | falsification-audit (2026-06-20) |
-| Trigger | When implementing `select()`/`with_metadata()` on the multi-GB #181-scale tensors, verify structural ops return a numpy view (zero-copy) and `mmap` propagates — a naive copy reintroduces the §7 blow-up. |
-| Location | `README.md` §3.3 vs §7; `tests/test_falsification_immutability_copy.py` |
-
-Immutability ("operations return new frames") without a copy/view contract can re-introduce the multi-GB copy the package exists to kill (critique_01 §3.1, critique_03 P4). Resolution path: README §3.3 copy-vs-view subsection (added 2026-06-21); pin in the conformance suite (CIC for the frames, D2).
-
----
-
 ### C-08: identifier-set widening is a platform-wide MAJOR break
 
 | Field | Value |
@@ -130,20 +116,6 @@ The most likely future change (origin/step/provenance axes) is also the most exp
 
 ---
 
-### C-09: save/load sidecar asymmetry couples `io/` to per-frame schema
-
-| Field | Value |
-|-------|-------|
-| ID | C-09 |
-| Tier | 3 |
-| Source | expert-review (2026-06-20) |
-| Trigger | When implementing `io/npz.py`, decide whether each frame exposes a `__frame_state__`-style contract the generic saver round-trips, or `io/` carries per-frame special cases (the latter recreates a mini `handlers.py`). |
-| Location | `README.md` §6, §7; `views-datafactory/.../feature_frame.py` (sidecars) |
-
-`FeatureFrame.save` writes `feature_names.json` + `metadata.json` sidecars; `PredictionFrame.save` does not — so `io/` must handle different on-disk footprints (critique_01 §3.3). Resolution path: a `Persistable.__frame_state__` round-trip contract (CIC D1).
-
----
-
 ### C-10: conformance-suite version-coordination paradox
 
 | Field | Value |
@@ -155,20 +127,6 @@ The most likely future change (origin/step/provenance axes) is also the most exp
 | Location | `README.md` §9, §13b.4 |
 
 The conformance suite ships with the leaf and consumers pin different versions, so it tests "my adapter vs my pin," not "all consumers agree" (critique_01 §3.4). Resolution path: ADR-016 (conformance-floor policy). See also C-05.
-
----
-
-### C-11: the leaf guarantees structural, not temporal, validity
-
-| Field | Value |
-|-------|-------|
-| ID | C-11 |
-| Tier | 3 |
-| Source | falsification-audit (2026-06-20) |
-| Trigger | When a consumer relies on the frame's "valid identifiers" guarantee for month_id range/epoch/monotonicity, confirm that check lives in a producer adapter — the leaf validates structure only. |
-| Location | `README.md` §3.4/§3.5 |
-
-`time` is an opaque integer, so the leaf can validate integer/length-N/no-NaN but not temporal sanity (critique_01 §3.5). A consumer assuming temporal validity has a silent gap. Resolution path: README §3.5 "structural, not temporal" (added 2026-06-21); restate in the index CIC (D1).
 
 ---
 
@@ -200,20 +158,6 @@ The leaf's breadth is both its value and a concentration risk (critique_01 §3.7
 
 ---
 
-### C-14: cross-level cm↔pgm alignment needs domain data the leaf forbids
-
-| Field | Value |
-|-------|-------|
-| ID | C-14 |
-| Tier | 2 |
-| Source | falsification-audit (2026-06-20) |
-| Trigger | When implementing `cross_level_align` on `SpatioTemporalIndex`, confirm the `priogrid→country` mapping is a consumer-injected parameter — never embedded or viewser-fetched in the leaf. |
-| Location | `README.md` §4.3/§3/§11/§8; `views-reporting/metadata/entity_metadata.py:10,45-75,147`, `views-reporting/reconciliation/reconciliation.py:15,74,96` |
-
-The cm↔pgm join requires an external, viewser-sourced, **time-varying** `priogrid→country` mapping (a cell's country assignment varies by month via `previous_country_id`); a numpy-only domain-free leaf cannot host it without breaking maximal stability (critique_02, 5-hard FALSIFIED). Resolution path: ADR-014 — leaf owns `cross_level_align(index, mapping)`, consumer injects the mapping. See also D-01, C-15.
-
----
-
 ### C-15: cross-level alignment specified nowhere / not tracked
 
 | Field | Value |
@@ -239,20 +183,6 @@ Both consumers require cross-level alignment yet it was motivated-only, not spec
 | Location | `views-pipeline-core/.../data/prediction_frame.py` (166 LOC), `views-datafactory/src/datafactory_adapters/feature_frame.py` (220 LOC); `README.md` §1, §4.1 |
 
 The two real classes diverge structurally, most critically on sample-axis position (PF axis-1-always vs FF axis-2-optional) (critique_03 P1). Resolution path: ADR-011 (Option C) + ADR-012 (sample axis) + README §1 corrected. See also C-02, C-03.
-
----
-
-### C-17: "move `PredictionFrame` verbatim" imports pandas into the numpy-only core
-
-| Field | Value |
-|-------|-------|
-| ID | C-17 |
-| Tier | 2 |
-| Source | falsification-audit (2026-06-20) |
-| Trigger | When relocating `PredictionFrame`, rewrite its identifier validation numpy-only — copying it verbatim imports pandas (`pd.isna`), violating the leaf's §3.1 no-pandas constraint. |
-| Location | `views-pipeline-core/.../data/prediction_frame.py:5,68`; `README.md` §3.1 vs §10.2 |
-
-The real `PredictionFrame` imports pandas and uses `pd.isna` for its NaN-check; a verbatim move mislabels a behaviour-changing rewrite as a no-op (critique_03 F-01). Resolution path: README §10.2 reworded to "not verbatim"; ADR-012; the PredictionFrame CIC (D2). See also C-02, C-16.
 
 ---
 
@@ -340,7 +270,57 @@ The real `PredictionFrame` imports pandas and uses `pd.isna` for its NaN-check; 
 
 ## Resolved Concerns
 
-_None._
+> Resolved 2026-06-21 by the v0.1.0 implementation (Epic 2, PRs #31–#35).
+
+### C-07: copy-vs-view semantics unspecified vs the scaling thesis — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-07 |
+| Resolved | 2026-06-21 (v0.1.0) |
+| Resolution | Frames are immutable; `with_metadata` returns a new frame **sharing** the `values` buffer (`np.shares_memory`), and only `collapse` allocates — the reduced array. `mmap` propagates via `io/npz`. Pinned in `tests/test_properties.py` + the conformance suite. |
+
+---
+
+### C-09: save/load sidecar asymmetry couples `io/` to per-frame schema — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-09 |
+| Resolved | 2026-06-21 (v0.1.0) |
+| Resolution | `io/npz` operates on a generic frame **state dict** (values + identifiers + a JSON header carrying `feature_names`/`metadata`); the I/O layer carries no per-frame schema. `io/arrow` follows the same state contract. |
+
+---
+
+### C-11: the leaf guarantees structural, not temporal, validity — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-11 |
+| Resolved | 2026-06-21 (v0.1.0) |
+| Resolution | `_validation` enforces integer dtype / length-N / completeness only; `time` is an opaque integer (no epoch/range/monotonicity check). Documented in the module + the `SpatioTemporalIndex` CIC. |
+
+---
+
+### C-14: cross-level cm↔pgm alignment needs domain data the leaf forbids — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-14 |
+| Resolved | 2026-06-21 (v0.1.0) |
+| Resolution | `SpatioTemporalIndex.cross_level_align(mapping, target_level)` requires a **consumer-injected** mapping and raises without one; the leaf embeds/fetches no mapping (asserted in tests). Same-level alignment stays pure-numpy. |
+
+---
+
+### C-17: "move `PredictionFrame` verbatim" imports pandas into the numpy-only core — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-17 |
+| Resolved | 2026-06-21 (v0.1.0) |
+| Resolution | `PredictionFrame` was relocated with numpy-only validation (the integer-dtype check replaces `pd.isna`); no pandas import. Guarded by `tests/test_import_enforcement.py`. |
+
+---
 
 ---
 
