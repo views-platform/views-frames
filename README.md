@@ -4,9 +4,11 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** scaffolding. This README is the design bible. No code yet — it is
-> written so the package can be built *against* it. Read it fully before adding a
-> single class.
+> **Status:** scaffolding, contract decided. This README is the design bible. No
+> code yet — it is written so the package can be built *against* it. The blocking
+> design decisions (twin-unification model, sample axis convention, metadata /
+> identifier model, and the alignment logic/data boundary) are **resolved** — see
+> §13a. Read it fully before adding a single class.
 
 ---
 
@@ -36,10 +38,14 @@ register):
 - **Duplicated, diverging twins.** `PredictionFrame`
   (`views-pipeline-core/views_pipeline_core/data/prediction_frame.py`) and
   `FeatureFrame`
-  (`views-datafactory/src/datafactory_adapters/feature_frame.py`) are near-1:1
-  (`values: ndarray` + `identifiers: {time, unit}` + `metadata` + `save/load`)
-  but have two owners, two release cadences, and **no shared base**. They will
-  drift. (REP violation — reused together, released apart.)
+  (`views-datafactory/src/datafactory_adapters/feature_frame.py`) share a core
+  (`values: ndarray` + `identifiers: {time, unit}` + `save/load`) but are **not
+  near-1:1**: they diverge on ≥6 axes — sample-axis position, `feature_names` /
+  `metadata`, identifier NaN-check, `collapse` / `mmap`, save footprint, and
+  `PredictionFrame` still imports pandas. They have two owners, two release
+  cadences, and **no shared base**. They will drift. (REP violation — reused
+  together, released apart.) The fix unifies the *shared index + protocols*, not
+  the classes — see §5 (Option C) and §13a.
 - **Circular package dependency.** views-pipeline-core ↔ views-reporting form a
   cycle (one direction declared, the other hidden behind `try/except ImportError`).
   See views-reporting issue #113. A neutral leaf package both sides route their
@@ -142,13 +148,22 @@ makes it safe to depend on from everywhere (SDP).
 3. **Immutable value objects.** A frame is validated at construction and then
    treated as read-only. Operations (`collapse`, `select`, `with_metadata`)
    **return new frames**; they never mutate in place. (Directly forbids the
-   C-184 cross-repo-mutation anti-pattern.)
+   C-184 cross-repo-mutation anti-pattern.) **Copy-vs-view:** structural and
+   metadata-only operations (`with_metadata`, contiguous `select`) return frames
+   that **share** the underlying `values` buffer (numpy view / zero-copy), and a
+   `mmap`-backed frame stays `mmap`-backed — a new frame must never copy a
+   multi-GB `values` buffer (that would reintroduce the §7 blow-up). Only a
+   reducing op (`collapse`) allocates, and only the reduced array. Pinned in the
+   conformance suite.
 4. **Fail loud at construction.** All invariants are checked in `__init__` and
    raise `ValueError`/`TypeError` immediately — never return a half-valid object,
    never log-and-continue. (Matches the platform's "Fail Loud and Proud" rule.)
 5. **dtype discipline.** `values` are `float32` (contiguous); identifier arrays
    are integer dtype; **no `object` dtype, ever** (object/list-in-cell is the
-   thing that doesn't scale). Identifiers are complete (no NaN).
+   thing that doesn't scale). Identifiers are complete (no NaN). The guarantee is
+   **structural, not temporal**: the leaf validates integer / length-N / no-NaN,
+   but `time` is an **opaque integer** — month_id epoch, range, and monotonicity
+   are a producer-adapter concern, never the leaf's (the leaf is epoch-agnostic).
 6. **One concept per file.** See §6. Multiple classes in one file is the
    exception, justified only by genuine tight coupling.
 
@@ -176,6 +191,14 @@ Existing `PredictionFrame` contract (preserve on migration): `float32`;
 `load(dir, mmap=False)`. Existing `FeatureFrame` adds `feature_names`,
 `metadata`, `n_features`, `is_sample`.
 
+**Sample axis convention (decided, §13a).** The sample axis **S** is **always an
+explicit trailing axis** (`S ≥ 1`): `PredictionFrame` is `(N, S)`, `FeatureFrame`
+is `(N, F, S)`, `TargetFrame` is `(N, 1)`. `is_sample` is `S > 1`; `collapse`
+reduces the trailing axis. One shape contract across the family — no `ndim`
+branching. A corollary: relocating `PredictionFrame` is a **numpy-only rewrite of
+its identifier validation, not a verbatim move** — today it imports pandas and
+uses `pd.isna` for the NaN-check (§10.2).
+
 ### 4.2 Anticipated (design the base so these drop in via OCP, don't build all now)
 
 | Frame | Array shape | Why we already know we need it | Priority |
@@ -198,18 +221,38 @@ genuinely reused core. Build this once:
 
 - Fields: `time: int[N]`, `unit: int[N]`, `level: SpatialLevel` (cm/pgm), all
   numpy, integer dtype, no NaN, length N.
-- Pure-numpy operations (no pandas): `intersect`, `align`/`reindex`,
-  `is_superset_of`, `argsort`, `searchsorted`-based joins. **This is what gives
-  arrays the label-alignment that today drags pandas back in** (cm↔pgm
-  reconciliation, pred↔actual join, partial-overlap evaluation).
+- **Same-level operations (owned here, pure-numpy, no pandas):** `intersect`,
+  `align`/`reindex`, `is_superset_of`, `argsort`, `searchsorted`-based joins over
+  `(time, unit)` **at a single `SpatialLevel`**. **This is the label-alignment
+  that today drags pandas back in** — pred↔actual join, partial-overlap
+  evaluation, same-level reindex. This alignment logic lives in the leaf
+  unconditionally.
+- **Cross-level operations (`cross_level_align`) — protocol here, data injected.**
+  The cm↔pgm **cross-level join** (country↔grid) is **not** a same-axis set op; it
+  is a one-to-many lookup against a `priogrid→country` mapping that is **injected**
+  by the consumer and **not embedded in the leaf** — the mapping is external,
+  viewser-sourced, and **time-varying** (a cell's country assignment changes by
+  month). The leaf owns only the operation signature `cross_level_align(index,
+  mapping)`. The alignment logic stays in the leaf; the alignment data (the
+  mapping) is supplied by the consumer (or a separate reference package the leaf
+  does not depend on), never fetched or versioned here — embedding versioned domain
+  data would make the leaf change for data reasons and break §8 maximal stability.
+  This resolves the falsified "domain-free cross-level" claim
+  (`critiqus/critique_02.md`); faoapi's producer-materialised metadata is the
+  existence proof (`perspectives/from_views-faoapi_perspective.md` §8.3).
 - `SpatialLevel` (currently `views-pipeline-core/domain/spatial.py`) should move
   here — it is a tiny, stable value object that *is* part of the identifier
   vocabulary (it defines `index_names` and `entity_column`: cm→`country_id`,
-  pgm→`priogrid_id`). Owning it here ends the bare-string `"cm"`/`"pgm"` sprawl
-  (C-38) and the `_ViewsDataset` private `_entity_id` reads (C-135).
+  pgm→`priogrid_id`). It carries the *labels*, never the cross-level *mapping*.
+  Owning it here ends the bare-string `"cm"`/`"pgm"` sprawl (C-38) and the
+  `_ViewsDataset` private `_entity_id` reads (C-135). Relocate it with the C-65
+  reversed index-tuple (must be time-first `(month_id, entity)`) and the
+  `priogrid_gid`/`priogrid_id` inconsistency **fixed, not ported**.
 
-> Design heuristic: if two consumers disagree about how `(time, unit)` align,
-> that disagreement belongs **here**, resolved once, not re-implemented per repo.
+> Design heuristic: if two consumers disagree about how `(time, unit)` align **at
+> the same level**, that disagreement belongs **here**, resolved once. If they
+> disagree about *which country a cell belongs to*, that is domain reference data
+> — it belongs to the consumer / producer, never the leaf.
 
 ---
 
@@ -242,6 +285,14 @@ what a `CMDataset`-style inheritance tree gets wrong. The cm/pgm distinction is 
 > `FeatureFrame`/`PredictionFrame` extend and that accretes everyone's methods.
 > That recreates `_ViewsDataset` (C-36). Keep the base a **Protocol**; share code
 > by composition.
+>
+> **Unification model — Option C (decided, §13a).** v1 unifies **only** the shared
+> `SpatioTemporalIndex` + `_validation` + protocols + `io/`; the frame classes are
+> relocated as **separate sibling classes**, not merged. This captures the real
+> reused core (the index) at the lowest churn and zero god-class risk. A composed,
+> shared metadata header across frames (Option B) is a later upgrade *only if* a
+> third frame proves the header is genuinely reused. A shared concrete base
+> (Option A) is **rejected in writing**.
 
 ---
 
@@ -352,9 +403,14 @@ Because everyone depends on this, breakage is expensive — version it as a
 
 1. **Stand up the package** with `SpatioTemporalIndex`, `protocols.py`,
    `_validation.py`, and `io/npz.py`.
-2. **Move `PredictionFrame` here verbatim** (preserve its contract from §4.1),
-   re-export from `views-pipeline-core/data/prediction_frame.py` as a thin shim
-   (`from views_frames import PredictionFrame`) so existing imports keep working.
+2. **Relocate `PredictionFrame` here (contract-preserving, but _not_ verbatim).**
+   `PredictionFrame` today **imports pandas** and uses `pd.isna` for its identifier
+   NaN-check (`prediction_frame.py:5,68`); §3.1 forbids pandas in the core, so the
+   move is **not a verbatim copy — its identifier validation is rewritten
+   numpy-only** (the observable contract from §4.1 is preserved; the implementation
+   is not). Re-export from `views-pipeline-core/data/prediction_frame.py` as a thin
+   shim (`from views_frames import PredictionFrame`) so existing imports keep
+   working.
 3. **Unify `FeatureFrame`:** move datafactory's implementation here; datafactory
    re-exports a shim. The twins now share `SpatioTemporalIndex` + validation.
 4. **Add `TargetFrame`** and migrate the evaluation adapter
@@ -418,27 +474,58 @@ pipeline-core **C-48** listed above — two registers, same number.)
 
 ---
 
-## 13. Open decisions (resolve before/at first code)
+## 13. Design decisions
+
+### 13a. Resolved (ratified 2026-06-21 — these were the blocking pre-code decisions)
+
+1. **Twin-unification model — Option C.** Unify only the shared
+   `SpatioTemporalIndex` + `_validation` + protocols + `io/`; relocate
+   `FeatureFrame`/`PredictionFrame` as **separate sibling classes**. Reject the
+   shared `_BaseFrame` (Option A); defer the composed header (Option B) until a
+   third frame proves it. See §5.
+2. **Sample axis — decided: always an explicit trailing axis (`S ≥ 1`).**
+   `PredictionFrame (N, S)`, `FeatureFrame (N, F, S)`, `TargetFrame (N, 1)`;
+   `is_sample` is `S > 1`; `collapse` reduces the trailing axis. One shape
+   contract, no `ndim` branching. See §4.1.
+3. **Metadata / identifier model — typed header + fixed identifiers.** `metadata`
+   is a **typed, optional-extensible header** (not a free-form dict — that re-opens
+   C-48 store-side and cannot be validated), carrying provenance (model, run_type,
+   timestamp, seed) and `feature_names`. Identifiers stay a fixed required
+   `{time, unit}` for v1; any future identifier (`step`, `origin`, `scenario`) is
+   added as **optional only** (MINOR), never required (a required identifier is the
+   §8 MAJOR break). This is the typed home for the C-48 / #178 run-identity cure.
+4. **Cross-level (cm↔pgm) alignment — leaf owns the protocol, consumer injects the
+   mapping.** Same-level alignment lives in the leaf; the cross-level country↔grid
+   join needs a viewser-sourced, time-varying `priogrid→country` **mapping** that
+   is **injected by the consumer and never embedded in the leaf**. The leaf owns
+   only `cross_level_align(index, mapping)`. See §4.3; resolves
+   `critiqus/critique_02.md`.
+5. **`SpatialLevel` lives here, as identifier vocabulary only** — relocated with
+   the C-65 reversed index-tuple and the `priogrid_gid`/`priogrid_id`
+   inconsistency **fixed, not ported** (§4.3). It carries the level labels, never
+   the cross-level mapping or any unit values/ranges.
+6. **`MetricFrame` / `EvaluationFrame` — out of the leaf.** `EvaluationFrame` stays
+   in views-evaluation; `MetricFrame` is keyed `(target, step, unit)` and does not
+   satisfy the §4 frame definition, so it stays **out of (the) leaf** for v1 (it
+   may re-enter only if the index protocol is *deliberately* generalised to a
+   non-spatiotemporal key — a v2 decision). The leaf may define the *key/index
+   protocol* they conform to.
+
+### 13b. Still open (lower-stakes, resolve at/around first code)
 
 1. **Separate repo (this) vs. interim `views_pipeline_core/frames/` sub-package.**
-   Separate repo is the principled SDP/SAP/REP end state and the only thing that
-   de-duplicates datafactory's `FeatureFrame`; the sub-package is a lower-overhead
-   stopgap that leaves the duplication and the stability problem. This scaffold
-   assumes the separate repo.
+   This scaffold assumes the separate repo (the SDP/SAP/REP end state, and the only
+   thing that de-duplicates datafactory's `FeatureFrame`).
 2. **`TargetFrame` vs `ActualsFrame` naming** (and whether targets/actuals are one
    type with a role flag).
-3. **Does `SpatialLevel` move here or get imported from a shared `views-domain`?**
-   (Recommendation: here — it is identifier vocabulary.)
-4. **Minimum numpy version / typed-array (nptyping vs bare) policy.**
-5. **`metadata` schema:** free-form dict vs. a typed, validated header (provenance:
-   model name, run_type, timestamp — note the #178 provenance work suggests a
-   stamped run identity belongs in frame metadata). **From views-reporting this is
-   the highest-value open decision:** a stamped, stable run/eval identity in frame
-   metadata is the consumer-side cure for its C-48 (select *the* evaluation run,
-   not the latest-created) and C-34 (reports carry no provenance). See
-   `perspectives/from_views-reporting_perspective.md` §8.
-6. **Sample-axis convention:** is `S=1` an explicit axis or absent? (Affects
-   `collapse`, `is_sample`, and every shape check — decide once.)
+3. **Minimum numpy version / typed-array (nptyping vs bare) policy.**
+4. **Conformance-suite packaging** — it must ship as an importable artifact
+   (installable subpackage / pytest plugin) with a governed **conformance-floor**
+   version every consumer runs in CI regardless of its runtime pin (closes C-30
+   without the version-coordination paradox).
+5. **Owner + release cadence** — name the keystone's owner and the process for a
+   MAJOR bump that must land across N repos at once (governance is otherwise the
+   largest unaddressed cost for a leaf this many repos import).
 
 ---
 
