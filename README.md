@@ -4,7 +4,7 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **implemented — v0.2.0.** This README is the design bible; the
+> **Status:** **implemented — v0.3.0.** This README is the design bible; the
 > contract it specifies is realised in `src/views_frames/` (index, frames, io,
 > conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles + cross-level
@@ -29,6 +29,39 @@ by everyone, depending on nothing internal. It is the keystone that
 de-duplicates the frames, breaks cross-repo dependency cycles, removes pandas
 from internal transport, and gives arrays the label-alignment that today forces
 pandas back into the hot path.
+
+---
+
+## 0a. Quickstart
+
+Build a frame, summarize its sample axis, serialize it, and run the published
+contract check. The full runnable script is [`examples/quickstart.py`](examples/quickstart.py)
+(`uv run examples/quickstart.py`):
+
+```python
+import numpy as np
+from views_frames import PredictionFrame, SpatialLevel, SpatioTemporalIndex
+from views_frames.conformance import assert_frame_contract
+from views_frames_summarize import collapse, hdi, map_estimate
+
+index = SpatioTemporalIndex(
+    time=np.array([1, 1, 2], dtype=np.int64),
+    unit=np.array([10, 11, 10], dtype=np.int32),
+    level=SpatialLevel.PGM,
+)
+pf = PredictionFrame(np.random.default_rng(0).gamma(2.0, 1.0, (3, 500)).astype("f4"), index)
+
+mean = collapse(pf, np.mean)      # (N, S) -> (N, 1) frame, statistic injected
+mode = map_estimate(pf)           # per-row MAP -> (N, 1) frame
+band = hdi(pf, mass=0.9)          # per-row 90% HDI -> (N, 2) index-aligned array
+
+pf.save("/tmp/pf"); reloaded = PredictionFrame.load("/tmp/pf")
+assert_frame_contract(pf)         # the check a consumer runs in its own CI
+```
+
+The leaf (`views_frames`) owns the immutable array+identifier contract and
+alignment; the sibling (`views_frames_summarize`) owns the sample-axis statistics.
+Both are numpy-only.
 
 ---
 
