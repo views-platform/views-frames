@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "views-frames"
+version = "0.1.0"
+description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "numpy>=1.26,<3",
+]
+
+# Optional serialization extra — pyarrow is allowed ONLY behind io/ (README §3.1).
+[project.optional-dependencies]
+arrow = ["pyarrow>=14,<20"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/views_frames"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# The falsification stubs assert against the README via long, literal regexes
+# whose lines cannot wrap without changing their semantics.
+"tests/test_falsification_*.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
