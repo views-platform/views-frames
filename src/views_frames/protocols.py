@@ -7,6 +7,7 @@ depends on methods it does not use.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
@@ -61,12 +62,12 @@ class Sampled(Protocol):
 class Persistable(Protocol):
     """What I/O needs — and only I/O."""
 
-    def save(self, directory: str) -> None:
+    def save(self, directory: Path | str) -> None:
         """Serialize this frame to ``directory``."""
         ...
 
     @classmethod
-    def load(cls, directory: str, mmap: bool = False) -> Persistable:
+    def load(cls, directory: Path | str, mmap: bool = False) -> Persistable:
         """Deserialize a frame from ``directory``; ``mmap`` propagates (C-07)."""
         ...
 

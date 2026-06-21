@@ -70,4 +70,4 @@ def test_cross_level_alignment_law_is_time_varying():
 
 
 def test_conformance_floor_is_published():
-    assert CONFORMANCE_FLOOR == "0.1.0"
+    assert CONFORMANCE_FLOOR == "1.0.0"
