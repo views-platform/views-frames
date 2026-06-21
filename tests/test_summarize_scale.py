@@ -37,9 +37,11 @@ def _ref_map(values: NDArray[np.float32], bins: int, zmt: float) -> NDArray[np.f
     def m1d(s: NDArray[np.float32]) -> float:
         if float(np.mean(np.isclose(s, 0.0, atol=1e-8))) >= zmt:
             return 0.0
-        hist, edges = np.histogram(s, bins=bins, density=True)
+        # integer-counts argmax (lowest-index tie-break), matching production's
+        # portable tie-break — not np.histogram(density=True)'s width-based one.
+        counts, edges = np.histogram(s, bins=bins)
         centers = (edges[:-1] + edges[1:]) / 2.0
-        return float(centers[int(np.argmax(hist))])
+        return float(centers[int(np.argmax(counts))])
 
     return np.asarray(
         np.apply_along_axis(m1d, -1, values), dtype=np.float32
@@ -75,9 +77,13 @@ def test_map_estimate_matches_per_row_reference(seed, shape):
     )
     got = map_estimate(pf, bins=37)
     ref = _ref_map(values, bins=37, zmt=0.3)
-    # The batched histogram bins in the same dtype as the per-row reference, so it
-    # selects the same densest bin and reports the same centre — bit-for-bit.
-    assert np.array_equal(got.values[..., 0], ref)
+    # map_estimate selects the same densest bin as the per-row np.histogram
+    # reference, and the bin centre matches to float32 precision. Bit-exact
+    # equality is NOT portable across the supported numpy range — on the numpy
+    # 1.26 floor the vectorized and scalar `linspace` paths differ by ~1 ulp
+    # (register C-24). Assert to float32 tolerance: a genuine bin divergence
+    # would differ by ~a bin width and still fail here.
+    np.testing.assert_allclose(got.values[..., 0], ref, rtol=1e-5, atol=1e-6)
 
 
 def test_map_estimate_degenerate_rows_match_reference():
@@ -86,7 +92,7 @@ def test_map_estimate_degenerate_rows_match_reference():
     pf = PredictionFrame(values, _index(3))
     got = map_estimate(pf, bins=100)
     ref = _ref_map(values, bins=100, zmt=0.3)
-    assert np.array_equal(got.values[..., 0], ref)
+    np.testing.assert_allclose(got.values[..., 0], ref, rtol=1e-5, atol=1e-6)
 
 
 @pytest.mark.parametrize("seed", [0, 3, 9])
