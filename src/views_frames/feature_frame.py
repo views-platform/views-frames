@@ -14,9 +14,9 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from views_frames import _serialize
 from views_frames._validation import coerce_values, validate_values
 from views_frames.index import SpatioTemporalIndex
+from views_frames.io import npz
 from views_frames.metadata import FrameMetadata
 from views_frames.spatial_level import SpatialLevel
 
@@ -136,7 +136,7 @@ class FeatureFrame:
 
     def save(self, directory: Path | str) -> None:
         """Serialize to ``directory`` (incl. ``feature_names`` + metadata header)."""
-        _serialize.save_state(
+        npz.save(
             directory,
             values=self._values,
             time=self._index.time,
@@ -149,7 +149,7 @@ class FeatureFrame:
     @classmethod
     def load(cls, directory: Path | str, mmap: bool = False) -> FeatureFrame:
         """Deserialize a frame from ``directory``; ``mmap`` propagates."""
-        state = _serialize.load_state(directory, mmap=mmap)
+        state = npz.load(directory, mmap=mmap)
         index = SpatioTemporalIndex(
             time=state["time"],
             unit=state["unit"],
