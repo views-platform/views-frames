@@ -9,21 +9,33 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from views_frames import FeatureFrame, PredictionFrame, TargetFrame
+from views_frames import (
+    FeatureFrame,
+    PredictionFrame,
+    SpatioTemporalIndex,
+    TargetFrame,
+)
 
 AnyFrame = PredictionFrame | FeatureFrame | TargetFrame
 
 
-def rebuild(frame: AnyFrame, values: NDArray[np.float32]) -> AnyFrame:
+def rebuild(
+    frame: AnyFrame,
+    values: NDArray[np.float32],
+    index: SpatioTemporalIndex | None = None,
+) -> AnyFrame:
     """Return a frame of the same type as ``frame`` with new ``values``.
 
-    The index, metadata, and (for `FeatureFrame`) `feature_names` are preserved;
-    the new values are validated by the frame's constructor.
+    The metadata (and, for `FeatureFrame`, `feature_names`) is preserved. The index
+    defaults to the input frame's; pass ``index`` to rebuild at a different index
+    (e.g. after cross-level aggregation). The new values are validated by the
+    frame's constructor.
     """
+    idx = frame.index if index is None else index
     if isinstance(frame, FeatureFrame):
-        return FeatureFrame(values, frame.index, frame.feature_names, frame.metadata)
+        return FeatureFrame(values, idx, frame.feature_names, frame.metadata)
     if isinstance(frame, PredictionFrame):
-        return PredictionFrame(values, frame.index, frame.metadata)
+        return PredictionFrame(values, idx, frame.metadata)
     if isinstance(frame, TargetFrame):
-        return TargetFrame(values, frame.index, frame.metadata)
+        return TargetFrame(values, idx, frame.metadata)
     raise TypeError(f"unsupported frame type: {type(frame).__name__}")

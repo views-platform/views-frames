@@ -11,8 +11,15 @@ arrays **aligned to the input frame's index** (the caller holds the index).
 
 from __future__ import annotations
 
+from views_frames_summarize.aggregate import aggregate_distributions
 from views_frames_summarize.collapse import collapse
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
 
-__all__ = ["collapse", "hdi", "map_estimate", "quantiles"]
+__all__ = [
+    "aggregate_distributions",
+    "collapse",
+    "hdi",
+    "map_estimate",
+    "quantiles",
+]
