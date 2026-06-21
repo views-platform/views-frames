@@ -332,3 +332,6 @@ The two real classes diverge structurally, most critically on sample-axis positi
 - **Header counts:** Manually maintained — update whenever a concern is added or resolved.
 - **Note:** Future concerns will often reference locations in external repos (`views-pipeline-core`, `views-datafactory`, `views-faoapi`, `views-reporting`) because this leaf de-duplicates a data contract not yet relocated. Confirm those locations when the package is stood up.
 - **Governed by:** ADR-010 (`docs/ADRs/010_technical_risk_register.md`).
+- **Note (v0.2.0, ADR-017):** sample-axis reduction (`collapse`/MAP/HDI/quantiles) was
+  removed from the leaf into the `views_frames_summarize` sibling package, eliminating
+  the statistics-menu scope leak; the leaf is now a pure data contract.
