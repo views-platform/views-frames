@@ -18,6 +18,7 @@ from views_frames import (
 )
 from views_frames.conformance import (
     CONFORMANCE_FLOOR,
+    assert_cross_level_alignment_law,
     assert_frame_contract,
     assert_index_alignment_laws,
 )
@@ -55,6 +56,17 @@ def test_index_alignment_laws():
         SpatialLevel.PGM,
     )
     assert_index_alignment_laws(a, b)
+
+
+def test_cross_level_alignment_law_is_time_varying():
+    # the same pgm cell (unit 10) maps to different countries across two months.
+    idx = SpatioTemporalIndex(
+        np.array([1, 2], dtype=np.int64),
+        np.array([10, 10], dtype=np.int32),
+        SpatialLevel.PGM,
+    )
+    mapping = {(1, 10): 100, (2, 10): 200}
+    assert_cross_level_alignment_law(idx, mapping, SpatialLevel.CM)
 
 
 def test_conformance_floor_is_published():

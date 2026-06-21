@@ -82,6 +82,10 @@ the join.
 - `index.py` / `protocols.py`: define `cross_level_align(index, mapping)` (or a `CrossLevelAligner`
   protocol). The `mapping` parameter is `(time, priogrid) → country` (time-aware), supplied by the
   caller. No `priogrid→country` constant ships in the leaf.
+  - **v0.3.0 (register C-20):** `mapping` is concretely typed `Mapping[tuple[int, int], int]`,
+    keyed by the `(time, unit)` tuple, and the remap is vectorized (void-viewed keys +
+    `searchsorted`). The earlier `Mapping[int, int]` (unit-only) implementation could not express
+    a cell whose country changes by month and is now a fail-loud error.
 - The import-enforcement test (C2, ADR-002) guarantees no `viewser`/`views_*` import can sneak in.
 - Producers (e.g. views-datafactory's area-majority GAUL work, ADR-044 there) materialise the
   mapping; consumers inject it.

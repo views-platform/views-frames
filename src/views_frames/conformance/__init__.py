@@ -23,7 +23,12 @@ import numpy as np
 
 CONFORMANCE_FLOOR = "0.1.0"
 
-__all__ = ["CONFORMANCE_FLOOR", "assert_frame_contract", "assert_index_alignment_laws"]
+__all__ = [
+    "CONFORMANCE_FLOOR",
+    "assert_cross_level_alignment_law",
+    "assert_frame_contract",
+    "assert_index_alignment_laws",
+]
 
 
 def assert_frame_contract(frame: Any) -> None:
@@ -82,3 +87,37 @@ def assert_index_alignment_laws(index_a: Any, index_b: Any) -> None:
     pos = index_a.searchsorted(index_a)
     assert np.array_equal(index_a.time[pos], index_a.time), "searchsorted self-identity"
     assert np.array_equal(index_a.unit[pos], index_a.unit), "searchsorted self-identity"
+
+
+def assert_cross_level_alignment_law(
+    index: Any, mapping: Any, target_level: Any
+) -> None:
+    """Assert ``cross_level_align`` honours the **time-varying** injected mapping.
+
+    The mapping is keyed by ``(time, unit)`` (register C-20), so the same unit may
+    map to different target units in different time steps. The law:
+
+    - every row's target unit equals ``mapping[(time, unit)]`` (time-varying remap);
+    - ``time`` is preserved row-for-row;
+    - the produced index carries ``target_level``.
+
+    Args:
+        index: a ``SpatioTemporalIndex`` to remap.
+        mapping: a ``{(time, unit): target_unit}`` mapping covering every row.
+        target_level: the ``SpatialLevel`` to remap to.
+
+    Raises:
+        AssertionError: the remap disagrees with the mapping, drops time, or
+            produces the wrong level.
+    """
+    aligned = index.cross_level_align(mapping, target_level)
+    assert aligned.level is target_level, "cross_level_align must carry target_level"
+    assert np.array_equal(aligned.time, index.time), "cross_level_align must keep time"
+    pairs = zip(index.time, index.unit, strict=True)
+    expected = np.array(
+        [mapping[(int(t), int(u))] for t, u in pairs],
+        dtype=aligned.unit.dtype,
+    )
+    assert np.array_equal(aligned.unit, expected), (
+        "cross_level_align must honour the (time, unit)-keyed mapping per row"
+    )
