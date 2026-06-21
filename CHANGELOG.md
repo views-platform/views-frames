@@ -4,6 +4,30 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [0.2.0] — 2026-06-21
+
+Two-package release: the leaf is now a pure data contract; sample-axis summarization
+moved to a sibling package (ADR-017).
+
+### Added
+- `views_frames_summarize` — a second package (numpy-only, depends on `views_frames`)
+  for sample-axis posterior summarization over frames:
+  - `collapse(frame, reducer)` — generic point fold (statistic injected) → `(N,…,1)` frame.
+  - `map_estimate(frame)` — histogram-peak MAP with a zero-mass→0 rule → frame.
+  - `hdi(frame, mass)` — shortest-interval HDI → `(N,…,2)` index-aligned array.
+  - `quantiles(frame, qs)` → `(N,…,len(qs))` index-aligned array.
+  - `aggregate_distributions(frame, mapping, level)` — conservation-correct joint-sampling
+    cross-level aggregation (`HDI(sum) ≠ sum(HDI)`), reusing the leaf's injected mapping.
+  - `views_frames_summarize.conformance.assert_summarizer_contract`.
+
+### Changed (breaking, pre-1.0)
+- **Removed `collapse` (and `SUPPORTED_AGGREGATE_METHODS`) from the leaf frames** and
+  from the `Sampled` protocol; the leaf keeps only the structural `sample_count`/
+  `is_sample`. All sample-axis reduction is now in `views_frames_summarize` (ADR-017).
+- The import-enforcement test is now a two-package DAG: `views_frames` imports no
+  `views_*`/pandas (so never the summarize package); `views_frames_summarize` imports
+  only `views_frames` + numpy.
+
 ## [0.1.0] — 2026-06-21
 
 First implemented release — the leaf is functional and releasable (Epic 2).
