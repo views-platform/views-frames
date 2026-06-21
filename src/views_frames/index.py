@@ -234,7 +234,61 @@ class SpatioTemporalIndex:
                 "(register C-20); got keys that are not 2-tuples."
             )
         map_vals = np.array(list(mapping.values()), dtype=self._unit.dtype)
-        map_rows = self._row_view(np.ascontiguousarray(map_keys))
+        return self._remap(map_keys, map_vals, target_level)
+
+    def cross_level_align_arrays(
+        self,
+        map_keys: IntArray,
+        map_vals: IntArray,
+        target_level: SpatialLevel,
+    ) -> SpatioTemporalIndex:
+        """Columnar form of :meth:`cross_level_align` for grid-scale mappings.
+
+        Identical semantics, but the ``(time, unit) -> target_unit`` mapping is
+        injected as **parallel arrays** — ``map_keys`` of shape ``(M, 2)`` and
+        ``map_vals`` of shape ``(M,)`` — rather than a Python ``dict``. At full-grid
+        scale building and materializing a ~10.5M-key dict is the dominant cost
+        (~30× slower, ~10× the memory of the columnar form; register C-26); a
+        producer that already holds the mapping columnar passes it straight through.
+
+        Raises:
+            ValueError: ``map_keys`` is not ``(M, 2)``, ``map_vals`` is not length
+                ``M``, the mapping is empty, or a row's ``(time, unit)`` is absent.
+            TypeError: ``target_level`` is not a ``SpatialLevel``.
+        """
+        if not isinstance(target_level, SpatialLevel):
+            got = type(target_level).__name__
+            raise TypeError(f"target_level must be a SpatialLevel, got {got}")
+        keys = np.ascontiguousarray(map_keys, dtype=np.int64)
+        vals = np.asarray(map_vals)
+        if keys.ndim != 2 or keys.shape[1] != 2:
+            raise ValueError(
+                "cross_level_align_arrays map_keys must be an (M, 2) array of "
+                "(time, unit) rows (register C-20/C-26)."
+            )
+        if vals.shape != (keys.shape[0],):
+            raise ValueError(
+                "cross_level_align_arrays map_vals must be a length-M array "
+                "aligned to map_keys."
+            )
+        if keys.shape[0] == 0:
+            raise ValueError(
+                "cross_level_align_arrays requires a non-empty mapping; the leaf "
+                "never embeds or fetches it (ADR-014)."
+            )
+        return self._remap(keys, vals, target_level)
+
+    def _remap(
+        self, map_keys: IntArray, map_vals: IntArray, target_level: SpatialLevel
+    ) -> SpatioTemporalIndex:
+        """The vectorized ``(time, unit) -> target`` remap shared by both entries.
+
+        ``map_keys`` is coerced to a contiguous int64 ``(M, 2)`` so the void-view
+        keys match ``self``'s; a single ``searchsorted`` does the lookup; a missing
+        ``(time, unit)`` fails loud.
+        """
+        keys = np.ascontiguousarray(map_keys, dtype=np.int64)
+        map_rows = self._row_view(keys)
         order = np.argsort(map_rows, kind="stable")
         sorted_rows = map_rows[order]
 
@@ -249,7 +303,7 @@ class SpatioTemporalIndex:
             raise ValueError(
                 f"(time, unit) ({t}, {u}) has no entry in the injected mapping"
             )
-        mapped = map_vals[order[pos]]
+        mapped = np.asarray(map_vals[order[pos]], dtype=self._unit.dtype)
         return SpatioTemporalIndex(
             time=self._time.copy(), unit=mapped, level=target_level
         )

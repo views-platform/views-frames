@@ -6,13 +6,19 @@ sample index** (joint sampling), so the aggregated uncertainty is correct —
 target_unit`` mapping is **injected** by the caller (the same map the leaf's
 ``cross_level_align`` takes — time-varying, register C-20); no geography is
 embedded here.
+
+The mapping may be a Python ``dict`` (``aggregate_distributions``) or parallel
+arrays (``aggregate_distributions_arrays``) — the columnar form avoids building a
+~10.5M-key dict at grid scale (register C-26).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from views_frames import SpatialLevel, SpatioTemporalIndex
 from views_frames_summarize._common import AnyFrame, rebuild
@@ -36,6 +42,30 @@ def aggregate_distributions(
             ``cross_level_align`` — the leaf never guesses a mapping).
     """
     remapped = frame.index.cross_level_align(mapping, target_level)
+    return _aggregate_to(frame, remapped, target_level)
+
+
+def aggregate_distributions_arrays(
+    frame: AnyFrame,
+    map_keys: NDArray[np.integer[Any]],
+    map_vals: NDArray[np.integer[Any]],
+    target_level: SpatialLevel,
+) -> AnyFrame:
+    """Columnar ``aggregate_distributions`` — the mapping as parallel arrays.
+
+    Identical semantics, but the mapping is injected as ``map_keys`` ``(M, 2)`` and
+    ``map_vals`` ``(M,)`` rather than a Python ``dict``, so a producer holding a
+    grid-scale time-varying mapping never materializes a giant dict (register C-26).
+    Delegates to the leaf's ``cross_level_align_arrays``.
+    """
+    remapped = frame.index.cross_level_align_arrays(map_keys, map_vals, target_level)
+    return _aggregate_to(frame, remapped, target_level)
+
+
+def _aggregate_to(
+    frame: AnyFrame, remapped: SpatioTemporalIndex, target_level: SpatialLevel
+) -> AnyFrame:
+    """Sum samples within each ``(time, target_unit)`` group of ``remapped``."""
     keys = np.stack(
         [remapped.time.astype(np.int64), remapped.unit.astype(np.int64)], axis=1
     )

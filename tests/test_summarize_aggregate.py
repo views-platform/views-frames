@@ -6,7 +6,11 @@ import numpy as np
 import pytest
 
 from views_frames import PredictionFrame, SpatialLevel, SpatioTemporalIndex
-from views_frames_summarize import aggregate_distributions, hdi
+from views_frames_summarize import (
+    aggregate_distributions,
+    aggregate_distributions_arrays,
+    hdi,
+)
 from views_frames_summarize.conformance import assert_summarizer_contract
 
 
@@ -26,6 +30,19 @@ def test_aggregate_sums_samples_element_wise():
     assert np.array_equal(out.values, [[5.0, 7.0, 9.0]])
     assert np.array_equal(out.index.unit, [100])
     assert np.array_equal(out.index.time, [0])
+
+
+def test_aggregate_arrays_matches_dict():
+    # C-26: the columnar entry yields the same aggregation as the dict entry.
+    pf = _pf([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], time=[0, 0], unit=[10, 11])
+    mapping = {(0, 10): 100, (0, 11): 100}
+    via_dict = aggregate_distributions(pf, mapping, SpatialLevel.CM)
+    map_keys = np.array([[0, 10], [0, 11]], dtype=np.int64)
+    map_vals = np.array([100, 100], dtype=np.int64)
+    via_arrays = aggregate_distributions_arrays(pf, map_keys, map_vals, SpatialLevel.CM)
+    assert np.array_equal(via_arrays.values, via_dict.values)
+    assert np.array_equal(via_arrays.index.unit, via_dict.index.unit)
+    assert np.array_equal(via_arrays.index.time, via_dict.index.time)
 
 
 def test_aggregate_groups_within_time():
