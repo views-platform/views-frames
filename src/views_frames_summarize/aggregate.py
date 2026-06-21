@@ -2,9 +2,10 @@
 
 Sum the per-cell sample arrays across the cells of each coarser unit **preserving the
 sample index** (joint sampling), so the aggregated uncertainty is correct —
-``HDI(sum) != sum(HDI)`` (the faoapi C-70 concern). The ``unit -> target_unit``
-mapping is **injected** by the caller (the same map the leaf's ``cross_level_align``
-takes); no geography is embedded here.
+``HDI(sum) != sum(HDI)`` (the faoapi C-70 concern). The ``(time, unit) ->
+target_unit`` mapping is **injected** by the caller (the same map the leaf's
+``cross_level_align`` takes — time-varying, register C-20); no geography is
+embedded here.
 """
 
 from __future__ import annotations
@@ -19,19 +20,20 @@ from views_frames_summarize._common import AnyFrame, rebuild
 
 def aggregate_distributions(
     frame: AnyFrame,
-    mapping: Mapping[int, int],
+    mapping: Mapping[tuple[int, int], int],
     target_level: SpatialLevel,
 ) -> AnyFrame:
     """Aggregate a frame's sample distributions up to ``target_level``.
 
     Rows are grouped by ``(time, target_unit)`` — where ``target_unit`` comes from the
-    injected ``mapping`` via the leaf's ``cross_level_align`` — and the sample arrays
-    are summed **element-wise across the constituent cells** (joint sampling). Time is
-    preserved.
+    injected ``(time, unit) -> target_unit`` ``mapping`` via the leaf's
+    ``cross_level_align`` — and the sample arrays are summed **element-wise across the
+    constituent cells** (joint sampling). Time is preserved.
 
     Raises:
-        ValueError: ``mapping`` is missing/empty, or a unit has no entry (inherited
-            from ``cross_level_align`` — the leaf never guesses a mapping).
+        ValueError: ``mapping`` is missing/empty, is not keyed by ``(time, unit)``
+            pairs, or a row's ``(time, unit)`` has no entry (inherited from
+            ``cross_level_align`` — the leaf never guesses a mapping).
     """
     remapped = frame.index.cross_level_align(mapping, target_level)
     keys = np.stack(

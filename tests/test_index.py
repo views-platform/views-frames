@@ -122,11 +122,23 @@ def test_same_level_required():
 
 def test_cross_level_align_with_injected_mapping():
     pgm = _idx([1, 1, 2], [10, 11, 10], level=SpatialLevel.PGM)
-    mapping = {10: 100, 11: 100}  # two priogrid cells -> one country
+    # mapping is keyed by (time, unit): two priogrid cells -> one country.
+    mapping = {(1, 10): 100, (1, 11): 100, (2, 10): 100}
     cm = pgm.cross_level_align(mapping, target_level=SpatialLevel.CM)
     assert cm.level is SpatialLevel.CM
     assert np.array_equal(cm.unit, np.array([100, 100, 100], dtype=np.int32))
     assert np.array_equal(cm.time, pgm.time)
+
+
+def test_cross_level_align_is_time_varying():
+    # C-20: the same priogrid cell belongs to different countries in different
+    # months (e.g. a border change). A (time, unit)-keyed mapping must honour it;
+    # a static unit->country map could not express this.
+    pgm = _idx([1, 2], [10, 10], level=SpatialLevel.PGM)
+    mapping = {(1, 10): 100, (2, 10): 200}  # cell 10: country 100 in t=1, 200 in t=2
+    cm = pgm.cross_level_align(mapping, target_level=SpatialLevel.CM)
+    assert np.array_equal(cm.unit, np.array([100, 200], dtype=np.int32))
+    assert np.array_equal(cm.time, np.array([1, 2], dtype=np.int64))
 
 
 def test_cross_level_align_requires_mapping():
@@ -135,13 +147,20 @@ def test_cross_level_align_requires_mapping():
         pgm.cross_level_align({}, target_level=SpatialLevel.CM)
 
 
-def test_cross_level_align_unmapped_unit_raises():
+def test_cross_level_align_rejects_unit_only_mapping():
+    # the old static {unit: target} shape is now a fail-loud error (C-20).
+    pgm = _idx([1], [10])
+    with pytest.raises(ValueError, match="keyed by .time, unit. pairs"):
+        pgm.cross_level_align({10: 100}, target_level=SpatialLevel.CM)  # type: ignore[dict-item]
+
+
+def test_cross_level_align_unmapped_row_raises():
     pgm = _idx([1], [10])
     with pytest.raises(ValueError, match="no entry in the injected mapping"):
-        pgm.cross_level_align({999: 1}, target_level=SpatialLevel.CM)
+        pgm.cross_level_align({(9, 9): 1}, target_level=SpatialLevel.CM)
 
 
 def test_cross_level_align_bad_target_level():
     pgm = _idx([1], [10])
     with pytest.raises(TypeError, match="SpatialLevel"):
-        pgm.cross_level_align({10: 1}, target_level="cm")  # type: ignore[arg-type]
+        pgm.cross_level_align({(1, 10): 1}, target_level="cm")  # type: ignore[arg-type]
