@@ -12,6 +12,8 @@ are required to be **integer** dtype, which makes them complete by construction
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -55,6 +57,27 @@ def validate_identifiers(
                 f"Identifier '{key}' has length {arr.shape[0]} "
                 f"but expected {n_rows}"
             )
+
+
+def coerce_values(values: object) -> NDArray[np.float32]:
+    """Coerce input to a ``float32`` array, banning object dtype (list-in-cell).
+
+    A ``float32`` input (including an ``np.memmap``) is returned **without a copy**
+    so ``mmap`` and zero-copy semantics are preserved (register C-07). A ``float64``
+    (or other numeric) input is cast to ``float32``.
+
+    Raises:
+        ValueError: the input is object dtype (the banned list-in-cell encoding).
+    """
+    # asanyarray preserves subclasses (e.g. np.memmap) so mmap loads stay zero-copy.
+    arr = np.asanyarray(values)
+    if arr.dtype == np.dtype(object):
+        raise ValueError(
+            "values must not be object dtype — list-in-cell is banned (README §7)"
+        )
+    if arr.dtype == np.float32:
+        return cast("NDArray[np.float32]", arr)
+    return np.asarray(arr, dtype=np.float32)
 
 
 def validate_values(values: NDArray[np.float32]) -> None:
