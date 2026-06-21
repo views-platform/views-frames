@@ -11,6 +11,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from views_frames.feature_frame import FeatureFrame
 from views_frames.index import SpatioTemporalIndex
+from views_frames.metadata import FrameMetadata
 from views_frames.prediction_frame import PredictionFrame
 from views_frames.protocols import (
     Frame,
@@ -24,6 +25,7 @@ from views_frames.target_frame import TargetFrame
 __all__ = [
     "FeatureFrame",
     "Frame",
+    "FrameMetadata",
     "Persistable",
     "PredictionFrame",
     "Sampled",
