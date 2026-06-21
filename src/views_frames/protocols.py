@@ -7,10 +7,15 @@ depends on methods it does not use.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
+
+from views_frames._typing import IntArray
+
+if TYPE_CHECKING:
+    from views_frames.index import SpatioTemporalIndex
 
 
 @runtime_checkable
@@ -23,8 +28,13 @@ class SpatioTemporalIndexed(Protocol):
         ...
 
     @property
-    def identifiers(self) -> dict[str, NDArray[np.integer]]:
+    def identifiers(self) -> dict[str, IntArray]:
         """The integer identifier arrays, keyed by name (e.g. ``time``, ``unit``)."""
+        ...
+
+    @property
+    def index(self) -> SpatioTemporalIndex:
+        """The row index — the handle for alignment (``cross_level_align`` etc.)."""
         ...
 
 

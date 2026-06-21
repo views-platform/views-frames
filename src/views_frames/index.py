@@ -17,6 +17,7 @@ from collections.abc import Mapping
 import numpy as np
 from numpy.typing import NDArray
 
+from views_frames._typing import IntArray
 from views_frames._validation import validate_identifiers
 from views_frames.spatial_level import SpatialLevel
 
@@ -26,8 +27,8 @@ class SpatioTemporalIndex:
 
     def __init__(
         self,
-        time: NDArray[np.integer],
-        unit: NDArray[np.integer],
+        time: IntArray,
+        unit: IntArray,
         level: SpatialLevel,
     ) -> None:
         if not isinstance(level, SpatialLevel):
@@ -47,12 +48,12 @@ class SpatioTemporalIndex:
     # ---- core surface -------------------------------------------------------
 
     @property
-    def time(self) -> NDArray[np.integer]:
+    def time(self) -> IntArray:
         """The time identifier array (read-only)."""
         return self._time
 
     @property
-    def unit(self) -> NDArray[np.integer]:
+    def unit(self) -> IntArray:
         """The unit identifier array (read-only)."""
         return self._unit
 
@@ -67,7 +68,7 @@ class SpatioTemporalIndex:
         return int(self._time.shape[0])
 
     @property
-    def identifiers(self) -> dict[str, NDArray[np.integer]]:
+    def identifiers(self) -> dict[str, IntArray]:
         """The integer identifier arrays, keyed by name."""
         return {"time": self._time, "unit": self._unit}
 

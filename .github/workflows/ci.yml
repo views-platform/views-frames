@@ -21,6 +21,17 @@ jobs:
       - run: uv run mypy src/
       - run: uv run pytest
 
+  # The declared numpy floor (1.26.4) has stricter generic stubs than the
+  # version uv resolves by default (2.x). `mypy --strict` must stay green at the
+  # boundary a consumer actually pins to (register C-19).
+  type-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.10
+      - run: uv run --python 3.10 --with numpy==1.26.4 mypy --strict src/
+
   build:
     runs-on: ubuntu-latest
     steps:
