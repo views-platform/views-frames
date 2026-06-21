@@ -116,13 +116,6 @@ class FeatureFrame:
 
     # ---- operations ---------------------------------------------------------
 
-    def collapse(self, method: str = "arithmetic_mean") -> FeatureFrame:
-        """Reduce the trailing sample axis, returning a new ``(N, F, 1)`` frame."""
-        if method != "arithmetic_mean":
-            raise ValueError(f"Unknown aggregate method '{method}'.")
-        collapsed = self._values.mean(axis=-1, keepdims=True)
-        return FeatureFrame(collapsed, self._index, self._feature_names, self._metadata)
-
     def with_metadata(self, metadata: FrameMetadata) -> FeatureFrame:
         """Return a new frame with replaced metadata, **sharing** the values buffer."""
         new = FeatureFrame.__new__(FeatureFrame)

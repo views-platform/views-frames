@@ -30,9 +30,9 @@ def assert_frame_contract(frame: Any) -> None:
     """Assert ``frame`` satisfies the views-frames data contract.
 
     Checks the structural invariants (float32 values, no object dtype, an explicit
-    trailing axis, complete integer identifiers of length ``n_rows``), the save/load
-    round-trip, and — for sampled frames — that ``collapse`` reduces the trailing
-    axis to one sample while preserving the rows.
+    trailing axis, complete integer identifiers of length ``n_rows``) and the
+    save/load round-trip. (Sample-axis reduction is the ``views_frames_summarize``
+    package's concern, not the contract's — ADR-017.)
 
     Raises:
         AssertionError: any part of the contract is violated.
@@ -52,13 +52,6 @@ def assert_frame_contract(frame: Any) -> None:
         assert arr.shape == (frame.n_rows,), f"'{key}' must be length n_rows"
 
     _assert_roundtrip(frame)
-
-    if hasattr(frame, "collapse") and getattr(frame, "is_sample", False):
-        collapsed = frame.collapse()
-        assert type(collapsed) is type(frame), "collapse must return the same type"
-        assert collapsed.values.shape[-1] == 1, "collapse must reduce S to 1"
-        assert collapsed.n_rows == frame.n_rows, "collapse must preserve rows"
-        assert collapsed.is_sample is False, "collapsed frame is not a sample"
 
 
 def _assert_roundtrip(frame: Any) -> None:

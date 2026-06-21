@@ -61,6 +61,7 @@ These ratify the six resolved decisions from the design bible (README §13a). Al
 - **ADR-014** — [Cross-level alignment boundary](014_cross_level_alignment_boundary.md). Leaf owns the `cross_level_align(index, mapping)` protocol; consumer injects the time-varying mapping; never embedded/fetched. Resolves C-14, C-15, D-01.
 - **ADR-015** — [`SpatialLevel` relocation](015_spatiallevel_relocation.md). Identifier vocabulary only; fix the C-65 time-first index-tuple and the `priogrid_gid`/`priogrid_id` inconsistency, not port them. Resolves C-18.
 - **ADR-016** — [Conformance-floor + ownership/release](016_conformance_floor_and_ownership.md). Governed conformance-floor every consumer runs in CI; named owner + cross-repo MAJOR-bump process. Resolves C-05, C-10, C-13; carries deferred ADR-004's scope.
+- **ADR-017** — [Posterior/sample summarization is a sibling package](017_summarization_is_a_sibling_package.md). Sample-axis reduction (MAP/HDI/quantiles/collapse) lives in the `views_frames_summarize` sibling package, not the leaf; the leaf keeps only the structural `sample_count`/`is_sample`.
 
 ---
 
