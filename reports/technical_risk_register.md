@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-21                           |
-| Total Concerns    | 17                                   |
-| Open Concerns     | 12                                   |
+| Total Concerns    | 22                                   |
+| Open Concerns     | 17                                   |
 | Resolved Concerns | 5                                    |
 | Disagreements     | 6                                    |
 
@@ -197,6 +197,76 @@ The two real classes diverge structurally, most critically on sample-axis positi
 | Location | `views-pipeline-core/.../domain/spatial.py` (`_INDEX_NAMES`, `index_names` vs `entity_column`) |
 
 `SpatialLevel` is numpy-clean to relocate but carries a reversed index tuple (C-65) and a pre/post-rename `priogrid_gid`/`priogrid_id` self-inconsistency; relocating as-is ships both into the package every repo imports (critique_03 F-03, P5a). Resolution path: ADR-015 (fix-don't-port). (This entry subsumes the original C-04 "SpatialLevel slippery slope".)
+
+---
+
+### C-19: `mypy --strict` is not enforced at the declared numpy floor
+
+| Field | Value |
+|-------|-------|
+| ID | C-19 |
+| Tier | 2 |
+| Source | expert-review / round01 (2026-06-21) |
+| Trigger | When a consumer installs at the declared floor (`numpy==1.26.4`) and runs its own `mypy`, or when the CI type job is pinned to the floor. |
+| Location | `src/views_frames/index.py:29,30,50,55,70`, `protocols.py:26`, `_validation.py:24`, `io/npz.py:23,24`, `io/arrow.py:29,30`, the three frames |
+
+Running `mypy --strict` against `numpy==1.26.4` (the declared floor) produces **14 `[type-arg]` errors** ("Missing type arguments for generic type 'integer'" — bare `NDArray[np.integer]` needs parameters under `disallow_any_generics`). CI is green only because it resolves `numpy==2.4`, whose stubs do not flag this. The package therefore fails its own advertised typed-`--strict` gate at its own boundary; a downstream consumer pinned to the floor inherits the failure. Verified by direct run (`uv run --with numpy==1.26.4 mypy --strict src/`). Mitigation path: parameterize the sites (a project `NDArray[np.integer[Any]]` alias) + a CI job pinning the floor.
+
+---
+
+### C-20: `cross_level_align` mapping is static but ADR-014 requires a time-varying mapping
+
+| Field | Value |
+|-------|-------|
+| ID | C-20 |
+| Tier | 2 |
+| Source | falsification-audit / round01 (2026-06-21) |
+| Trigger | When a consumer aligns a month-varying `priogrid→country` mapping through `cross_level_align`/`aggregate_distributions`. |
+| Location | `src/views_frames/index.py:159,187`, `src/views_frames_summarize/aggregate.py`, `docs/ADRs/014_cross_level_alignment_boundary.md:83` |
+
+`cross_level_align(self, mapping: Mapping[int, int], …)` ignores time (`[mapping[int(u)] for u in self._unit]`), but ADR-014 (line 83) and critique_02 specify the mapping is `(time, priogrid) → country` — **time-varying** (a cell's country changes by month via `previous_country_id`). The real cm↔pgm join is therefore inexpressible, and a consumer forced to a static map for a month-varying reality silently mis-assigns countries for the months that changed. The code contradicts the ADR it implements; the docstring even claims "time-varying" while the type forbids it. Mitigation: widen the mapping to a `(time, unit)`-keyed form (the ADR is correct; the implementation must match it). See also C-14 (resolved), C-15.
+
+---
+
+### C-21: `(time, unit)` row-uniqueness is assumed by joins but never validated or documented
+
+| Field | Value |
+|-------|-------|
+| ID | C-21 |
+| Tier | 3 |
+| Source | expert-review / round01 (2026-06-21) |
+| Trigger | When a consumer passes a frame with duplicate `(time, unit)` rows to a same-level join (`intersect`/`searchsorted`/`reindex`). |
+| Location | `src/views_frames/_validation.py`, `src/views_frames/index.py:117,144` |
+
+`validate_identifiers` checks dtype/length/completeness but not row uniqueness. Same-level alignment (`intersect`, `searchsorted`) implicitly assumes one row per `(time, unit)`; `cross_level_align` deliberately produces duplicates (resolved downstream by `aggregate_distributions`), so uniqueness cannot be a global invariant. The stance ("duplicates allowed; same-level joins assume uniqueness") is undocumented, so a consumer joining a pre-aggregation frame can misalign silently. Mitigation: document the stance + an optional `assume_unique`/validated path.
+
+---
+
+### C-22: per-row Python loops on the report-stage reduction path, with no scale guard
+
+| Field | Value |
+|-------|-------|
+| ID | C-22 |
+| Tier | 3 |
+| Source | expert-review / round01 (2026-06-21) |
+| Trigger | When `map_estimate`/`hdi`/`cross_level_align` run over a full grid (~10.5M rows — the #181 report-stage regime). |
+| Location | `src/views_frames/index.py:187`, `src/views_frames_summarize/point.py:25`, `src/views_frames_summarize/interval.py:22` |
+
+`cross_level_align` uses a per-element comprehension and `map_estimate`/`hdi` use `np.apply_along_axis` (a per-row Python loop) — on the exact reduction path the #181 OOM motivated. (`quantiles` and `aggregate_distributions` are vectorized, so the risk is specific, not pervasive.) There is no throughput/memory guard test (the analogue of pipeline-core's `test_report_stage_memory`). Mitigation: vectorize the three sites + add a representative-grid scale guard.
+
+---
+
+### C-23: missing `py.typed` marker + doc↔code drift
+
+| Field | Value |
+|-------|-------|
+| ID | C-23 |
+| Tier | 4 |
+| Source | expert-review / round01 (2026-06-21) |
+| Trigger | When a consumer runs `mypy` against the package (sees it as untyped) or reads README §5/§4.3/§14 and acts on the stale claim. |
+| Location | `src/views_frames/`, `src/views_frames_summarize/` (`py.typed` absent); `protocols.py` vs README §5 l.266; README §0/§4.3/§14 |
+
+Neither package ships a `py.typed` marker, so a consumer's `mypy` treats the fully-annotated package as untyped. Doc↔code drift: README §5 l.266 claims `SpatioTemporalIndexed` exposes `index: SpatioTemporalIndex` but no protocol does; the README §0 header still says v0.1.0; §4.3 lists a nonexistent `align`; the §13a/§14 glossary still says "`collapse` reduces it" though `collapse` moved to `views_frames_summarize` in v0.2.0. Low severity, but corrosive to an agent-targeted package whose own rule is "code/README disagree = bug". Mitigation: ship `py.typed`; reconcile the protocol surface; sync the prose.
 
 ---
 
