@@ -1,24 +1,57 @@
-"""Native serialization: ``values.npy`` + ``identifiers.npz`` (mmap-capable).
+"""Native serialization: ``values.npy`` + ``identifiers.npz`` (+ JSON header).
 
-Round-trips the frame plus its typed header via a frame-declared state contract,
-so this module stays generic and does not accrete per-frame schema (register
-C-09). STUB — implementation lands in Epic 2.
+Operates on a frame's **state dict** — it carries no per-frame schema (register
+C-09); each frame maps its fields to/from the state. The ``mmap`` path returns a
+read-only memmap and preserves the subclass so peak RAM stays the working set
+(register C-07, README §7) — the proven ``PredictionFrame`` idiom.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from pathlib import Path
+from typing import Any, Literal
+
+import numpy as np
+from numpy.typing import NDArray
 
 
-def save(frame: Any, directory: str) -> None:  # noqa: ANN401 — generic frame state
-    """Write a frame to ``directory`` as ``.npy`` + ``.npz`` (+ header sidecars)."""
-    raise NotImplementedError(
-        "views-frames is a stub skeleton (Epic 1); io.npz lands in Epic 2"
-    )
+def save(
+    directory: Path | str,
+    *,
+    values: NDArray[np.float32],
+    time: NDArray[np.integer],
+    unit: NDArray[np.integer],
+    level: str,
+    metadata: dict[str, Any],
+    feature_names: list[str] | None = None,
+) -> None:
+    """Write a frame's state (npy values + npz identifiers + json header)."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    np.save(directory / "values.npy", values)
+    np.savez(directory / "identifiers.npz", time=time, unit=unit)
+    header: dict[str, Any] = {"level": level, "metadata": metadata}
+    if feature_names is not None:
+        header["feature_names"] = feature_names
+    payload = json.dumps(header, sort_keys=True, default=str)
+    (directory / "header.json").write_text(payload)
 
 
-def load(directory: str, mmap: bool = False) -> Any:  # noqa: ANN401
-    """Read a frame from ``directory``; ``mmap`` keeps peak RAM at the working set."""
-    raise NotImplementedError(
-        "views-frames is a stub skeleton (Epic 1); io.npz lands in Epic 2"
-    )
+def load(directory: Path | str, *, mmap: bool = False) -> dict[str, Any]:
+    """Read a frame's state; ``mmap=True`` returns ``values`` as a read-only memmap."""
+    directory = Path(directory)
+    mmap_mode: Literal["r"] | None = "r" if mmap else None
+    values = np.load(directory / "values.npy", mmap_mode=mmap_mode)
+    with np.load(directory / "identifiers.npz") as npz:
+        time = npz["time"]
+        unit = npz["unit"]
+    header = json.loads((directory / "header.json").read_text())
+    return {
+        "values": values,
+        "time": time,
+        "unit": unit,
+        "level": header["level"],
+        "metadata": header.get("metadata", {}),
+        "feature_names": header.get("feature_names"),
+    }
