@@ -1,10 +1,12 @@
-"""Import-boundary + physical-architecture enforcement (ADR-002, README §3.1/§6).
+"""Import-boundary + physical-architecture enforcement (ADR-002/017, README §3.1/§6).
 
-The executable form of the leaf's defining constraints:
+The executable form of the package dependency DAG:
 
-- The core imports **no** ``pandas``/``polars``/``geopandas``/``wandb``/``viewser``/
-  ``torch`` and **no** other ``views_*`` package. ``pyarrow`` is allowed **only**
-  under ``io/`` (an optional serialization extra).
+- ``views_frames`` (the leaf) imports **no** ``pandas``/``polars``/``geopandas``/
+  ``wandb``/``viewser``/``torch`` and **no** other ``views_*`` package (so it never
+  imports ``views_frames_summarize``). ``pyarrow`` is allowed **only** under ``io/``.
+- ``views_frames_summarize`` may import only ``views_frames`` (+ numpy / stdlib);
+  never the reverse, never a foreign ``views_*``, never pandas et al.
 - One concept per file: at most one public class per module.
 """
 
@@ -13,9 +15,15 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parent.parent / "src" / "views_frames"
+SRC = Path(__file__).resolve().parent.parent / "src"
 
 FORBIDDEN = {"pandas", "polars", "geopandas", "wandb", "viewser", "torch"}
+
+# Per-package allowed *internal* (views_*) imports. A package may always import itself.
+ALLOWED_INTERNAL: dict[str, set[str]] = {
+    "views_frames": set(),
+    "views_frames_summarize": {"views_frames"},
+}
 
 
 def _top_level_imports(path: Path) -> set[str]:
@@ -31,18 +39,25 @@ def _top_level_imports(path: Path) -> set[str]:
     return names
 
 
-def test_core_has_no_forbidden_imports() -> None:
-    """No core module imports a forbidden external or a foreign ``views_*`` package."""
+def test_package_dependency_dag() -> None:
+    """Each package respects the import DAG; the leaf imports nothing forbidden."""
     violations: list[str] = []
-    for py in sorted(SRC.rglob("*.py")):
-        under_io = "io" in py.relative_to(SRC).parts[:-1]
-        for mod in _top_level_imports(py):
-            forbidden = mod in FORBIDDEN
-            foreign_views = mod.startswith("views_") and mod != "views_frames"
-            arrow_outside_io = mod == "pyarrow" and not under_io
-            if forbidden or foreign_views or arrow_outside_io:
-                violations.append(f"{py.relative_to(SRC)} imports '{mod}'")
-    assert not violations, "forbidden imports in the core:\n" + "\n".join(violations)
+    for package, allowed in ALLOWED_INTERNAL.items():
+        pkg_dir = SRC / package
+        for py in sorted(pkg_dir.rglob("*.py")):
+            under_io = "io" in py.relative_to(pkg_dir).parts[:-1]
+            for mod in _top_level_imports(py):
+                forbidden = mod in FORBIDDEN
+                arrow_outside_io = mod == "pyarrow" and not under_io
+                foreign_views = (
+                    mod.startswith("views_")
+                    and mod != package
+                    and mod not in allowed
+                )
+                if forbidden or arrow_outside_io or foreign_views:
+                    rel = py.relative_to(SRC)
+                    violations.append(f"{rel} imports '{mod}' (package: {package})")
+    assert not violations, "import-DAG violations:\n" + "\n".join(violations)
 
 
 def test_one_concept_per_file() -> None:

@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/views_frames"]
+packages = ["src/views_frames", "src/views_frames_summarize"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src"]
