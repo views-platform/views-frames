@@ -6,8 +6,8 @@
 **Last reviewed:** 2026-06-21
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
 
-> Note: stub in Epic 1 (`src/views_frames/feature_frame.py` raises on construction).
-> This contract defines the intended behaviour.
+> Implemented in v0.1.0 (`src/views_frames/feature_frame.py`). This contract governs
+> that implementation.
 
 ---
 

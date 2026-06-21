@@ -6,10 +6,9 @@
 **Last reviewed:** 2026-06-21
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
 
-> Note: stub in Epic 1 (`src/views_frames/prediction_frame.py` raises on
-> construction). This contract defines the intended behaviour, including the
-> numpy-only validation rewrite (the source class in views-pipeline-core imports
-> pandas — relocation is **not verbatim**; register C-17).
+> Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from
+> views-pipeline-core with numpy-only validation — the source imports pandas, so the
+> relocation is **not verbatim** (register C-17).
 
 ---
 

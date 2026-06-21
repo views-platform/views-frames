@@ -5,9 +5,9 @@ array+identifier value objects (`FeatureFrame`, `PredictionFrame`, `TargetFrame`
 and anticipated siblings) at the **root of the platform dependency DAG**. numpy
 only; depends on nothing internal; every other repo depends *toward* it.
 
-> **Status:** Epic 1 (foundations). The contract is decided (README §13a, ADRs
-> 011–016); `src/views_frames/` is a **typed stub skeleton**. Real
-> implementations of `SpatioTemporalIndex` and the frames are Epic 2.
+> **Status:** **implemented — v0.1.0** (Epic 2). `src/views_frames/` realises the
+> contract (index, frames, io, conformance suite). Consumer adoption (re-export
+> shims, pandas migration) is Epic 3.
 
 ## Architecture
 

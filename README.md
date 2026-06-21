@@ -4,11 +4,11 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** scaffolding, contract decided. This README is the design bible. No
-> code yet — it is written so the package can be built *against* it. The blocking
-> design decisions (twin-unification model, sample axis convention, metadata /
-> identifier model, and the alignment logic/data boundary) are **resolved** — see
-> §13a. Read it fully before adding a single class.
+> **Status:** **implemented — v0.1.0** (Epic 2). This README is the design bible;
+> the contract it specifies is realised in `src/views_frames/` (index, frames, io,
+> conformance suite). The blocking design decisions are resolved (§13a) and ratified
+> as ADRs 011–016. Consumer adoption (re-export shims, pandas migration) is Epic 3.
+> If the code and this README disagree, that is a bug — reconcile before merging.
 
 ---
 
