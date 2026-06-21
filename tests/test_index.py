@@ -184,3 +184,44 @@ def test_cross_level_align_bad_target_level():
     pgm = _idx([1], [10])
     with pytest.raises(TypeError, match="SpatialLevel"):
         pgm.cross_level_align({(1, 10): 1}, target_level="cm")  # type: ignore[arg-type]
+
+
+# --- C-26: columnar cross_level_align_arrays ---------------------------------
+
+
+def test_cross_level_align_arrays_matches_dict():
+    pgm = _idx([1, 1, 2], [10, 11, 10], level=SpatialLevel.PGM)
+    mapping = {(1, 10): 100, (1, 11): 100, (2, 10): 200}
+    via_dict = pgm.cross_level_align(mapping, SpatialLevel.CM)
+    map_keys = np.array([[1, 10], [1, 11], [2, 10]], dtype=np.int64)
+    map_vals = np.array([100, 100, 200], dtype=np.int64)
+    via_arrays = pgm.cross_level_align_arrays(map_keys, map_vals, SpatialLevel.CM)
+    assert np.array_equal(via_arrays.unit, via_dict.unit)
+    assert np.array_equal(via_arrays.time, via_dict.time)
+    assert via_arrays.unit.dtype == pgm.unit.dtype  # cast to the index's unit dtype
+
+
+def test_cross_level_align_arrays_validates_shapes():
+    pgm = _idx([1], [10])
+    with pytest.raises(ValueError, match="must be an .M, 2. array"):
+        pgm.cross_level_align_arrays(
+            np.array([1, 10], dtype=np.int64), np.array([100]), SpatialLevel.CM
+        )
+    with pytest.raises(ValueError, match="length-M array"):
+        pgm.cross_level_align_arrays(
+            np.array([[1, 10]], dtype=np.int64),
+            np.array([100, 200]),
+            SpatialLevel.CM,
+        )
+    with pytest.raises(ValueError, match="non-empty"):
+        pgm.cross_level_align_arrays(
+            np.empty((0, 2), dtype=np.int64), np.empty(0, np.int64), SpatialLevel.CM
+        )
+
+
+def test_cross_level_align_arrays_unmapped_row_raises():
+    pgm = _idx([1], [10])
+    with pytest.raises(ValueError, match="no entry in the injected mapping"):
+        pgm.cross_level_align_arrays(
+            np.array([[9, 9]], dtype=np.int64), np.array([1]), SpatialLevel.CM
+        )
