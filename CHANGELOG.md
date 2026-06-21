@@ -4,6 +4,47 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.0.0] — 2026-06-21
+
+**API freeze (ADR-018).** Leaf completion (Epic 5) — the round-02 review findings
+(`perspectives/round02/`), then the v1.0 freeze. Two consumer-review rounds validated
+the design (no ADR challenged). From here the public surface is frozen; breaking
+changes are MAJOR (GOVERNANCE "Stability — the v1.0 freeze"). The pre-1.0
+breaking-in-MINOR latitude ends.
+
+### Added
+- `FeatureFrame`/`PredictionFrame`/`TargetFrame` gain `select(positions | mask) ->
+  Frame` and `reindex(other) -> Frame` (frame-level row selection / alignment; the
+  former returned only positions). `SpatioTemporalIndex.select(indexer)` underlies them.
+  Closes the round-02 consumer gap F12.
+- `SpatioTemporalIndex.cross_level_align_arrays` + `aggregate_distributions_arrays` —
+  columnar `(map_keys, map_vals)` mappings, ~30× faster / ~10× less memory than a
+  grid-scale Python dict (benchmark-gated; register C-26).
+
+### Changed
+- **`map_estimate` tie-break is now deterministic and portable** — it breaks ties on
+  integer counts (lowest-index), not `np.histogram(density=True)`'s width-based
+  argmax, which differed by ~1 ulp across numpy versions and flipped on ties. Output
+  is now identical on every numpy build (register C-24). Only tied rows differ from
+  v0.3.0; ties are arbitrary, so this is a strict portability win.
+- `hdi`/`quantiles` are row-blocked like `map_estimate`; all three estimators take a
+  `block_rows` kwarg. Peak memory no longer scales with the full grid (register C-25).
+- `Persistable.save`/`load` typed `Path | str` to match the concretes (register F-L).
+- Conformance floor `CONFORMANCE_FLOOR = "1.0.0"`; it tracks the whole published
+  conformance surface and bumps on breaking changes to it (register C-27).
+
+### Fixed
+- The `map_estimate` equivalence test asserted bit-exact float32 equality and was red
+  on the numpy 1.26 floor while green in CI; the **`floor` CI job now runs pytest** at
+  `numpy==1.26.4`, not just mypy — the floor is behaviour-checked (register C-24).
+- README: `MetricFrame`/C-48 framing softened to "substrate, not the cure" (it is out
+  of the leaf); status header → v1.0.0.
+
+### Governance
+- **ADR-018** records the freeze and the frozen surface; GOVERNANCE adds the 1.0
+  stability policy and the pre-1.0 latitude's end.
+- `examples/cross_level.py` demonstrates the time-varying mapping + `HDI(sum) ≠ sum(HDI)`.
+
 ## [0.3.0] — 2026-06-21
 
 Hardening release (Epic 4) — the round-01 review findings (`perspectives/round01/`).

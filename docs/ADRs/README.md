@@ -62,6 +62,7 @@ These ratify the six resolved decisions from the design bible (README §13a). Al
 - **ADR-015** — [`SpatialLevel` relocation](015_spatiallevel_relocation.md). Identifier vocabulary only; fix the C-65 time-first index-tuple and the `priogrid_gid`/`priogrid_id` inconsistency, not port them. Resolves C-18.
 - **ADR-016** — [Conformance-floor + ownership/release](016_conformance_floor_and_ownership.md). Governed conformance-floor every consumer runs in CI; named owner + cross-repo MAJOR-bump process. Resolves C-05, C-10, C-13; carries deferred ADR-004's scope.
 - **ADR-017** — [Posterior/sample summarization is a sibling package](017_summarization_is_a_sibling_package.md). Sample-axis reduction (MAP/HDI/quantiles/collapse) lives in the `views_frames_summarize` sibling package, not the leaf; the leaf keeps only the structural `sample_count`/`is_sample`.
+- **ADR-018** — [API freeze at v1.0.0](018_api_freeze_v1.md). v1.0.0 freezes the public surface (frames + index + protocols + conformance + summarizer estimators); ends the pre-1.0 breaking-in-MINOR latitude; records the frozen `(time, unit)` cross-level key, the row-uniqueness stance, and `select`/`reindex`. Resolves C-27 (with GOVERNANCE).
 
 ---
 

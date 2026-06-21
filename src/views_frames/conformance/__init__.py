@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 
-CONFORMANCE_FLOOR = "0.1.0"
+CONFORMANCE_FLOOR = "1.0.0"
 
 __all__ = [
     "CONFORMANCE_FLOOR",
