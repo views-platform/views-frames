@@ -117,6 +117,26 @@ def test_same_level_required():
         a.intersect(b)
 
 
+# --- C-21: row-uniqueness stance ---------------------------------------------
+
+
+def test_has_unique_rows_true_for_distinct_rows():
+    idx = _idx([1, 1, 2], [10, 11, 10])
+    assert idx.has_unique_rows() is True
+
+
+def test_has_unique_rows_false_on_duplicate_time_unit():
+    # same (time, unit) twice — allowed to construct, but flagged on demand.
+    idx = _idx([1, 1], [10, 10])
+    assert idx.has_unique_rows() is False
+
+
+def test_duplicate_rows_are_allowed_at_construction():
+    # uniqueness is NOT a construction invariant (cross_level_align produces dups).
+    idx = _idx([1, 1], [10, 10])
+    assert idx.n_rows == 2
+
+
 # --- E3: cross_level_align ---------------------------------------------------
 
 
