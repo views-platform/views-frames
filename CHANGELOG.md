@@ -4,6 +4,41 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [0.3.0] — 2026-06-21
+
+Hardening release (Epic 4) — the round-01 review findings (`perspectives/round01/`).
+No new surface beyond a time-aware mapping; correctness, typing, and scale.
+
+### Changed (breaking, pre-1.0)
+- **`cross_level_align` / `aggregate_distributions` mappings are now keyed by
+  `(time, unit)`** (`Mapping[tuple[int, int], int]`), not `unit` alone — ADR-014's
+  mapping is time-varying (a cell's country changes by month) and the static shape
+  could not express it (register C-20). The remap is vectorized (void-viewed keys +
+  `searchsorted`) and fails loud on the old unit-only shape or a missing key.
+
+### Added
+- `assert_cross_level_alignment_law` in `views_frames.conformance` — the time-varying
+  cross-level law (one cell, two months → two target units).
+- `SpatioTemporalIndex.has_unique_rows()` + a documented `(time, unit)` row-uniqueness
+  stance (duplicates allowed; same-level joins assume uniqueness — register C-21).
+- `index` on the `SpatioTemporalIndexed` protocol (a consumer typing to the abstraction
+  can reach `.index`/`cross_level_align` — register C-23/F4).
+- `py.typed` markers in both packages (the package is now seen as typed — register C-23).
+- A CI **`type-floor`** job pinning `numpy==1.26.4`; `mypy --strict` is green at the
+  declared floor (was 14 `[type-arg]` errors hidden behind numpy 2.x — register C-19).
+- `examples/quickstart.py` (a runnable end-to-end example) + an in-repo synthetic
+  grid-adapter proxy test (`tests/test_proxy_adapter.py`, register F15 in-repo).
+
+### Performance
+- `map_estimate` and `hdi` are vectorized over the trailing axis (no per-row Python
+  loop); `map_estimate` runs a **row-blocked** batched histogram that caps peak memory
+  at `O(block × bins)` and stays bit-for-bit identical to v0.2.0 (register C-22/#181).
+  A `tracemalloc` scale guard asserts memory does not scale with `rows × bins`.
+
+### Fixed
+- Doc↔code drift: README version header, the nonexistent `align` op (§4.3), and the
+  `collapse` glossary entries (§13a.2/§14 — `collapse` lives in the sibling package).
+
 ## [0.2.0] — 2026-06-21
 
 Two-package release: the leaf is now a pure data contract; sample-axis summarization
