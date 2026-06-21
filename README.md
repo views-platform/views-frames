@@ -4,13 +4,14 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **implemented — v0.3.0.** This README is the design bible; the
-> contract it specifies is realised in `src/views_frames/` (index, frames, io,
-> conformance suite) plus the `src/views_frames_summarize/` sibling package
+> **Status:** **frozen — v1.0.0** (API freeze, ADR-018). This README is the design
+> bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
+> io, conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles + cross-level
 > aggregation; ADR-017). The blocking design decisions are resolved (§13a) and
-> ratified as ADRs 011–017. Consumer adoption (re-export shims, pandas migration)
-> is the owner's migration, not this repo's.
+> ratified as ADRs 011–018; two consumer-review rounds (`perspectives/`) validated
+> the design. Consumer adoption (re-export shims, pandas migration) is the owner's
+> migration, not this repo's.
 > If the code and this README disagree, that is a bug — reconcile before merging.
 
 ---
@@ -61,7 +62,10 @@ assert_frame_contract(pf)         # the check a consumer runs in its own CI
 
 The leaf (`views_frames`) owns the immutable array+identifier contract and
 alignment; the sibling (`views_frames_summarize`) owns the sample-axis statistics.
-Both are numpy-only.
+Both are numpy-only. For the subtler cm↔pgm surface — a time-varying
+`(time, unit)→country` mapping, `cross_level_align`, and conservation-correct
+`aggregate_distributions` (`HDI(sum) ≠ sum(HDI)`) — see
+[`examples/cross_level.py`](examples/cross_level.py).
 
 ---
 
@@ -120,8 +124,13 @@ register):
   *created* run, not the latest run *with* metrics — renders the wrong run:
   **22/25 constituents showed "not calculated"** in a real ensemble report while
   the scores sat in an earlier run (views-reporting's own register, C-48). A
-  first-class **`MetricFrame`** (§4.2) is the typed output the report should
-  *receive*, not re-derive from a mutable mirror.
+  first-class **`MetricFrame`** (§4.2) is the typed output form the report *could
+  adopt* instead of re-deriving from a mutable mirror — but `MetricFrame` is
+  **out of this leaf** (it is keyed `(target, step, unit)`, not a `(time, unit)`
+  frame; views-evaluation owns eval-output vocab). What this package provides is
+  the **substrate** for that cure (the typed, conformance-checked frame contract +
+  the extensible `FrameMetadata` header), not the cure itself. *(Exploratory; §4.2,
+  §13a.6.)*
 - **Stable package, zero abstractions.** views-pipeline-core's `data/` is its
   most depended-on (most stable) package yet contains no protocols/ABCs (C-165,
   C-48). A stable component must be abstract (SAP). This package *is* the

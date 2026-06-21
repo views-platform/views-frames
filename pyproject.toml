@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "views-frames"
-version = "0.3.0"
+version = "1.0.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
 readme = "README.md"
 requires-python = ">=3.10"
