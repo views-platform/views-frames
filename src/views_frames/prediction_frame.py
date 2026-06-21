@@ -92,6 +92,32 @@ class PredictionFrame:
         new._metadata = metadata
         return new
 
+    def select(self, indexer: IntArray | NDArray[np.bool_]) -> PredictionFrame:
+        """A new frame of the rows at integer positions **or** a boolean mask.
+
+        Rows are selected by numpy fancy indexing — an integer array reorders or
+        repeats, a boolean mask filters. Metadata is preserved; the selection
+        **copies** (the result does not share the buffer). An empty selection
+        yields an empty frame.
+        """
+        return PredictionFrame(
+            self._values[indexer], self._index.select(indexer), self._metadata
+        )
+
+    def reindex(self, other: SpatioTemporalIndex) -> PredictionFrame:
+        """Align this frame to ``other``'s rows, returning a new frame.
+
+        Fails loud unless this frame's index is a **superset** of ``other`` (so
+        every target row is present). The frame-level companion to the index's
+        ``reindex``/``searchsorted``, which return positions rather than a frame.
+        """
+        if not self._index.is_superset_of(other):
+            raise ValueError(
+                "reindex requires this frame's index to be a superset of `other`; "
+                "some target rows are absent"
+            )
+        return self.select(self._index.searchsorted(other))
+
     # ---- persistence --------------------------------------------------------
 
     def save(self, directory: Path | str) -> None:
