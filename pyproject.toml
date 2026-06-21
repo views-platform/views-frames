@@ -22,6 +22,9 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.8",
     "mypy>=1.13",
+    # pyarrow is the consumer-facing [arrow] extra; installed in dev so CI
+    # exercises io/arrow. It must never be imported outside src/views_frames/io/.
+    "pyarrow>=14,<20",
 ]
 
 [tool.hatch.build.targets.wheel]
