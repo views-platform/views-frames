@@ -17,11 +17,13 @@ from typing import cast
 import numpy as np
 from numpy.typing import NDArray
 
+from views_frames._typing import IntArray
+
 REQUIRED_IDENTIFIERS = ("time", "unit")
 
 
 def validate_identifiers(
-    identifiers: dict[str, NDArray[np.integer]], n_rows: int
+    identifiers: dict[str, IntArray], n_rows: int
 ) -> None:
     """Assert identifiers are integer 1-D arrays of length ``n_rows``, complete.
 
