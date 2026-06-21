@@ -20,7 +20,7 @@ def _pf(values, time, unit, level=SpatialLevel.PGM):
 def test_aggregate_sums_samples_element_wise():
     # two pgm cells -> one country, same time: samples summed per draw (joint sampling)
     pf = _pf([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], time=[0, 0], unit=[10, 11])
-    out = aggregate_distributions(pf, {10: 100, 11: 100}, SpatialLevel.CM)
+    out = aggregate_distributions(pf, {(0, 10): 100, (0, 11): 100}, SpatialLevel.CM)
     assert out.n_rows == 1
     assert out.index.level is SpatialLevel.CM
     assert np.array_equal(out.values, [[5.0, 7.0, 9.0]])
@@ -34,7 +34,8 @@ def test_aggregate_groups_within_time():
         time=[0, 0, 1, 1],
         unit=[10, 11, 10, 11],
     )
-    out = aggregate_distributions(pf, {10: 100, 11: 100}, SpatialLevel.CM)
+    mapping = {(0, 10): 100, (0, 11): 100, (1, 10): 100, (1, 11): 100}
+    out = aggregate_distributions(pf, mapping, SpatialLevel.CM)
     assert out.n_rows == 2  # (0,100) and (1,100)
     assert np.array_equal(out.index.time, [0, 1])
     assert np.array_equal(out.values, [[3.0, 3.0], [30.0, 30.0]])
@@ -46,7 +47,7 @@ def test_aggregate_hdi_differs_from_summed_cell_hdi():
     a = rng.normal(5.0, 1.0, 800).astype(np.float32)
     b = rng.normal(50.0, 5.0, 800).astype(np.float32)
     pf = _pf(np.stack([a, b]), time=[0, 0], unit=[10, 11])
-    agg = aggregate_distributions(pf, {10: 100, 11: 100}, SpatialLevel.CM)
+    agg = aggregate_distributions(pf, {(0, 10): 100, (0, 11): 100}, SpatialLevel.CM)
     hdi_of_sum = hdi(agg, 0.9)[0]
     sum_of_cell_hdi = hdi(pf, 0.9).sum(axis=0)
     assert not np.allclose(hdi_of_sum, sum_of_cell_hdi)

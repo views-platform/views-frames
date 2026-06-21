@@ -157,23 +157,31 @@ class SpatioTemporalIndex:
 
     def cross_level_align(
         self,
-        mapping: Mapping[int, int],
+        mapping: Mapping[tuple[int, int], int],
         target_level: SpatialLevel,
     ) -> SpatioTemporalIndex:
         """Remap each row's ``unit`` to ``target_level`` using an injected mapping.
 
-        The cross-level (cm↔pgm) join needs an external, time-varying
-        ``unit -> target_unit`` mapping (e.g. ``priogrid_id -> country_id``). The
-        leaf owns this **operation**; the **mapping is supplied by the caller** and
-        is never embedded or fetched here (ADR-014). Time is preserved.
+        The cross-level (cm↔pgm) join needs an external, **time-varying**
+        ``(time, unit) -> target_unit`` mapping (e.g. ``(month_id, priogrid_id) ->
+        country_id``): a cell's country assignment changes by month, so the key is
+        ``(time, unit)``, not ``unit`` alone (ADR-014; register C-20). The leaf owns
+        this **operation**; the **mapping is supplied by the caller** and is never
+        embedded or fetched here. Time is preserved.
+
+        The remap is vectorized — ``(time, unit)`` keys are viewed as void scalars
+        and matched with a single ``searchsorted`` against the sorted mapping keys —
+        so it scales to the full grid (no per-row Python loop; register C-22).
 
         Args:
-            mapping: A ``{unit: target_unit}`` mapping injected by the consumer.
+            mapping: A ``{(time, unit): target_unit}`` mapping injected by the
+                consumer, keyed by the ``(time, unit)`` pair.
             target_level: The ``SpatialLevel`` of the produced index.
 
         Raises:
-            ValueError: ``mapping`` is missing/empty, or a ``unit`` value has no
-                entry in ``mapping`` (the leaf never guesses a mapping).
+            ValueError: ``mapping`` is missing/empty, is not keyed by ``(time,
+                unit)`` pairs, or a row's ``(time, unit)`` has no entry in
+                ``mapping`` (the leaf never guesses a mapping).
             TypeError: ``target_level`` is not a ``SpatialLevel``.
         """
         if not isinstance(target_level, SpatialLevel):
@@ -181,17 +189,32 @@ class SpatioTemporalIndex:
             raise TypeError(f"target_level must be a SpatialLevel, got {got}")
         if mapping is None or len(mapping) == 0:
             raise ValueError(
-                "cross_level_align requires an injected unit->target_unit mapping; "
-                "the leaf never embeds or fetches it (ADR-014)."
+                "cross_level_align requires an injected (time, unit)->target_unit "
+                "mapping; the leaf never embeds or fetches it (ADR-014)."
             )
-        try:
-            mapped = np.array(
-                [mapping[int(u)] for u in self._unit], dtype=self._unit.dtype
-            )
-        except KeyError as exc:
+        map_keys = np.array(list(mapping.keys()), dtype=np.int64)
+        if map_keys.ndim != 2 or map_keys.shape[1] != 2:
             raise ValueError(
-                f"unit value {exc.args[0]} has no entry in the injected mapping"
-            ) from exc
+                "cross_level_align mapping must be keyed by (time, unit) pairs "
+                "(register C-20); got keys that are not 2-tuples."
+            )
+        map_vals = np.array(list(mapping.values()), dtype=self._unit.dtype)
+        map_rows = self._row_view(np.ascontiguousarray(map_keys))
+        order = np.argsort(map_rows, kind="stable")
+        sorted_rows = map_rows[order]
+
+        self_rows = self._row_view(self._keys())
+        pos = np.clip(
+            np.searchsorted(sorted_rows, self_rows), 0, len(sorted_rows) - 1
+        )
+        found = sorted_rows[pos] == self_rows
+        if not bool(found.all()):
+            miss = int(np.argmax(~found))
+            t, u = int(self._time[miss]), int(self._unit[miss])
+            raise ValueError(
+                f"(time, unit) ({t}, {u}) has no entry in the injected mapping"
+            )
+        mapped = map_vals[order[pos]]
         return SpatioTemporalIndex(
             time=self._time.copy(), unit=mapped, level=target_level
         )
