@@ -20,22 +20,21 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from views_frames_summarize._common import AnyFrame, rebuild
-
-# Row-block size for the batched histogram — bounds peak memory the same way
-# numpy.histogram blocks its own fast path. Vectorized within a block; constant
-# memory across blocks.
-_ROW_BLOCK = 1 << 16
+from views_frames_summarize._common import ROW_BLOCK, AnyFrame, rebuild
 
 
 def map_estimate(
-    frame: AnyFrame, *, bins: int = 100, zero_mass_threshold: float = 0.3
+    frame: AnyFrame,
+    *,
+    bins: int = 100,
+    zero_mass_threshold: float = 0.3,
+    block_rows: int = ROW_BLOCK,
 ) -> AnyFrame:
     """Per-row MAP estimate over the sample axis → a `(N, …, 1)` frame.
 
     For each row: if a fraction ``>= zero_mass_threshold`` of the samples is ~0 the
-    MAP is ``0.0``; otherwise it is the centre of the densest histogram bin (the
-    same density peak ``numpy.histogram(..., density=True)`` finds).
+    MAP is ``0.0``; otherwise it is the centre of the densest histogram bin. The
+    work runs in row-blocks of ``block_rows`` to bound peak memory (register C-22).
     """
     values = frame.values
     lead = values.shape[:-1]
@@ -45,11 +44,11 @@ def map_estimate(
     flat = np.ascontiguousarray(values).reshape(-1, s)
 
     result = np.empty(flat.shape[0], dtype=np.float32)
-    for start in range(0, flat.shape[0], _ROW_BLOCK):
-        block = flat[start : start + _ROW_BLOCK]
+    for start in range(0, flat.shape[0], block_rows):
+        block = flat[start : start + block_rows]
         centers = _batched_map(block, bins)
         mass_at_zero = np.mean(np.isclose(block, 0.0, atol=1e-8), axis=1)
-        result[start : start + _ROW_BLOCK] = np.where(
+        result[start : start + block_rows] = np.where(
             mass_at_zero >= zero_mass_threshold, 0.0, centers
         )
 
