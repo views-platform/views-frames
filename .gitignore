@@ -28,3 +28,7 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Internal-only working docs — kept on disk, never published.
+critiqus/
+perspectives/
