@@ -10,8 +10,8 @@
 ## Context
 
 `views-frames` is currently a **design repository**: a README design bible for a
-not-yet-built leaf data-contract package, plus consumer perspectives, critiques
-(`critiqus/`), and falsification stubs (`tests/`). The pre-code design surfaced real
+not-yet-built leaf data-contract package, plus consumer-review findings, design
+critiques, and falsification stubs. The pre-code design surfaced real
 forward-looking risks (twin drift, the list-in-cell memory blow-up, the cross-level
 mapping boundary, the conformance/version-coordination paradox), but these are mostly
 **latent and trigger-conditioned** — they become acute only when the leaf is stood up or
@@ -28,8 +28,9 @@ by the documentation-governance framework.
 
 ## Decision
 
-Establish `reports/technical_risk_register.md` as the single, authoritative technical
-risk register for this repository. All audit-derived findings (repo-assimilation,
+Establish a technical risk register as the single, authoritative record of technical
+risk for this repository, maintained as an internal governance artifact. All
+audit-derived findings (repo-assimilation,
 expert-code-review, test-review, falsification, persona-critique, etc.) are funnelled into
 it through the `register-risk` skill, which enforces deduplication, tier assignment, and
 trigger-quality gating. The register is curated and prioritised via the `review-rr` skill.
@@ -69,8 +70,8 @@ triggers.
 
 The register is created **empty** — no seeded concerns. This is a deliberate greenfield
 choice: the design bible's resolved decisions (README §13a) already settled the major
-pre-code questions, and the prior **critique and falsification findings live in
-`critiqus/`** (and the `tests/` falsification stubs). Those can be registered via
+pre-code questions, and the prior **critique and falsification findings are held as
+internal artifacts**. Those can be registered via
 `register-risk` when a maintainer chooses to track them formally — for example when the
 leaf is stood up and the external-repo locations they reference become concrete. Until
 then the register stands ready with Total / Open / Resolved = 0.
@@ -92,15 +93,14 @@ then the register stands ready with Total / Open / Resolved = 0.
 
 ## Implementation Notes
 
-- Register file: `reports/technical_risk_register.md` (created empty 2026-06-21).
+- The register is maintained as an internal governance artifact (created empty 2026-06-21).
 - Add risks via the `register-risk` skill; curate/prioritise via `review-rr`.
-- Prior findings to consider registering live in `critiqus/` and the `tests/` falsification stubs.
-- If the register file is moved under a gitignored path, stage it with `git add -f`.
+- Prior findings to consider registering are held as internal critique and falsification artifacts.
 
 ---
 
 ## References
 
-- `reports/technical_risk_register.md`
+- The technical risk register (internal governance artifact).
 - `README.md` (design bible §12 "Risk-register & decisions this resolves / informs")
-- `critiqus/` (prior critique findings); `tests/` (falsification stubs)
+- Internal critique and falsification findings.

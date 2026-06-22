@@ -15,7 +15,7 @@ The two twins disagree on where the posterior-sample axis lives: `PredictionFram
 (sample axis at position 2, **optional**). A single contract cannot host both conventions, and
 this decision is upstream of `protocols.py`, `_validation.py`, and every shape check — so it
 **cannot be deferred** while unification proceeds (C-02, C-16). This is the structural blocker
-the falsification audit flagged (critique_03 P1/P3).
+the falsification audit flagged.
 
 ---
 
@@ -95,6 +95,6 @@ trivial in memory (one stride) and pays for itself in contract simplicity. It al
 
 ## References
 
-- README §4.1, §13a.2; `critiqus/critique_03.md` P1/P3.
+- README §4.1, §13a.2; a falsification audit.
 - Risk register: **C-02**, **C-16**, **C-17**.
 - Issue #3; Epic #13.

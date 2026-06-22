@@ -144,7 +144,7 @@ Testing is a primary mechanism by which these ADRs are enforced.
 - Code that meaningfully affects behavior **must not be merged without tests**
 - Tests that only cover happy paths are insufficient
 - Warning-only behavior in tests is unacceptable for decision-relevant semantics
-- If a failure mode is known and untested, it is considered technical debt and must be tracked in the risk register (`reports/technical_risk_register.md`, ADR-010)
+- If a failure mode is known and untested, it is considered technical debt and must be tracked in the technical risk register (ADR-010)
 
 The absence of appropriate tests is valid grounds for blocking a change.
 

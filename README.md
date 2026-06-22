@@ -9,7 +9,7 @@
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles + cross-level
 > aggregation; ADR-017). The blocking design decisions are resolved (§13a) and
-> ratified as ADRs 011–018; two consumer-review rounds (`perspectives/`) validated
+> ratified as ADRs 011–018; two rounds of consumer review validated
 > the design. Consumer adoption (re-export shims, pandas migration) is the owner's
 > migration, not this repo's.
 > If the code and this README disagree, that is a bug — reconcile before merging.
@@ -107,8 +107,7 @@ register):
   first materializes the full-sample tensor). This is C-40/C-66 firing for real —
   pipeline-core **C-186**, the **first observed-in-production member** of the
   Data-Contract Gap cluster, and the live use-case that motivates this package.
-  A dense, collapsed array frame is the fix. See
-  `perspectives/from_views-pipeline-core_perspective.md`.
+  A dense, collapsed array frame is the fix.
 - **God-class data handler with leaked internals.** `_ViewsDataset`
   (`data/handlers.py`, ~950 LOC, C-36) is consumed across three repos by reaching
   into its **private** members (`_time_id`, `_entity_id`, `_get_entity_index`,
@@ -164,14 +163,13 @@ imports **no** `views_*` package, ever. If it ever needs to, the boundary is
 wrong. This is what makes it impossible to participate in a cycle (ADP) and what
 makes it safe to depend on from everywhere (SDP).
 
-> **Consumer perspectives.** A downstream repo's detailed view of how it uses
-> these frames lives in `perspectives/from_<repo>_perspective.md`. The first is
-> `perspectives/from_views-reporting_perspective.md` — the presentation layer that
+> **Consumer views.** Each downstream repo has a detailed view of how it uses
+> these frames. The first is **views-reporting** — the presentation layer that
 > *consumes* `PredictionFrame`, `TargetFrame`, and `MetricFrame` and routes its
 > data contract through this leaf (which is what breaks the
 > views-pipeline-core ↔ views-reporting cycle, reporting issue **#113**).
 >
-> `perspectives/from_views-pipeline-core_perspective.md` is the **origin/orchestration**
+> **views-pipeline-core** is the **origin/orchestration**
 > repo's view — not a pure downstream consumer but the repo that *owns these types
 > today* (`PredictionFrame`, `_ViewsDataset`, the converter) and hands the contract
 > off to this leaf. It carries the worked failure mode (#181 report-stage OOM,
@@ -251,7 +249,7 @@ uses `pd.isna` for the NaN-check (§10.2).
 | **`TargetFrame`** (a.k.a. `ActualsFrame`) | `y_true: (N, 1)` | The **evaluation boundary** still takes pandas actuals (`adapter.py`). A target frame makes eval array-native and kills that pandas dependency. Structurally `PredictionFrame` with `S=1`. | **next** |
 | **`WeightFrame`** | `w: (N,)` or `(N, S)` | Weighted losses / weighted metrics. Same identifiers, different `values` meaning. | when weighting lands |
 | **`MaskFrame`** | `mask: (N,)` bool | Partial-data / sparse-actuals evaluation (C-26 silent truncation). Marks which (time, unit) cells are present. | when partial eval lands |
-| **`MetricFrame`** (a.k.a. `ScoreFrame`) | `(K, …)` keyed by `(target, step, unit)` | Evaluation **outputs** are currently scattered into wandb summaries + parquet. First-class array form. **views-reporting's eval report is the consumer of record** — today it scrapes wandb and renders the wrong run (its C-48; see `perspectives/from_views-reporting_perspective.md`). | exploratory |
+| **`MetricFrame`** (a.k.a. `ScoreFrame`) | `(K, …)` keyed by `(target, step, unit)` | Evaluation **outputs** are currently scattered into wandb summaries + parquet. First-class array form. **views-reporting's eval report is the consumer of record** — today it scrapes wandb and renders the wrong run (its run-selection bug, C-48). | exploratory |
 
 **Already exists externally — do NOT rebuild:** `EvaluationFrame` lives in
 `views-evaluation` (aligned pred×actual×(origin, step)). `views-frames` should
@@ -283,8 +281,8 @@ genuinely reused core. Build this once:
   does not depend on), never fetched or versioned here — embedding versioned domain
   data would make the leaf change for data reasons and break §8 maximal stability.
   This resolves the falsified "domain-free cross-level" claim
-  (`critiqus/critique_02.md`); faoapi's producer-materialised metadata is the
-  existence proof (`perspectives/from_views-faoapi_perspective.md` §8.3).
+  (a falsification audit, 5 hard falsifications); faoapi's producer-materialised
+  metadata is the existence proof.
 - `SpatialLevel` (currently `views-pipeline-core/domain/spatial.py`) should move
   here — it is a tiny, stable value object that *is* part of the identifier
   vocabulary (it defines `index_names` and `entity_column`: cm→`country_id`,
@@ -397,7 +395,7 @@ Layout rules (these *are* the screaming-architecture requirements):
 The scaling failure in the platform today is the **list-in-cell `object`-dtype
 DataFrame** (a cell holds a Python list of S samples) — measured ~33× blow-up
 (C-40/C-66), and ~50–160× per-row over dense float32 in the #181 report-stage
-investigation (C-186; `perspectives/from_views-pipeline-core_perspective.md`).
+investigation (C-186).
 `views-frames` standardizes two scalable formats and **bans list-in-cell**:
 
 - **Native (`io/npz.py`):** `values.npy` (contiguous float32) + `identifiers.npz`.
@@ -511,8 +509,7 @@ typed contract → frame I/O contract), **C-184** (cross-repo mutation of
 (circular dependency) and informs **D-28** (relocate reconciliation) and **D-33**
 (collapse the `CMDataset/PGMDataset` hierarchy into a `SpatialLevel` value).
 
-From the **views-reporting** consumer (its own register; see
-`perspectives/from_views-reporting_perspective.md`) this package *forbids* its
+From the **views-reporting** consumer (its own register) this package *forbids* its
 **C-184** (the `reconciled_dataframe` mutation) and the reporting side of
 **C-135** (private `_entity_id`/`_time_id` reads → published index protocol), and
 *enables* fixing **C-48** (wandb eval scrape → a typed `MetricFrame`) and **C-44**
@@ -549,8 +546,8 @@ pipeline-core **C-48** listed above — two registers, same number.)
    mapping.** Same-level alignment lives in the leaf; the cross-level country↔grid
    join needs a viewser-sourced, time-varying `priogrid→country` **mapping** that
    is **injected by the consumer and never embedded in the leaf**. The leaf owns
-   only `cross_level_align(index, mapping)`. See §4.3; resolves
-   `critiqus/critique_02.md`.
+   only `cross_level_align(index, mapping)`. See §4.3; resolves the
+   falsified "domain-free cross-level" claim (a falsification audit, 5 hard falsifications).
 5. **`SpatialLevel` lives here, as identifier vocabulary only** — relocated with
    the C-65 reversed index-tuple and the `priogrid_gid`/`priogrid_id`
    inconsistency **fixed, not ported** (§4.3). It carries the level labels, never

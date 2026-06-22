@@ -6,8 +6,8 @@ All notable changes to `views-frames` are documented here. The format is based o
 
 ## [1.0.0] — 2026-06-21
 
-**API freeze (ADR-018).** Leaf completion (Epic 5) — the round-02 review findings
-(`perspectives/round02/`), then the v1.0 freeze. Two consumer-review rounds validated
+**API freeze (ADR-018).** Leaf completion (Epic 5) — the second-round consumer-review
+findings, then the v1.0 freeze. Two rounds of consumer review validated
 the design (no ADR challenged). From here the public surface is frozen; breaking
 changes are MAJOR (GOVERNANCE "Stability — the v1.0 freeze"). The pre-1.0
 breaking-in-MINOR latitude ends.
@@ -16,7 +16,7 @@ breaking-in-MINOR latitude ends.
 - `FeatureFrame`/`PredictionFrame`/`TargetFrame` gain `select(positions | mask) ->
   Frame` and `reindex(other) -> Frame` (frame-level row selection / alignment; the
   former returned only positions). `SpatioTemporalIndex.select(indexer)` underlies them.
-  Closes the round-02 consumer gap F12.
+  Closes the second-round consumer gap F12.
 - `SpatioTemporalIndex.cross_level_align_arrays` + `aggregate_distributions_arrays` —
   columnar `(map_keys, map_vals)` mappings, ~30× faster / ~10× less memory than a
   grid-scale Python dict (benchmark-gated; register C-26).
@@ -47,7 +47,7 @@ breaking-in-MINOR latitude ends.
 
 ## [0.3.0] — 2026-06-21
 
-Hardening release (Epic 4) — the round-01 review findings (`perspectives/round01/`).
+Hardening release (Epic 4) — the first-round consumer-review findings.
 No new surface beyond a time-aware mapping; correctness, typing, and scale.
 
 ### Changed (breaking, pre-1.0)

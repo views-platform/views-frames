@@ -15,7 +15,7 @@ stable, abstract array+identifier value objects (`FeatureFrame`, `PredictionFram
 their anticipated siblings, and the shared `SpatioTemporalIndex`) at the root of the
 platform dependency DAG, depended on by every other repo and depending on nothing
 internal. At the time of writing the repository contains only a **design bible**
-(`README.md`), consumer perspectives, critiques, and falsification test stubs — **no
+(`README.md`), consumer-review findings, design critiques, and falsification test stubs — **no
 `src/` yet**. This is exactly the moment at which architectural decisions are cheapest
 to record and most likely to be lost: the twin-unification model, the sample-axis
 convention, the metadata/identifier model, and the alignment logic/data boundary are

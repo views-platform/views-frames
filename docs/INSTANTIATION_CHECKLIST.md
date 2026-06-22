@@ -58,7 +58,7 @@ checked to reflect the `views-frames` adaptation completed on 2026-06-21.
 
 ## Governance Reports
 
-- [x] `reports/technical_risk_register.md` created — empty register (Total/Open/Resolved = 0), tier definitions + conventions
+- [x] Technical risk register created as an internal governance artifact — empty register (Total/Open/Resolved = 0), tier definitions + conventions
 
 ---
 

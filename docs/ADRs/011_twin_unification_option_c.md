@@ -112,6 +112,6 @@ asymmetry (C-16) beats forcing a false symmetry.
 
 ## References
 
-- README §5, §13a.1; `critiqus/critique_01.md` §4 (worked A/B/C analysis), `critiqus/critique_03.md` P1.
+- README §5, §13a.1; the pre-code design audit (worked A/B/C analysis) and a falsification audit.
 - Risk register: **C-16**, **C-03**, **C-17**; disagreement **D-03** (resolved).
 - Issue #2; Epic #13.

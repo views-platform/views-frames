@@ -14,7 +14,7 @@
 The leaf's headline value is "giving arrays the label-alignment that today drags pandas back
 in." For **same-level** alignment that is true and domain-free. But both downstream consumers
 also ask the index for the **cross-level** cm↔pgm (country↔grid) join. A Popperian falsification
-audit (`critiqus/critique_02.md`, 5 hard falsifications) proved that join requires an external,
+audit (5 hard falsifications) proved that join requires an external,
 viewser-sourced, **time-varying** `priogrid→country` mapping — a cell's country assignment
 changes by month (`previous_country_id`). Embedding that mapping breaks the leaf's no-domain
 (§3/§11) and maximal-stability (§8) constraints; fetching it breaks no-`views_*`. This is the
@@ -55,7 +55,7 @@ the join.
 - **Pros:** the leaf could deliver the join with no consumer wiring.
 - **Cons:** the mapping is time-varying reference data → the leaf MAJOR-bumps on metadata
   revisions, breaking §8 maximal stability; violates no-domain (§3/§11).
-- **Reason for rejection:** falsified — self-defeating (critique_02 Probe 4).
+- **Reason for rejection:** falsified — self-defeating (the cross-level falsification audit).
 
 ### Alternative B: the leaf fetches the mapping from viewser
 - **Pros:** always current.
@@ -111,8 +111,8 @@ the join.
 
 ## References
 
-- README §4.3, §13a.4, §3/§11/§8; `critiqus/critique_02.md` (FALSIFIED, 5-hard), `critiqus/critique_03.md` F-02;
-  `perspectives/from_views-faoapi_perspective.md` §8.3.
+- README §4.3, §13a.4, §3/§11/§8; the cross-level falsification audit (5 hard falsifications) and a
+  follow-on falsification audit; faoapi's producer-materialised metadata as the existence proof.
 - Evidence: `views-reporting/metadata/entity_metadata.py:10,45-75,147`, `views-reporting/reconciliation/reconciliation.py:15,74,96`.
 - Risk register: **C-14**, **C-15**; disagreement **D-01** (resolved).
 - Issue #5; Epic #13.
