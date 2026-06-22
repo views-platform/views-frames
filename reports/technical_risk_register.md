@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-21                           |
-| Total Concerns    | 26                                   |
-| Open Concerns     | 12                                   |
+| Total Concerns    | 27                                   |
+| Open Concerns     | 13                                   |
 | Resolved Concerns | 14                                   |
 | Disagreements     | 6                                    |
 
@@ -197,6 +197,20 @@ The two real classes diverge structurally, most critically on sample-axis positi
 | Location | `views-pipeline-core/.../domain/spatial.py` (`_INDEX_NAMES`, `index_names` vs `entity_column`) |
 
 `SpatialLevel` is numpy-clean to relocate but carries a reversed index tuple (C-65) and a pre/post-rename `priogrid_gid`/`priogrid_id` self-inconsistency; relocating as-is ships both into the package every repo imports (critique_03 F-03, P5a). Resolution path: ADR-015 (fix-don't-port). (This entry subsumes the original C-04 "SpatialLevel slippery slope".)
+
+---
+
+### C-28: the first-publish PyPI API token is account-wide (over-privileged)
+
+| Field | Value |
+|-------|-------|
+| ID | C-28 |
+| Tier | 4 |
+| Source | release-publishing (2026-06-22) |
+| Trigger | When the next manual PyPI upload reuses the stored account-wide `views-frames-release` token, or the token is exposed (shell history, CI logs, a pasted transcript) — it grants upload to **every** project on the owner's PyPI account, not just `views-frames`. |
+| Location | PyPI account → Account settings → API tokens (`views-frames-release`); `docs/guides/publishing-to-pypi.md`; the tokenless alternative in `.github/workflows/publish_package.yml` |
+
+The first real PyPI publish (v1.0.0, 2026-06-22) used an **"Entire account"**-scoped API token — the correct (only) choice for a first-ever upload, since you cannot scope a token to a project that does not exist yet. Now that `views-frames` exists on PyPI, that token is over-privileged: a leak grants upload rights to *all* of the owner's PyPI projects. **Mitigation (housekeeping):** delete the `views-frames-release` token (Account settings → API tokens) and either (a) rely on the tokenless **Trusted-Publishing** workflow (`publish_package.yml`) for future releases — the recommended path — or (b) create a new token **scoped to the `views-frames` project** for manual uploads. Low severity; trivial, reversible remediation.
 
 ---
 
