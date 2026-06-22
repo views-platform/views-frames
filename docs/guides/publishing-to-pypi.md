@@ -71,6 +71,37 @@ the workflow and it working.
 > If you'd rather not use a pending publisher, do the **first** upload manually with a
 > token (§B), then all future releases go through the automated path.
 
+### Creating an API token (web UI — the click-by-click, for the manual path §A/§B)
+
+You need a token on **each site you upload to**: **TestPyPI** (https://test.pypi.org) for
+rehearsals (§A) and **real PyPI** (https://pypi.org) for releases (§B). They are **separate
+accounts with separate tokens** — a TestPyPI token gets a `403` on real PyPI and vice-versa.
+The steps are identical on both sites:
+
+1. Log in. Click your **username** (top-right corner).
+2. Click **Account settings** (left sidebar).
+3. Scroll down to the **API tokens** section → **Add API token**.
+4. **Token name:** any label, e.g. `views-frames-release`.
+5. **Scope:** for a **first-ever** upload of a project, choose **"Entire account (all
+   projects)"** — PyPI will not let you scope to a project that does not exist yet (the
+   "Proceed with caution" banner is expected). For *later* uploads, scope to the
+   **`views-frames`** project (see the next note).
+6. Click **Create token**.
+7. The token (`pypi-AgEN…`) is shown **once**, with a **copy button** — copy it now; you
+   cannot see it again. Ignore the `.pypirc` / `pip` config snippets it also shows.
+
+🔒 Paste the token **only** into your own terminal's `uv publish --token …` command — never
+into a chat, PR, or commit. Put a **space before** the command (or `export
+UV_PUBLISH_TOKEN=…` and drop `--token`) to keep it out of shell history.
+
+### After the first publish — tighten the token scope (register C-28)
+
+An **"Entire account"** token can upload to *all* your PyPI projects, so it is
+over-privileged once `views-frames` exists. Housekeeping after the first release: **Account
+settings → API tokens → delete `views-frames-release`**, then either rely on the tokenless
+Trusted-Publishing workflow (recommended) **or** create a new token **scoped to the
+`views-frames` project** for future manual uploads.
+
 ---
 
 ## A. TestPyPI dress rehearsal (optional, recommended for big releases)
