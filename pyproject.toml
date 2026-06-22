@@ -6,12 +6,21 @@ build-backend = "hatchling.build"
 name = "views-frames"
 version = "1.0.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
+authors = [
+    { name = "Simon Polichinel von der Maase", email = "simmaa@prio.org" },
+]
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=1.26,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/views-platform/views-frames"
+Repository = "https://github.com/views-platform/views-frames"
+Changelog = "https://github.com/views-platform/views-frames/blob/main/CHANGELOG.md"
 
 # Optional serialization extra — pyarrow is allowed ONLY behind io/ (README §3.1).
 [project.optional-dependencies]
