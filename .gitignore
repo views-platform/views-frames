@@ -28,3 +28,10 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Internal-only working docs — kept local, never published.
+# critiqus/ + perspectives/ stay local. The risk register lives under reports/
+# but is force-tracked (git add -f); see docs/ADRs/010_technical_risk_register.md.
+reports/
+critiqus/
+perspectives/
