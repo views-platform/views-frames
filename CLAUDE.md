@@ -62,6 +62,6 @@ uv build                # build wheel + sdist
 
 Constitutional ADRs 000–010, project ADRs 011–016, CIC infrastructure, contributor
 protocols, and standards live in `docs/`. The technical risk register is
-`reports/technical_risk_register.md`. Run `bash docs/validate_docs.sh` to check
+maintained as an internal governance artifact. Run `bash docs/validate_docs.sh` to check
 documentation consistency. Build *against* the README design bible — if code and
 README disagree, reconcile before merging.

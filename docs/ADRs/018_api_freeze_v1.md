@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-06-21
 **Deciders:** VIEWS platform maintainers (keystone owner)
-**Consulted:** round-01 + round-02 consumer reviews (`perspectives/`)
+**Consulted:** two rounds of consumer review
 **Informed:** all `views_frames` consumers
 
 ---
@@ -13,8 +13,8 @@
 `views-frames` is the leaf of the platform dependency DAG: every other repo depends
 *toward* it, so its stability is the whole point. Through v0.1.0–v0.3.0 the contract
 was deliberately allowed to make **breaking changes in MINOR bumps** (the pre-1.0
-latitude in `GOVERNANCE.md`), because no consumer had pinned it yet. Two consumer
-review rounds (`perspectives/round01`, `round02`) validated the design — **no ADR was
+latitude in `GOVERNANCE.md`), because no consumer had pinned it yet. Two rounds of
+consumer review validated the design — **no ADR was
 challenged** — and the remaining findings were correctness/polish, now resolved
 (register C-19…C-27). Two of those changes touched the *published* surface: the
 `(time, unit)`-keyed time-aware `cross_level_align` (C-20, a breaking re-key) and the
@@ -72,7 +72,7 @@ SemVer rules from advisory to binding. The breaking changes that needed making
 (C-20's time-aware re-key) were made *while* breaking was cheap; the surface has now
 been exercised by two review rounds without a design challenge, so the risk of a
 forced MAJOR soon after 1.0 is low. Recording the frozen surface here (not in commit
-messages) answers the round-02 governance finding and gives a future agent the
+messages) answers the second-round governance finding and gives a future agent the
 breaking-change rationale from the decision record.
 
 ---
@@ -141,5 +141,5 @@ breaking-change rationale from the decision record.
 
 - Epic 5 PRs (test-portability, summarizer-memory, select-reindex, cross-level-arrays,
   freeze-and-release); register C-19…C-27.
-- `perspectives/round01/SYNTHESIS.md`, `perspectives/round02/SYNTHESIS.md`.
+- The first- and second-round consumer-review syntheses.
 - ADR-014 (cross-level), ADR-016 (conformance floor + ownership).

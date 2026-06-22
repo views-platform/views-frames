@@ -109,6 +109,6 @@ the index aligns rows; the header describes the frame.
 
 ## References
 
-- README §13a.3, §8, §13.5; `critiqus/critique_01.md` §3.2.
+- README §13a.3, §8, §13.5; the pre-code design audit.
 - Risk register: **C-08**, **C-11**, **C-09**; disagreement **D-02**.
 - Issue #4; Epic #13.

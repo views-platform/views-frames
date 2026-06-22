@@ -115,7 +115,7 @@ This encodes the design bible's governing principle: *unstable depends on stable
 The following are **not allowed** as first-class concepts in this repository (from README §11):
 
 - **Forbidden dependencies in the core** — `pandas`, `polars`, `geopandas`, `wandb`, `viewser`, `torch`, or **any `views_*` import**. numpy only; `pyarrow` allowed only behind `io/`.
-- **The cross-level mapping** — the `priogrid→country` / GAUL hierarchy is viewser-sourced, time-varying domain reference data; it is **consumer-injected**, never embedded, fetched, or versioned here (resolves `critiqus/critique_02.md`).
+- **The cross-level mapping** — the `priogrid→country` / GAUL hierarchy is viewser-sourced, time-varying domain reference data; it is **consumer-injected**, never embedded, fetched, or versioned here (resolves the cross-level falsification audit).
 - **`MetricFrame` / `EvaluationFrame`** — eval-output vocabulary owned by `views-evaluation`; the leaf may define only the *index protocol* they conform to.
 - **Adapters** — `from_grid()`, `PredictionFrameConverter`, store/pandas/appwrite/forecasts edges, reconciliation math, model code, report rendering. These are *edges* in consumer repos.
 - **The grid backbone** — `SpatioTemporalGrid` stays out of the leaf.

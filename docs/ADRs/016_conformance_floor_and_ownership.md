@@ -105,6 +105,6 @@ This makes the package's stability claim operational rather than aspirational.
 
 ## References
 
-- README §9, §13b.4–5, §8; `critiqus/critique_01.md` §2.5/§3.4/§3.7, `critiqus/critique_03.md` P6.
+- README §9, §13b.4–5, §8; the pre-code design audit and a falsification audit.
 - Risk register: **C-05**, **C-10**, **C-13**.
 - Issue #7; Epic #13.

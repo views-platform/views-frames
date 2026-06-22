@@ -15,7 +15,7 @@ defines the cm/pgm vocabulary — `entity_column` and `index_names` (cm→`count
 pgm→`priogrid_id`). It is a tiny, stdlib-`enum`-only object and is genuinely part of the
 identifier vocabulary, so it belongs in the leaf. But the falsification audit found the current
 implementation carries two latent defects, and "relocate verbatim" would ship both into the
-keystone every repo imports (C-18, critique_03 F-03/P5a):
+keystone every repo imports (C-18, a falsification audit):
 
 1. **C-65 — reversed index tuple:** `_INDEX_NAMES` is entity-first (`("priogrid_gid","month_id")`)
    while every real DataFrame is time-first `(month_id, entity)`.
@@ -45,7 +45,7 @@ The label vocabulary is tiny and maximally stable — exactly what a leaf should
 it ends the bare-string `"cm"`/`"pgm"` sprawl and the `_ViewsDataset` private `_entity_id` reads
 across three repos. But relocation is the moment to fix the two defects, not entrench them: a
 wrong-order index contract or a self-inconsistent identifier name in the keystone is the worst
-possible place for a latent bug. "Relocation ≠ cleanup" is the explicit lesson of critique_03.
+possible place for a latent bug. "Relocation ≠ cleanup" is the explicit lesson of the falsification audit.
 
 ---
 
@@ -105,7 +105,7 @@ possible place for a latent bug. "Relocation ≠ cleanup" is the explicit lesson
 
 ## References
 
-- README §4.3, §13a.5; `critiqus/critique_03.md` F-03/P5a.
+- README §4.3, §13a.5; a falsification audit.
 - Evidence: `views-pipeline-core/.../domain/spatial.py` (`_INDEX_NAMES`, `index_names` vs `entity_column`).
 - Risk register: **C-18** (subsumes original C-04).
 - Issue #6; Epic #13.

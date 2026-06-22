@@ -3,7 +3,7 @@
 
 This repository uses Architecture Decision Records (ADRs) to govern structural, semantic,
 and operational behavior. Because `views-frames` is currently a **design bible** (a
-README, consumer perspectives, critiques, and falsification stubs — no `src/` yet), these
+README, consumer-review findings, design critiques, and falsification stubs — no `src/` yet), these
 ADRs describe the **intended** architecture; when the leaf is stood up, code must conform
 to them (and to the README, which is itself authoritative).
 
@@ -30,7 +30,7 @@ ADRs are divided into:
 
 ## Governance ADRs
 
-- **ADR-010** — [Technical Risk Register](010_technical_risk_register.md). Formalises `reports/technical_risk_register.md`, seeded 2026-06-21 with **17 concerns** (C-01..C-18) + **6 disagreements** (D-01..D-06) from the design critiques and falsification stubs.
+- **ADR-010** — Technical Risk Register. Formalises the technical risk register as an internal governance artifact, seeded 2026-06-21 with **17 concerns** (C-01..C-18) + **6 disagreements** (D-01..D-06) from the design critiques and falsification stubs.
 
 ---
 
