@@ -25,8 +25,8 @@
 
 ## Open Concerns
 
-> Seeded 2026-06-21 from the four design critiques (`critiqus/critique_00..03.md`) and the
-> 11 falsification stubs (`tests/test_falsification_*.py`). IDs are permanent; the gap at
+> Seeded 2026-06-21 from four internal design critiques (kept local, not tracked in the repo)
+> and the 11 falsification stubs (`tests/test_falsification_*.py`). IDs are permanent; the gap at
 > **C-04** is intentional (the original "SpatialLevel slippery slope" finding was merged into
 > **C-18**).
 >
