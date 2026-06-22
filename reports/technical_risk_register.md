@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-21                           |
 | Total Concerns    | 27                                   |
-| Open Concerns     | 13                                   |
-| Resolved Concerns | 14                                   |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 15                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -200,20 +200,6 @@ The two real classes diverge structurally, most critically on sample-axis positi
 
 ---
 
-### C-28: the first-publish PyPI API token is account-wide (over-privileged)
-
-| Field | Value |
-|-------|-------|
-| ID | C-28 |
-| Tier | 4 |
-| Source | release-publishing (2026-06-22) |
-| Trigger | When the next manual PyPI upload reuses the stored account-wide `views-frames-release` token, or the token is exposed (shell history, CI logs, a pasted transcript) — it grants upload to **every** project on the owner's PyPI account, not just `views-frames`. |
-| Location | PyPI account → Account settings → API tokens (`views-frames-release`); `docs/guides/publishing-to-pypi.md`; the tokenless alternative in `.github/workflows/publish_package.yml` |
-
-The first real PyPI publish (v1.0.0, 2026-06-22) used an **"Entire account"**-scoped API token — the correct (only) choice for a first-ever upload, since you cannot scope a token to a project that does not exist yet. Now that `views-frames` exists on PyPI, that token is over-privileged: a leak grants upload rights to *all* of the owner's PyPI projects. **Mitigation (housekeeping):** delete the `views-frames-release` token (Account settings → API tokens) and either (a) rely on the tokenless **Trusted-Publishing** workflow (`publish_package.yml`) for future releases — the recommended path — or (b) create a new token **scoped to the `views-frames` project** for manual uploads. Low severity; trivial, reversible remediation.
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -283,6 +269,18 @@ The first real PyPI publish (v1.0.0, 2026-06-22) used an **"Entire account"**-sc
 ---
 
 ## Resolved Concerns
+
+> Resolved 2026-06-22 (release housekeeping).
+
+### C-28: first-publish PyPI API token was account-wide (over-privileged) — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-28 |
+| Resolved | 2026-06-22 |
+| Resolution | Switched to **Trusted Publishing** — added a GitHub OIDC trusted publisher on the PyPI `views-frames` project (Owner `views-platform`, Repo `views-frames`, Workflow `publish_package.yml`), so future releases publish **tokenless** via `publish_package.yml`. Deleted both the account-wide `views-frames-release` token and a transient project-scoped token. **No PyPI API token now exists** — nothing to store or leak. The publishing guide documents the tokenless flow. |
+
+---
 
 > Resolved 2026-06-21 by Epic 5 (leaf completion, v1.0.0, PRs #68–#72).
 
