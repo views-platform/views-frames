@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-22                           |
-| Total Concerns    | 30                                   |
-| Open Concerns     | 2                                    |
+| Total Concerns    | 31                                   |
+| Open Concerns     | 3                                    |
 | Resolved Concerns | 28                                   |
 | Disagreements     | 6                                    |
 
@@ -36,9 +36,10 @@
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
 > The genuinely open items below are the inherent **concentration risk** (C-13, accepted /
-> monitored) and **C-32** — the `map_estimate` tie-break bias surfaced by the views-faoapi
-> integration spike (2026-06-23). The 2026-06-22 test-review's gaps (C-29, C-31) were closed by
-> **Epic 6** and are now in **Resolved Concerns**.
+> monitored) and two summarize-estimator-coherence concerns from the views-faoapi integration
+> spike (2026-06-23): **C-32** (`map_estimate` tie-break bias) and **C-33** (`hdi` has no
+> nesting/tower guarantee) — both tracked together in #89. The 2026-06-22 test-review's gaps
+> (C-29, C-31) were closed by **Epic 6** and are now in **Resolved Concerns**.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
@@ -64,7 +65,27 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 | Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. |
 | Location | `src/views_frames_summarize/point.py:100` (`np.argmax(counts)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
 
-At 32 draws in 100 bins the histogram peak is almost always a multi-way tie; `np.argmax` takes the lowest index = leftmost = smallest value, so for a right-skewed, zero-inflated posterior the MAP is dragged toward zero. The faoapi spike measured this against the production estimator: **~21% of active cells diverge one-directionally (NEW MAP ≤ OLD MAP always), up to 7.9 in ln-space** (≈2,700× in count-space). This is the **C-24** portability fix's blind side — C-24 removed the numpy-version *instability* of the `density = count/width` tie-break, but the lowest-index choice it landed on carries a *directional bias* C-24 never weighed. **Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Honest framing: the histogram-mode is **ill-posed at 32 draws** — both estimators are unprincipled (old unstable, new biased); the real fix is estimator design. HDI, by contrast, is **bit-identical** (no concern). Resolution path: estimator-design effort tracked in **#89** (principled tie-break / smoothed-density peak; SemVer decision required). See C-24 (resolved), C-25.
+**Symptom.** At 32 draws in 100 bins the histogram peak is almost always a multi-way tie; `np.argmax` takes the lowest index = leftmost = smallest value, so for a right-skewed, zero-inflated posterior the MAP is dragged toward zero. The faoapi spike measured this against the production estimator: **~21% of active cells diverge one-directionally (NEW MAP ≤ OLD MAP always), up to 7.9 in ln-space** (≈2,700× in count-space). This is the **C-24** portability fix's blind side — C-24 removed the numpy-version *instability* of the `density = count/width` tie-break, but the lowest-index choice it landed on carries a *directional bias* C-24 never weighed.
+
+**The real problem is deeper than the tie-break.** The mode is the only one of our point/interval estimates that is a functional of the *density* rather than the *CDF*. Mean is an average; quantiles/HDI are order statistics — both need only the samples ranked, which is **why the spike found HDI bit-identical**. The mode needs an *estimated density* and its argmax, and density estimation is inherently **regularized** — there is no assumption-free, tuning-free density estimate. What we ship is the degenerate corner: a **nonparametric mode with a fixed (non-adaptive) bandwidth (100 bins) and an arbitrary tie-break** — neither parametric nor consistently nonparametric, so it is both **biased *and* non-convergent**. A fixed bin count *cannot* converge to the true mode no matter how many samples are added (consistency needs the bandwidth to shrink with `n` at a controlled rate). A principled MAP therefore requires **one of**: (a) an explicit distributional assumption (fit a family → analytic mode; stable at low `n`, at the cost of model risk), or (b) an **`n`-adaptive smoothing rule *plus* a sufficient-`n` floor** (a sample-count floor alone is necessary, not sufficient). The tie-break is merely **where the under-determination surfaces**; "fix the tie-break" reduces the directional bias but does not make the estimator converge — a band-aid, not a cure.
+
+Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rule (≥30% mass at ~0 ⇒ MAP = 0) is a zero-inflation model. The under-determined part is specifically the **continuous-body mode**, which is why the bias bites hardest on the *partially* zero-inflated active cells (`mass0 ≈ 0.06`).
+
+**Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Resolution path: estimator-design effort tracked in **#89** (a distributional assumption *or* `n`-adaptive smoothing + floor; **not** merely a better tie-break; SemVer decision required). See C-24 (resolved), C-25, C-33.
+
+---
+
+### C-33: `hdi` computes each mass independently — no nesting (tower) guarantee
+
+| Field | Value |
+|-------|-------|
+| ID | C-33 |
+| Tier | 3 |
+| Source | views-faoapi integration spike (2026-06-23) |
+| Trigger | When a consumer composes multiple `hdi(frame, mass)` results into a credible-band tower (e.g. a fan chart), check that the bands actually nest — on skewed / multimodal empirical samples the independently-computed shortest 50% interval need not sit inside the shortest 95% interval, so a narrower band can poke **outside** a wider one. |
+| Location | `src/views_frames_summarize/interval.py:23-48` (`hdi` — independent per-mass shortest interval; no nesting, no MAP-containment; single-mass-per-call API) |
+
+`hdi` returns the empirical **shortest interval** for one mass per call and stops; it neither enforces nor offers an API for **nesting** across masses. For a true unimodal density the shortest-interval HDIs nest automatically (they are superlevel sets `{f ≥ c}`), but **empirical** shortest intervals computed independently per mass can fail to nest on skewed/multimodal samples — the densest 50% window need not lie inside the densest 95% window. A consumer's production analyzer enforces a tower **post-hoc** (expand each wider interval to contain the narrower, plus a MAP-containment shift), at the cost that the intervals are no longer the true shortest and the narrowest is **dragged by the (biased) MAP** (C-32). The two sit at opposite corners: views-frames is **honest-but-incoherent** (each interval true-shortest, no tower); the post-hoc approach is **coherent-but-corrupted** (tower forced, intervals shifted/expanded + MAP-coupled). The principled resolution is **shared with C-32**: nesting and "MAP ∈ HDI" are the **same density-level-set coherence** — derive the whole family together (one coherent/smoothed density, or the shrinking shortest-interval) so the tower **and** the mode fall out **nested-by-construction**, exposed via a multi-mass `hdi(frame, masses=[…])` that returns a guaranteed tower. Tier 3: each call is individually correct; the gap is a missing cross-call coherence guarantee / API (consumers must re-derive nesting). Tracked with C-32 in **#89**. See C-32, C-25 (resolved).
 
 ---
 
