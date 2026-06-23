@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "views-frames"
-version = "1.0.1"
+version = "1.1.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
 authors = [
     { name = "Simon Polichinel von der Maase", email = "simmaa@prio.org" },
@@ -60,6 +60,9 @@ show_missing = true
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+# research/ is the volatile estimator lab (outside the frozen, gated src/); it is
+# not held to the leaf's lint/format bar.
+extend-exclude = ["research"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
