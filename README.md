@@ -4,11 +4,13 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **frozen — v1.0.0** (API freeze, ADR-018). This README is the design
+> **Status:** **v1.1.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1.0 surface
+> is purely additive — the coherent posterior summary, ADR-019). This README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
-> (sample-axis summarization — `collapse`/MAP/HDI/quantiles + cross-level
-> aggregation; ADR-017). The blocking design decisions are resolved (§13a) and
+> (sample-axis summarization — `collapse`/MAP/HDI/quantiles, the coherent-tower estimators
+> `hdi_tower`/`tower_point`/`bimodality`/`summarize_tower`, + cross-level
+> aggregation; ADR-017, ADR-019). The blocking design decisions are resolved (§13a) and
 > ratified as ADRs 011–018; two rounds of consumer review validated
 > the design. Consumer adoption (re-export shims, pandas migration) is the owner's
 > migration, not this repo's.

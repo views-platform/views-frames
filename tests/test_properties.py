@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from views_frames import (
     FeatureFrame,
+    Frame,
     FrameMetadata,
+    Persistable,
     PredictionFrame,
+    Sampled,
     SpatialLevel,
     SpatioTemporalIndex,
+    SpatioTemporalIndexed,
     TargetFrame,
 )
 
@@ -58,3 +63,16 @@ def test_reindex_round_trips_self():
     pos = a.reindex(a)
     assert np.array_equal(a.time[pos], a.time)
     assert np.array_equal(a.unit[pos], a.unit)
+
+
+@pytest.mark.parametrize(
+    "protocol", [Frame, SpatioTemporalIndexed, Sampled, Persistable]
+)
+def test_frames_satisfy_runtime_checkable_protocols(protocol):
+    # 🟩 Green: the Protocols CIC section-3 guarantee, asserted directly (C-37).
+    # Every frame is a runtime instance of each @runtime_checkable protocol
+    # (Frame, SpatioTemporalIndexed, Sampled, Persistable), not just its own class.
+    for frame in _frames():
+        assert isinstance(frame, protocol), (
+            f"{type(frame).__name__} must satisfy the {protocol.__name__} protocol"
+        )

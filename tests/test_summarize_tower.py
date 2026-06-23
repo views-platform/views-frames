@@ -332,6 +332,12 @@ def test_red_nan_row_stays_local_and_does_not_crash():
     ],
 )
 def test_tower_memory_is_bounded_at_grid_scale(fn, name):
+    # Threshold = input size, a "does not scale with n" proxy. At n=1M the blocked
+    # peak is ~61 MB vs the 128 MB input — the tightest memory guard (~2.1x headroom;
+    # the test_summarize_scale.py guards run 4-7x). A real blocking regression
+    # allocates the whole grid (hundreds of MB+), far above the threshold, so this
+    # still catches it. tracemalloc is environment-sensitive: monitored as register
+    # C-38 (trigger = a `numpy<3` bump or a CI-runner-class change), not a fix.
     n, s = 1_000_000, 32
     rng = np.random.default_rng(0)
     pf = PredictionFrame(rng.random((n, s), dtype=np.float32), _index(n))

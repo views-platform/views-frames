@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-23                           |
-| Total Concerns    | 32                                   |
+| Last Updated      | 2026-06-24                           |
+| Total Concerns    | 36                                   |
 | Open Concerns     | 3                                    |
-| Resolved Concerns | 29                                   |
+| Resolved Concerns | 33                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -35,11 +35,14 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The genuinely open items below are the inherent **concentration risk** (C-13, accepted /
-> monitored) and two summarize-estimator-coherence concerns from the views-faoapi integration
-> spike (2026-06-23): **C-32** (`map_estimate` tie-break bias) and **C-33** (`hdi` has no
-> nesting/tower guarantee) — both tracked together in #89. The 2026-06-22 test-review's gaps
-> (C-29, C-31) were closed by **Epic 6** and are now in **Resolved Concerns**.
+> The **3 currently open** items fall into two live clusters (detailed under *Causal
+> clusters* in Register Conventions): **(1) summarize-estimator coherence (#89)** — **C-32**
+> (`map_estimate` mode bias) and **C-34** (`bimodality` recall); their tower-nesting sibling
+> **C-33** was **resolved** by ADR-019 (2026-06-23). **(2) cross-repo coordination** — the
+> inherent **concentration risk** **C-13** (accepted / monitored), with disagreements
+> D-04/D-05/D-06. The **post-1.1.0 polish** cluster {C-35, C-36, C-37, C-38} was **closed by
+> Epic 7** (2026-06-24, now in Resolved Concerns), as were the 2026-06-22 test-review gaps
+> {C-29, C-31} by **Epic 6**.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
@@ -160,6 +163,51 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 ---
 
 ## Resolved Concerns
+
+> Resolved 2026-06-24 by **Epic 7** (post-1.1.0 polish, branch `development`): the
+> **post-1.1.0 polish** cluster {C-35, C-36, C-37, C-38} — low-severity doc/test-completeness
+> items from the 2026-06-24 repo-assimilation + test-review — closed before the v1.1.0 `main`
+> merge. **No `src/` behaviour change** (the only `src`-adjacent touch was the coverage config).
+
+### C-35: README "Status" header still presents v1.0.0 after the v1.1.0 release — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-35 |
+| Resolved | 2026-06-24 (Epic 7, I1 #92) |
+| Resolution | Updated the README `Status` header to present **v1.1.0** (frozen since v1.0.0, ADR-018; the v1.1.0 surface is additive, ADR-019) and added the coherent-tower estimators to the package description. The only remaining `v1.0.0` mention is the correct freeze-baseline reference; `CONFORMANCE_FLOOR` left at `1.0.0` (additive surface → no floor bump). `validate_docs.sh` green. See ADR-018, ADR-019. |
+
+---
+
+### C-36: 100% coverage gate is line-only — branch outcomes can go untested — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-36 |
+| Resolved | 2026-06-24 (Epic 7, I3 #94) |
+| Resolution | Enabled `branch = true` in `[tool.coverage.run]` (`pyproject.toml`); the existing `--cov-fail-under=100` gate now enforces **line AND branch** coverage. Free to enable — the suite already covered **118/118 branches (0 partial)** — and it permanently closes the blind spot: a future untested branch fails CI. See C-29, C-31 (resolved), ADR-005. |
+
+---
+
+### C-37: Protocol runtime-conformance (Frame / Sampled / Persistable) not directly asserted — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-37 |
+| Resolved | 2026-06-24 (Epic 7, I2 #93) |
+| Resolution | Added a parametrized 🟩 green test (`tests/test_properties.py::test_frames_satisfy_runtime_checkable_protocols`) asserting all three frames are runtime instances of each `@runtime_checkable` protocol — `Frame`, `SpatioTemporalIndexed`, `Sampled`, `Persistable` — directly asserting the Protocols CIC §3 guarantee (previously checked only indirectly via `assert_frame_contract`). 100% coverage held. See ADR-005, ADR-016. |
+
+---
+
+### C-38: vectorized-summarizer memory tests are environment-sensitive (latent CI flake) — RESOLVED (accepted / monitored)
+
+| Field | Value |
+|-------|-------|
+| ID | C-38 |
+| Resolved | 2026-06-24 (Epic 7, I4 #95) |
+| Resolution | Assessed and **accepted as monitored** (no behaviour change). Measured headroom at n=1M: the scale guards run **4.0–6.8x** under threshold; the tower guard is tightest at **2.1x** (`hdi_tower`/`bimodality`, ~61 MB vs 128 MB input) — adequate for a deterministic op, and a real blocking regression (whole-grid alloc, hundreds of MB+) still trips it. Documented the margin + the trigger in a comment on `test_tower_memory_is_bounded_at_grid_scale`. Reopen if the trigger fires (a `numpy<3` bump or a CI-runner-class change). See C-22, C-25 (resolved). |
+
+---
 
 ### C-33: `hdi` computes each mass independently — no nesting (tower) guarantee — RESOLVED
 
@@ -476,7 +524,11 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern.
-- **Causal clusters** (assigned by `review-rr`): **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
+- **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-24):
+  - **summarize-estimator coherence (#89)** = {C-32, C-34, + resolved C-33} — point/interval estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead. The register's live work; tracked in #89.
+  - **cross-repo coordination** = {C-13, D-04, D-05, D-06} — an N-consumer leaf whose consumer buy-in is *assumed, not elicited*; the concentration/fan-out risk plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
+  - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
+  - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
 - **Sources:** `repo-assimilation`, `expert-review`, `test-review`, `falsification-audit`, `persona-critique`, `clean-architecture-review`, `pr-review`, `tech-debt-audit`, `incident`, `manual`.
 - **Resolution:** Move to "Resolved Concerns" with resolution date and summary when addressed.
 - **Header counts:** Manually maintained — update whenever a concern is added or resolved.

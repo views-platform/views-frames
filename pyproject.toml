@@ -52,7 +52,9 @@ addopts = "-ra -q"
 # unreachable defensive lines must carry an explicit `# pragma: no cover`.
 [tool.coverage.run]
 source = ["src"]
-branch = false
+# Branch coverage on: the `--cov-fail-under=100` gate enforces line AND branch
+# coverage, so a conditional with an untested outcome fails CI (register C-36).
+branch = true
 
 [tool.coverage.report]
 show_missing = true
