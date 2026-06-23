@@ -151,7 +151,7 @@ def _tip(srt: NDArray[np.float32], k0: int) -> NDArray[np.float32]:
     """
     n = srt.shape[-1]
     if k0 <= 0:
-        return srt[:, n // 2].copy()
+        return np.array(srt[:, n // 2], dtype=np.float32)
     widths = srt[:, k0:] - srt[:, : n - k0]
     i = np.argmin(widths, axis=-1)
     lo_mid = i + (k0 // 2)
