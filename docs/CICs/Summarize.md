@@ -37,7 +37,11 @@ re-derive (ADR-017).
 - `collapse(frame, reducer)` → a `(N, …, 1)` frame: applies `reducer(values, axis=-1)`,
   rebuilds a valid same-type frame preserving index + metadata.
 - `map_estimate(frame)` → a `(N, …, 1)` frame: histogram-peak MAP with a zero-mass→0
-  rule.
+  rule. **Caveat (register C-32):** the densest-bin tie-break is lowest-index
+  (deterministic; C-24), which biases the mode toward the left tail (zero) for
+  right-skewed, zero-inflated, low-sample posteriors — **not a drop-in** for a
+  production histogram-MAP on such data. A robust mode estimator is a separate effort
+  (#89).
 - `hdi(frame, mass)` → `(N, 2)` numpy array aligned to `frame.index`: shortest-interval
   highest-density interval.
 - `quantiles(frame, qs)` → `(N, len(qs))` numpy array aligned to `frame.index`.
@@ -66,6 +70,10 @@ re-derive (ADR-017).
 
 - A reducer producing the wrong shape fails loud via the rebuilt frame's validation.
 - `aggregate_distributions` without a mapping is an error (mirrors `cross_level_align`).
+- **Silent caveat, not a loud failure (register C-32):** `map_estimate`'s lowest-index
+  tie-break is statistically biased toward zero on right-skewed, zero-inflated, low-sample
+  posteriors. It does not raise — it returns a defensible-but-biased mode; consumers must
+  not treat it as a drop-in for a production MAP on such distributions (redesign: #89).
 
 ---
 

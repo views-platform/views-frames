@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-22                           |
-| Total Concerns    | 29                                   |
-| Open Concerns     | 1                                    |
+| Total Concerns    | 30                                   |
+| Open Concerns     | 2                                    |
 | Resolved Concerns | 28                                   |
 | Disagreements     | 6                                    |
 
@@ -35,9 +35,10 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The one genuinely open item below is the inherent **concentration risk** (C-13, accepted /
-> monitored). The 2026-06-22 test-review's gaps (C-29, C-31) were closed by **Epic 6** and are
-> now in **Resolved Concerns**.
+> The genuinely open items below are the inherent **concentration risk** (C-13, accepted /
+> monitored) and **C-32** — the `map_estimate` tie-break bias surfaced by the views-faoapi
+> integration spike (2026-06-23). The 2026-06-22 test-review's gaps (C-29, C-31) were closed by
+> **Epic 6** and are now in **Resolved Concerns**.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
@@ -50,6 +51,20 @@
 | Location | `README.md` §12 (~12 register items, 3+ repos); `GOVERNANCE.md` (coordinated-bump process) |
 
 The leaf's breadth is both its value and an inherent concentration risk (critique_01 §3.7): it is structurally the single point every consumer pins. **Mitigation shipped** — a minimal, stable, **frozen v1.0.0** (ADR-018) gives consumers a contract that will not churn, and ADR-016 / GOVERNANCE name the owner and the coordinated MAJOR-bump process (C-05, C-10 resolved). **Residual is accepted and monitored:** the fan-out cost of any future MAJOR is irreducible; the control is the GOVERNANCE process, watched as consumers adopt. See also D-06.
+
+---
+
+### C-32: `map_estimate` lowest-index tie-break biases the mode toward zero
+
+| Field | Value |
+|-------|-------|
+| ID | C-32 |
+| Tier | 2 |
+| Source | views-faoapi integration spike (2026-06-23) |
+| Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. |
+| Location | `src/views_frames_summarize/point.py:100` (`np.argmax(counts)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
+
+At 32 draws in 100 bins the histogram peak is almost always a multi-way tie; `np.argmax` takes the lowest index = leftmost = smallest value, so for a right-skewed, zero-inflated posterior the MAP is dragged toward zero. The faoapi spike measured this against the production estimator: **~21% of active cells diverge one-directionally (NEW MAP ≤ OLD MAP always), up to 7.9 in ln-space** (≈2,700× in count-space). This is the **C-24** portability fix's blind side — C-24 removed the numpy-version *instability* of the `density = count/width` tie-break, but the lowest-index choice it landed on carries a *directional bias* C-24 never weighed. **Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Honest framing: the histogram-mode is **ill-posed at 32 draws** — both estimators are unprincipled (old unstable, new biased); the real fix is estimator design. HDI, by contrast, is **bit-identical** (no concern). Resolution path: estimator-design effort tracked in **#89** (principled tie-break / smoothed-density peak; SemVer decision required). See C-24 (resolved), C-25.
 
 ---
 
