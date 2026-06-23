@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-22                           |
+| Last Updated      | 2026-06-23                           |
 | Total Concerns    | 31                                   |
-| Open Concerns     | 3                                    |
-| Resolved Concerns | 28                                   |
+| Open Concerns     | 2                                    |
+| Resolved Concerns | 29                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -73,19 +73,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 
 **Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Resolution path: estimator-design effort tracked in **#89** (a distributional assumption *or* `n`-adaptive smoothing + floor; **not** merely a better tie-break; SemVer decision required). See C-24 (resolved), C-25, C-33.
 
----
-
-### C-33: `hdi` computes each mass independently — no nesting (tower) guarantee
-
-| Field | Value |
-|-------|-------|
-| ID | C-33 |
-| Tier | 3 |
-| Source | views-faoapi integration spike (2026-06-23) |
-| Trigger | When a consumer composes multiple `hdi(frame, mass)` results into a credible-band tower (e.g. a fan chart), check that the bands actually nest — on skewed / multimodal empirical samples the independently-computed shortest 50% interval need not sit inside the shortest 95% interval, so a narrower band can poke **outside** a wider one. |
-| Location | `src/views_frames_summarize/interval.py:23-48` (`hdi` — independent per-mass shortest interval; no nesting, no MAP-containment; single-mass-per-call API) |
-
-`hdi` returns the empirical **shortest interval** for one mass per call and stops; it neither enforces nor offers an API for **nesting** across masses. For a true unimodal density the shortest-interval HDIs nest automatically (they are superlevel sets `{f ≥ c}`), but **empirical** shortest intervals computed independently per mass can fail to nest on skewed/multimodal samples — the densest 50% window need not lie inside the densest 95% window. A consumer's production analyzer enforces a tower **post-hoc** (expand each wider interval to contain the narrower, plus a MAP-containment shift), at the cost that the intervals are no longer the true shortest and the narrowest is **dragged by the (biased) MAP** (C-32). The two sit at opposite corners: views-frames is **honest-but-incoherent** (each interval true-shortest, no tower); the post-hoc approach is **coherent-but-corrupted** (tower forced, intervals shifted/expanded + MAP-coupled). The principled resolution is **shared with C-32**: nesting and "MAP ∈ HDI" are the **same density-level-set coherence** — derive the whole family together (one coherent/smoothed density, or the shrinking shortest-interval) so the tower **and** the mode fall out **nested-by-construction**, exposed via a multi-mass `hdi(frame, masses=[…])` that returns a guaranteed tower. Tier 3: each call is individually correct; the gap is a missing cross-call coherence guarantee / API (consumers must re-derive nesting). Tracked with C-32 in **#89**. See C-32, C-25 (resolved).
+**Mitigation shipped (2026-06-23, ADR-019) — not a full resolution; stays open.** `tower_point` ships as a **non-binned, symmetric** point estimator (the median of the narrowest canonical tower floor), so it carries **none** of the lowest-index tie-break's directional bias; scored against a *non-circular analytic-mode* oracle it ties/beats `map_estimate` on clean active cells at n=1024 (`research/map_hdi/point_pass.py`). `bimodality` flags the multimodal cells where any single mode is ill-defined. **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** 5% smoothing, so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
 
 ---
 
@@ -158,6 +146,16 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 ---
 
 ## Resolved Concerns
+
+### C-33: `hdi` computes each mass independently — no nesting (tower) guarantee — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-33 |
+| Resolved | 2026-06-23 (ADR-019) |
+| Resolution | Delivered the multi-mass guaranteed tower the entry prescribed: `views_frames_summarize.hdi_tower(frame, masses)` reads each requested mass off a **fixed canonical tower** built inside-out (each floor the shortest interval *containing* the next-narrower one), so the bands **nest by construction** — no post-hoc expand/shift, no MAP coupling. Requested masses are **pinned** to the fixed grid (never inserted), so a mass's interval is independent of the other requested masses (the **reproducibility law**, asserted in the conformance suite). `tower_point` (the tower tip) and `bimodality` accompany it; `summarize_tower` bundles all three in one pass. The frozen single-mass `hdi` is unchanged — additive, MINOR under ADR-018. See C-32 (shared root — the directional-mode half, mitigated by `tower_point` but still open), ADR-019, #89. |
+
+---
 
 > Resolved 2026-06-23 by **Epic 6** (post-freeze test-coverage debt, branch
 > `test/strengthen-tests`): the cluster {C-29, C-31} plus the test-review blind spots

@@ -4,6 +4,34 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.1.0] — 2026-06-23
+
+**Coherent posterior summary (ADR-019).** Additive new surface in `views_frames_summarize`
+— the frozen v1.0 estimators (`map_estimate`/`hdi`/`quantiles`/`collapse`/`aggregate_*`) are
+unchanged. A constrained-nested HDI tower resolves the C-33 nesting gap and mitigates the
+C-32 mode bias.
+
+### Added
+- `hdi_tower(frame, masses)` → `(N, …, M, 2)` — nested-**by-construction** HDIs read off a
+  **fixed canonical grid** (5% body + fine tail to 0.99); requested masses are *pinned*,
+  never inserted, so a mass's interval is reproducible regardless of which other masses are
+  requested (resolves register **C-33**). Out-of-range masses fail loud (ADR-008).
+- `tower_point(frame)` → `(N, …, 1)` frame — the **tower tip** (median of the narrowest
+  floor) with a raw-count zero short-circuit: an unbinned, directionally-unbiased
+  alternative to the C-32-biased `map_estimate` (mitigates **C-32**).
+- `bimodality(frame)` → `(N, …, 1)` — a deliberately conservative 0/1 flag for genuinely
+  multi-peaked rows (where a single point / shortest interval is ill-defined).
+- `summarize_tower(frame, masses)` → `TowerSummary(point, intervals, bimodal, masses)` — a
+  single-pass bundle deriving all three from one sort; provably equal to the trio.
+- Conformance suite extended with the tower laws (nesting / tip-in-narrowest /
+  reproducibility / bundle==trio); `tests/test_summarize_tower.py` (🟩/🟫/🟥 per ADR-005).
+
+### Governance
+- **ADR-019** records the decision; the `Summarize` CIC documents the new surface and its
+  failure modes. Register: **C-33 → Resolved**; **C-32 → mitigation note** (a non-biased
+  point now exists; a fully-convergent mode remains #89). Evidence + research note under
+  `research/map_hdi/`.
+
 ## [1.0.1] — 2026-06-23
 
 **Test hardening (Epic 6).** No public-API change — the frozen v1.0 surface is unchanged.
