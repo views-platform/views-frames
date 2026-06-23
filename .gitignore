@@ -43,3 +43,4 @@ perspectives/
 research/**/.cache/
 research/**/results.tsv
 research/**/run.log
+research/**/audit_plots/
