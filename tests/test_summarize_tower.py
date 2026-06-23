@@ -233,15 +233,16 @@ def test_beige_single_positive_among_zeros_not_bimodal():
     assert bimodality(pf)[0, 0] == 0.0  # a lone outlier is not a second mode
 
 
-def test_beige_requested_tail_pins_to_fine_tail_not_095():
-    # a uniform 5% grid would top out at 0.95; the fixed fine tail must keep 0.99.
+def test_beige_high_mass_tail_pins_exactly():
+    # The fine tail carries the common high-mass levels exactly: 0.95 and 0.99 each pin
+    # to themselves (not collapsed to a coarser 5%-grid floor), and 0.99 ⊋ 0.95.
     rng = np.random.default_rng(0)
     pf = PredictionFrame(rng.lognormal(0, 1, (5, 2000)).astype(np.float32), _index(5))
-    s = summarize_tower(pf, masses=(0.99,))
-    assert s.masses[0] == np.float32(0.99)
-    # 0.99 is strictly wider than 0.95 — it did not silently pin down to 0.95.
+    assert summarize_tower(pf, masses=(0.95,)).masses[0] == np.float32(0.95)
+    assert summarize_tower(pf, masses=(0.99,)).masses[0] == np.float32(0.99)
+    at_099 = hdi_tower(pf, masses=(0.99,))
     at_095 = hdi_tower(pf, masses=(0.95,))
-    assert np.all(s.intervals[:, 0, 1] >= at_095[:, 0, 1] - 1e-6)
+    assert np.all(at_099[:, 0, 1] >= at_095[:, 0, 1] - 1e-6)
 
 
 def test_beige_pinning_is_deterministic_on_ties():

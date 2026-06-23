@@ -31,11 +31,14 @@ the whole interval family together so the tower **and** the point fall out
 nested-by-construction, exposed as a multi-mass call. This ADR records building exactly
 that, and decides where the new surface sits under the v1.0.0 freeze (ADR-018).
 
-The research lab (`research/map_hdi/`) validated the pieces before graduation: the tower
-tip ties/beats the histogram mode against a *non-circular analytic-mode oracle* at the
-production sample size (`point_pass.py`); HDI floors are density-stable on unimodal/zero
-cells but inherently unstable on genuinely bimodal ones (`density_sweep.py`) — confirming
-that no grid density "fixes" multimodality, so it must be **flagged**, not smoothed away.
+The research lab (`research/map_hdi/`) validated the pieces before graduation: against a
+*non-circular analytic-mode oracle* (the active families, which have an analytic continuous
+mode), the tower tip ties/beats the histogram mode at the **production sample size n=1024**;
+at **n=128 the two are mixed** (the tip wins on some families, loses on others) — so the tip
+is a mitigation at production `n`, not a guaranteed win at the low-`n` regime where the C-32
+bias bites hardest (`point_pass.py`). HDI floors are density-stable on unimodal/zero cells
+but inherently unstable on genuinely bimodal ones (`density_sweep.py`) — confirming that no
+grid density "fixes" multimodality, so it must be **flagged**, not smoothed away.
 
 ---
 
@@ -56,8 +59,9 @@ new surface (MINOR under ADR-018); the frozen estimators (`map_estimate`, `hdi`,
   mass's interval is **independent of the other requested masses** (the reproducibility
   guarantee that resolves C-33).
 - `tower_point(frame) -> (N, …, 1)` frame. The "tower tip": the median of the narrowest
-  canonical floor's samples, with a raw-count zero short-circuit. Unbinned and symmetric,
-  so it carries **none** of `map_estimate`'s histogram tie-break bias (mitigates C-32).
+  canonical floor's samples, with a raw-count zero short-circuit. Unbinned and median-based,
+  so it carries **none** of `map_estimate`'s histogram tie-break bias (mitigates C-32). It is
+  not a symmetric/unbiased estimator of the mode — only free of the lowest-index artifact.
 - `bimodality(frame) -> (N, …, 1)` array. A deliberately conservative 0/1 flag for
   genuinely multi-peaked rows, where any single point / shortest interval is inherently
   ambiguous.
@@ -145,7 +149,8 @@ decide); cross-repo adoption (consumers adopt when ready).
 ### Negative
 - More public surface to maintain and freeze (four names + a NamedTuple).
 - The bimodality flag is a heuristic with deliberately limited recall on *ambiguous*
-  (overlapping) mixtures — documented as a conservative trade, not a formal test.
+  (overlapping) mixtures, unequal-weight splits, and a tall-narrow mode beside a spread one
+  — documented as a conservative trade, not a formal test, and **registered as C-34**.
 - `tower_point` uses a fixed 5% smoothing (the narrowest floor), so it is **not** a
   consistency guarantee to the true mode; a fully-principled convergent mode remains #89.
 - `map_estimate` remains in the frozen surface (biased), now with a documented better
@@ -185,9 +190,10 @@ decide); cross-repo adoption (consumers adopt when ready).
 - A fully-consistent convergent mode (distributional assumption vs n-adaptive smoothing)
   — still #89; `tower_point` is an interim, low-variance, unbiased-in-direction point.
 - The bimodality detector's thresholds are battery-tuned; they may need revisiting if the
-  real posterior shapes shift.
-- Whether the `research/` lab rides into `development` or stays a research branch — a
-  packaging decision for the merge.
+  real posterior shapes shift (registered as C-34).
+- The `research/` lab is committed on this feature branch; whether it **lands in
+  `development`** (vs staying on a research-only branch) is the open packaging decision for
+  the merge.
 
 ---
 

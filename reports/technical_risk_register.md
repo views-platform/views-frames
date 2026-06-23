@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-23                           |
-| Total Concerns    | 31                                   |
-| Open Concerns     | 2                                    |
+| Total Concerns    | 32                                   |
+| Open Concerns     | 3                                    |
 | Resolved Concerns | 29                                   |
 | Disagreements     | 6                                    |
 
@@ -63,7 +63,7 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 | Tier | 2 |
 | Source | views-faoapi integration spike (2026-06-23) |
 | Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. |
-| Location | `src/views_frames_summarize/point.py:100` (`np.argmax(counts)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
+| Location | `src/views_frames_summarize/point.py:110` (`np.argmax(counts, axis=1)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
 
 **Symptom.** At 32 draws in 100 bins the histogram peak is almost always a multi-way tie; `np.argmax` takes the lowest index = leftmost = smallest value, so for a right-skewed, zero-inflated posterior the MAP is dragged toward zero. The faoapi spike measured this against the production estimator: **~21% of active cells diverge one-directionally (NEW MAP ≤ OLD MAP always), up to 7.9 in ln-space** (≈2,700× in count-space). This is the **C-24** portability fix's blind side — C-24 removed the numpy-version *instability* of the `density = count/width` tie-break, but the lowest-index choice it landed on carries a *directional bias* C-24 never weighed.
 
@@ -73,7 +73,21 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 
 **Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Resolution path: estimator-design effort tracked in **#89** (a distributional assumption *or* `n`-adaptive smoothing + floor; **not** merely a better tie-break; SemVer decision required). See C-24 (resolved), C-25, C-33.
 
-**Mitigation shipped (2026-06-23, ADR-019) — not a full resolution; stays open.** `tower_point` ships as a **non-binned, symmetric** point estimator (the median of the narrowest canonical tower floor), so it carries **none** of the lowest-index tie-break's directional bias; scored against a *non-circular analytic-mode* oracle it ties/beats `map_estimate` on clean active cells at n=1024 (`research/map_hdi/point_pass.py`). `bimodality` flags the multimodal cells where any single mode is ill-defined. **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** 5% smoothing, so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
+**Mitigation shipped (2026-06-23, ADR-019) — not a full resolution; stays open.** `tower_point` ships as an **unbinned, median-based** point estimator (the median of the narrowest canonical tower floor), so it carries **none** of the lowest-index histogram tie-break's directional bias. Scored against a *non-circular analytic-mode* oracle (the active families only — zero-mode families have no analytic continuous mode), it ties/beats `map_estimate` on clean active cells **at the production sample size n=1024**; at **n=128 the two are mixed** (the tip wins on some families, loses on others — see `research/map_hdi/point_pass.py`), so this is a mitigation at production `n`, not a guaranteed win at the low-`n` regime where the bias bites hardest. `bimodality` flags the multimodal cells where any single mode is ill-defined (with its own recall caveat — see C-34). **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** 5% smoothing, so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
+
+---
+
+### C-34: `bimodality` is conservative by design — limited recall on ambiguous / unequal multimodal posteriors
+
+| Field | Value |
+|-------|-------|
+| ID | C-34 |
+| Tier | 3 |
+| Source | merge-gate review (2026-06-23) |
+| Trigger | When a model change begins producing genuinely multimodal posteriors, watch whether the `bimodality` flag rate rises on those cells. If it stays ~0 while separated modes appear — especially an unequal-weight split, or one mode tall-and-narrow beside a spread mode — the detector is under-flagging and a consumer trusting the single `tower_point` / a single interval will be misled. |
+| Location | `src/views_frames_summarize/bimodality.py` (the coarse-histogram + smoothing + prominence + `min_mass` heuristic). |
+
+`bimodality` is deliberately tuned for **zero false positives** on the normal regime (right-skewed, zero-inflated, and active unimodal posteriors all read unimodal), at the cost of **recall** on harder cases. Empirically it fires on clearly-separated comparable-mass modes (and a zero-atom + distinct bump when the atom is substantial), but **misses**: (a) a minority mode below `min_mass=0.15` (e.g. an 85/15 split); (b) a mode that is tall-and-narrow beside a spread mode — the spread mode cannot clear the prominence bar the tall peak sets (e.g. a ~17% zero atom under a tight positive bump); (c) overlapping modes with no genuine sub-prominence valley. It is a **heuristic flag for a clear regime change, not a formal multimodality test** (ADR-019 states this; the edge-bin smoothing fix improved the atom case but did not remove the gap). Latent today (Tier 3) — current models are effectively unimodal — but it is a **silent single-point-trust risk** under a future multimodal regime, the same family as **C-32** (biased mode) and **C-33** (no tower coherence, resolved). Resolution path if multimodality becomes real: a stronger detector (a dip test, or a mass-based criterion that does not penalize spread modes); tracked alongside **#89**. See C-32, C-33 (resolved), ADR-019.
 
 ---
 

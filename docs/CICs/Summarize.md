@@ -60,7 +60,7 @@ re-derive (ADR-017).
   other requested masses** (requested masses are pinned to the fixed grid, never inserted
   — the reproducibility law). Quiet rows (`max <= 1`) collapse to `(0, 0)`.
 - `tower_point(frame)` → a `(N, …, 1)` frame: the **tower tip**, the median of the
-  narrowest canonical floor, with a raw-count zero short-circuit. Unbinned and symmetric,
+  narrowest canonical floor, with a raw-count zero short-circuit. Unbinned and median-based,
   so it carries **none** of `map_estimate`'s histogram tie-break bias (mitigates C-32). It
   is **not** a consistency-guaranteed mode (fixed 5% smoothing); pair it with `bimodality`.
 - `bimodality(frame)` → a `(N, …, 1)` array of `0.0`/`1.0`: a **deliberately conservative**
@@ -99,9 +99,11 @@ re-derive (ADR-017).
   (frames do not ban them); the tower behaves deterministically and confines the effect
   to the offending row — it neither crashes nor corrupts other rows, but the result for a
   NaN row is undefined.
-- **`bimodality` is a conservative heuristic, not a loud failure:** it is biased toward
-  *not* flagging (it will read an ambiguous/overlapping mixture as unimodal). Its job is
-  to catch a *clearly* separated future regime change, not to adjudicate every heavy tail.
+- **`bimodality` is a conservative heuristic, not a loud failure (register C-34):** it is
+  biased toward *not* flagging — it will read an ambiguous/overlapping mixture, an
+  unequal-weight split (minority mode below `min_mass`), or a tall-narrow-beside-spread pair
+  as unimodal. Its job is to catch a *clearly* separated future regime change, not to
+  adjudicate every heavy tail.
 
 ---
 

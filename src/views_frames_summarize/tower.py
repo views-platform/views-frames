@@ -35,7 +35,7 @@ from views_frames_summarize._common import ROW_BLOCK, AnyFrame, block_apply
 # would make the grid, and therefore every pinned interval, non-reproducible).
 _CANONICAL_FLOORS: Final[NDArray[np.float64]] = np.array(
     [round(0.05 * i, 2) for i in range(1, 19)]  # 0.05 … 0.90
-    + [0.92, 0.94, 0.96, 0.97, 0.98, 0.99],  # fixed fine high-mass tail
+    + [0.92, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99],  # fine high-mass tail (incl. 0.95)
     dtype=np.float64,
 )
 
@@ -51,10 +51,12 @@ def _ks(sample_count: int) -> NDArray[np.intp]:
 
 
 def _pin(masses: Sequence[float]) -> NDArray[np.intp]:
-    """Index of the nearest canonical floor for each requested mass (ties → lowest).
+    """Index of the nearest canonical floor for each requested mass.
 
-    Fails loud (ADR-008) on a mass outside ``(0, 1)`` rather than silently pinning a
-    nonsense value to the nearest floor and returning a plausible-looking interval.
+    Deterministic (``argmin`` of the distance); the fixed grid produces no exact
+    distance ties, so the choice is unambiguous and reproducible. Fails loud
+    (ADR-008) on a mass outside ``(0, 1)`` rather than silently pinning a nonsense
+    value to the nearest floor and returning a plausible-looking interval.
     """
     m = np.asarray(masses, dtype=np.float64)
     if m.size == 0 or not np.all((m > 0.0) & (m < 1.0)):

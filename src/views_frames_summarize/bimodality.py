@@ -55,10 +55,16 @@ def _bimodal_block(
     rows = block.shape[0]
     counts = _coarse_counts(block, bins).astype(np.float64)
 
-    # Light moving-average smoothing (zero-padded, window _SMOOTH) over the bins.
+    # Light moving-average smoothing (window _SMOOTH) over the bins. Normalise each
+    # position by the number of *real* bins in its window — the two edge bins have one
+    # fewer neighbour, so dividing them by the full window would deflate an edge peak
+    # (e.g. the zero atom, which always lands in bin 0) and hide an atom+bump bimodal.
     pad = np.zeros((rows, 1))
     padded = np.concatenate([pad, counts, pad], axis=1)
-    smooth = (padded[:, :-2] + padded[:, 1:-1] + padded[:, 2:]) / _SMOOTH
+    window_sum = padded[:, :-2] + padded[:, 1:-1] + padded[:, 2:]
+    divisor = np.full(bins, _SMOOTH, dtype=np.float64)
+    divisor[0] = divisor[-1] = _SMOOTH - 1  # edges contribute one fewer real bin
+    smooth = window_sum / divisor
 
     significant = smooth >= prominence * smooth.max(axis=1, keepdims=True)
     prev = np.concatenate(
