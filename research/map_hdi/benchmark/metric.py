@@ -16,8 +16,14 @@ from __future__ import annotations
 
 import numpy as np
 
-# component weights (reported separately too — a scalar hides choices)
-W_MASS, W_SHARP, W_STAB = 1.0, 0.5, 0.5
+# component weights (reported separately too — a scalar hides choices).
+# point_err is the HEADLINE deliverable (the "most likely value" we tell FAO).
+W_POINT, W_MASS, W_SHARP, W_STAB = 1.0, 1.0, 0.5, 0.5
+
+
+def point_error(point: float, true_mode: float, ref_sorted: np.ndarray) -> float:
+    scale = float(np.subtract(*np.quantile(ref_sorted, [0.75, 0.25]))) + 1e-9
+    return abs(point - true_mode) / scale
 
 
 def _mass_in(ref_sorted: np.ndarray, lo: float, hi: float) -> float:
@@ -68,6 +74,7 @@ def aggregate(per_cell: list[dict]) -> tuple[float, dict]:
     """
     viol = sum(0 if r["nested"] else 1 for r in per_cell)
     comp = {
+        "point_err": float(np.mean([r["point_err"] for r in per_cell])),
         "mass_err": float(np.mean([r["mass_err"] for r in per_cell])),
         "excess_w": float(np.mean([r["excess_w"] for r in per_cell])),
         "instab": float(np.mean([r["instab"] for r in per_cell])),
@@ -75,5 +82,10 @@ def aggregate(per_cell: list[dict]) -> tuple[float, dict]:
     }
     if viol:
         return 1e6 + viol, comp
-    score = W_MASS * comp["mass_err"] + W_SHARP * comp["excess_w"] + W_STAB * comp["instab"]
+    score = (
+        W_POINT * comp["point_err"]
+        + W_MASS * comp["mass_err"]
+        + W_SHARP * comp["excess_w"]
+        + W_STAB * comp["instab"]
+    )
     return float(score), comp

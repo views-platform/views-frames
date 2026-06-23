@@ -43,19 +43,21 @@ def _instability(fn, observed, ref_sorted, original_tower) -> float:
 
 
 def evaluate(fn) -> tuple[float, dict]:
-    observed, reference, _meta = battery.load()
+    observed, reference, modes, _meta = battery.load()
     per_cell = []
-    for obs, ref in zip(observed, reference):
+    for obs, ref, true_mode in zip(observed, reference, modes):
         obs = np.asarray(obs, dtype=float)
         ref = np.asarray(ref, dtype=float)
         try:
             res = fn(obs, MASSES)
             nested, mass_err, excess_w = metric.cell_components(res["tower"], ref, MASSES)
             instab = _instability(fn, obs, ref, res["tower"])
+            point_err = metric.point_error(res["point"], float(true_mode), ref)
         except Exception:  # a broken estimator is infeasible, not a hard crash
-            nested, mass_err, excess_w, instab = False, 9.9, 9.9, 9.9
+            nested, mass_err, excess_w, instab, point_err = False, 9.9, 9.9, 9.9, 9.9
         per_cell.append(
-            {"nested": nested, "mass_err": mass_err, "excess_w": excess_w, "instab": instab}
+            {"nested": nested, "mass_err": mass_err, "excess_w": excess_w,
+             "instab": instab, "point_err": point_err}
         )
     return metric.aggregate(per_cell)
 
@@ -64,8 +66,8 @@ def _fmt(name: str, score: float, comp: dict) -> str:
     c = comp
     return (
         f"{name}\nscore: {score:.6f}\n"
-        f"components: mass_err={c['mass_err']:.4f} excess_w={c['excess_w']:.4f} "
-        f"instab={c['instab']:.4f} nesting_viol={c['nesting_viol']}"
+        f"components: point_err={c['point_err']:.4f} mass_err={c['mass_err']:.4f} "
+        f"excess_w={c['excess_w']:.4f} instab={c['instab']:.4f} nesting_viol={c['nesting_viol']}"
     )
 
 
