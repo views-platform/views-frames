@@ -15,15 +15,24 @@ from views_frames_summarize.aggregate import (
     aggregate_distributions,
     aggregate_distributions_arrays,
 )
+from views_frames_summarize.bimodality import bimodality
 from views_frames_summarize.collapse import collapse
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
+from views_frames_summarize.summarize_tower import TowerSummary, summarize_tower
+from views_frames_summarize.tower import hdi_tower
+from views_frames_summarize.tower_point import tower_point
 
 __all__ = [
+    "TowerSummary",
     "aggregate_distributions",
     "aggregate_distributions_arrays",
+    "bimodality",
     "collapse",
     "hdi",
+    "hdi_tower",
     "map_estimate",
     "quantiles",
+    "summarize_tower",
+    "tower_point",
 ]

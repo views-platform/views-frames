@@ -10,9 +10,13 @@ from __future__ import annotations
 import numpy as np
 
 from views_frames_summarize._common import AnyFrame
+from views_frames_summarize.bimodality import bimodality
 from views_frames_summarize.collapse import collapse
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
+from views_frames_summarize.summarize_tower import summarize_tower
+from views_frames_summarize.tower import hdi_tower
+from views_frames_summarize.tower_point import tower_point
 
 
 def assert_summarizer_contract(frame: AnyFrame) -> None:
@@ -38,3 +42,46 @@ def assert_summarizer_contract(frame: AnyFrame) -> None:
     qs = quantiles(frame, [0.1, 0.5, 0.9])
     assert qs.shape[0] == n, "quantiles must be aligned to the frame's rows"
     assert qs.shape[-1] == 3, "quantiles must produce one column per quantile"
+
+    _assert_tower_contract(frame, n)
+
+
+def _assert_tower_contract(frame: AnyFrame, n: int) -> None:
+    """Assert the constrained-nested tower's contract + its laws (ADR-019)."""
+    tip = tower_point(frame)
+    assert type(tip) is type(frame), "tower_point must return the same frame type"
+    assert tip.values.shape[-1] == 1 and tip.n_rows == n, "tower_point → (N,…,1)"
+
+    flag = bimodality(frame)
+    assert flag.shape[0] == n and flag.shape[-1] == 1, "bimodality → (N,…,1)"
+    assert np.isin(flag, (0.0, 1.0)).all(), "bimodality must be a 0/1 flag"
+
+    tower = hdi_tower(frame, masses=(0.5, 0.9, 0.99))
+    assert tower.shape[0] == n, "hdi_tower must be aligned to the frame's rows"
+    assert tower.shape[-2:] == (3, 2), "hdi_tower → (…, M, 2)"
+
+    # Nesting law: every wider HDI contains the next-narrower one.
+    lower, upper = tower[..., 0], tower[..., 1]
+    assert (np.diff(lower, axis=-1) <= 1e-6).all(), (
+        "tower lowers must be non-increasing"
+    )
+    assert (np.diff(upper, axis=-1) >= -1e-6).all(), (
+        "tower uppers must be non-decreasing"
+    )
+
+    # Tip-in-narrowest law: the point lies inside the narrowest requested floor.
+    lo0, hi0 = tower[..., 0, 0], tower[..., 0, 1]
+    assert (tip.values[..., 0] >= lo0 - 1e-6).all(), "tip below the narrowest floor"
+    assert (tip.values[..., 0] <= hi0 + 1e-6).all(), "tip above the narrowest floor"
+
+    # Reproducibility law: the 50% HDI is independent of the other requested masses.
+    just_50 = hdi_tower(frame, masses=(0.5,))
+    assert np.array_equal(just_50[..., 0, :], tower[..., 0, :]), (
+        "the 50% HDI must be identical whether or not other masses are requested"
+    )
+
+    # The bundle is exactly the three composable functions.
+    bundle = summarize_tower(frame, masses=(0.5, 0.9, 0.99))
+    assert np.array_equal(bundle.point.values, tip.values), "bundle point ≠ tower_point"
+    assert np.array_equal(bundle.intervals, tower), "bundle intervals ≠ hdi_tower"
+    assert np.array_equal(bundle.bimodal, flag), "bundle bimodal ≠ bimodality"

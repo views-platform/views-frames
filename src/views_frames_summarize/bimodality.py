@@ -1,0 +1,107 @@
+"""Per-row bimodality flag (ADR-019) — a `(N, …, 1)` array aligned to the index.
+
+A genuinely two-peaked posterior — a zero atom plus a *distinct* positive bump, or two
+well-separated positive bumps — has no well-defined "most likely single value" and no
+well-defined shortest interval (the shortest 50% interval flips between the peaks under
+tiny perturbations, at *any* grid density). `bimodality` flags those rows so a consumer
+is never handed a single point / interval that silently hides a second mode.
+
+The detector is a **deliberately conservative heuristic**, not a formal multimodality
+test. Per row: a coarse, lightly-smoothed histogram; then a count of *separated*
+density regions — runs of bins at least ``prominence`` of the row's peak, with
+sub-``prominence`` valleys between them — keeping only regions that carry at least
+``min_mass`` of the samples. A row is flagged iff ≥ 2 such regions survive. Quiet rows
+(the zero short-circuit) are never flagged.
+
+It is tuned (against the research battery) for **zero false positives** on the normal
+regime — right-skewed, zero-inflated and active unimodal posteriors all read as
+unimodal — at the cost of recall on *ambiguous*, overlapping mixtures. That trade is
+intentional: today's models are effectively unimodal, so the flag's job is to catch a
+future regime change that produces *clearly* separated modes, not to adjudicate every
+heavy tail. A missed subtle bump is cheaper than crying wolf on every skewed cell.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+from numpy.typing import NDArray
+
+from views_frames_summarize._common import ROW_BLOCK, AnyFrame, block_apply
+from views_frames_summarize.tower import _zero_mask
+
+_SMOOTH = 3  # moving-average window over bins; tames sparse-histogram flicker
+
+
+def _coarse_counts(flat: NDArray[np.float32], bins: int) -> NDArray[np.intp]:
+    """Per-row histogram counts ``(rows, bins)`` over each row's ``[min, max]``.
+
+    A simple clipped linear bucket (not ``numpy.histogram``'s edge-exact path) —
+    enough to locate density regions. All-equal rows fall into a single bin.
+    """
+    rows = flat.shape[0]
+    first = flat.min(axis=1)
+    last = flat.max(axis=1)
+    span = np.where(first == last, np.float32(1.0), last - first)
+    idx = (((flat - first[:, None]) / span[:, None]) * bins).astype(np.intp)
+    np.clip(idx, 0, bins - 1, out=idx)
+    offsets = idx + (np.arange(rows)[:, None] * bins)
+    return np.bincount(offsets.ravel(), minlength=rows * bins).reshape(rows, bins)
+
+
+def _bimodal_block(
+    block: NDArray[np.float32], bins: int, prominence: float, min_mass: float
+) -> NDArray[np.float32]:
+    """Flag (0/1) per row of a block: ≥ 2 separated regions each holding enough mass."""
+    rows = block.shape[0]
+    counts = _coarse_counts(block, bins).astype(np.float64)
+
+    # Light moving-average smoothing (zero-padded, window _SMOOTH) over the bins.
+    pad = np.zeros((rows, 1))
+    padded = np.concatenate([pad, counts, pad], axis=1)
+    smooth = (padded[:, :-2] + padded[:, 1:-1] + padded[:, 2:]) / _SMOOTH
+
+    significant = smooth >= prominence * smooth.max(axis=1, keepdims=True)
+    prev = np.concatenate(
+        [np.zeros((rows, 1), dtype=bool), significant[:, :-1]], axis=1
+    )
+    starts = significant & ~prev
+    # Label each maximal run of significant bins with a per-row region index (1-based).
+    region = np.where(significant, np.cumsum(starts, axis=1), 0)
+
+    total = counts.sum(axis=1)
+    kept = np.zeros(rows, dtype=np.intp)
+    for r in range(
+        1, int(region.max()) + 1
+    ):  # <= bins iterations, vectorized over rows
+        mass = np.where(region == r, counts, 0.0).sum(axis=1)
+        kept += (mass >= min_mass * total).astype(np.intp)
+
+    flag = (kept >= 2).astype(np.float32)
+    flag[_zero_mask(block)] = 0.0
+    return flag
+
+
+def bimodality(
+    frame: AnyFrame,
+    *,
+    bins: int = 16,
+    prominence: float = 0.40,
+    min_mass: float = 0.15,
+    block_rows: int = ROW_BLOCK,
+) -> NDArray[np.float32]:
+    """Per-row bimodality flag over the sample axis → ``(N, …, 1)`` of ``0.0``/``1.0``.
+
+    Conservative heuristic (see module docstring): ≥ 2 separated density regions, each
+    holding ≥ ``min_mass`` of the samples, after coarse binning + light smoothing.
+    Aligned to ``frame.index``.
+    """
+    values = frame.values
+    lead = values.shape[:-1]
+    s = values.shape[-1]
+    flat = np.ascontiguousarray(values).reshape(-1, s)
+
+    def _block(block: NDArray[np.float32]) -> NDArray[np.float32]:
+        return _bimodal_block(block, bins, prominence, min_mass)
+
+    out = block_apply(flat, block_rows, _block)
+    return np.asarray(out, dtype=np.float32).reshape(lead)[..., np.newaxis]
