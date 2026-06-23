@@ -38,3 +38,8 @@ Thumbs.db
 # Internal-only working docs — kept on disk, never published.
 critiqus/
 perspectives/
+
+# Research lab — code is tracked; generated artifacts are not.
+research/**/.cache/
+research/**/results.tsv
+research/**/run.log

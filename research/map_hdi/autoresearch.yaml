@@ -1,0 +1,13 @@
+# autoresearch config — coherent nested HDI tower research.
+# The loop edits ONLY target_file; the benchmark/ harness + run_eval.py are immutable.
+target_file: research/map_hdi/estimator.py
+eval_command: uv run --with scipy python research/map_hdi/run_eval.py
+metric_name: tower_score
+metric_direction: lower               # lower composite score is better
+metric_pattern: "^score:\\s+(\\S+)"
+time_budget: 180
+results_file: research/map_hdi/results.tsv
+program: research/map_hdi/program.md  # research objectives + guardrails (read each THINK)
+immutable:                            # the loop must never edit these
+  - research/map_hdi/benchmark
+  - research/map_hdi/run_eval.py
