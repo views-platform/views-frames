@@ -74,8 +74,8 @@ def test_frames_satisfy_runtime_checkable_protocols(protocol):
     # (Frame, SpatioTemporalIndexed, Sampled, Persistable), not just its own class.
     # Scope: runtime_checkable isinstance validates member *presence*, not member
     # types or signatures. The complementary checks cover the rest: member value
-    # shapes/dtypes via `assert_frame_contract` (conformance suite), and member types
-    # via `mypy --strict`. A same-named-but-wrong-typed member passes here but fails those.
+    # shapes/dtypes via `assert_frame_contract` (conformance suite), and member
+    # types via `mypy --strict` — a wrong-typed-but-same-named member fails those.
     for frame in _frames():
         assert isinstance(frame, protocol), (
             f"{type(frame).__name__} must satisfy the {protocol.__name__} protocol"
