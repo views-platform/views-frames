@@ -15,6 +15,12 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Environment and secrets
 .env
 .env.*

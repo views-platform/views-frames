@@ -4,6 +4,29 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.0.1] — 2026-06-23
+
+**Test hardening (Epic 6).** No public-API change — the frozen v1.0 surface is unchanged.
+Closes the post-freeze test-coverage debt: every fail-loud branch and the cross-frame shared
+surface are now exercised, and CI enforces 100% line coverage.
+
+### Added
+- 🟥 IO failure-mode tests (`tests/test_io.py`): `arrow.save` bad ndim, `FeatureFrame.load`
+  missing `feature_names`, `npz.load` missing sidecar, `arrow.load` non-frame parquet
+  (register C-29).
+- `tests/test_frame_parity.py` — a parametrized matrix asserting `reindex`/`select`/
+  `with_metadata`/`save`-`load` across all three frame types, filling the Feature/TargetFrame
+  `reindex` gap (register C-31).
+- `tests/test_construction_red.py` — construction/validation fail-loud reds (3-D →
+  `PredictionFrame`, row-mismatch, `from_2d`, malformed identifiers/values).
+- `tests/test_value_object_and_laws.py` — index value-object semantics (`__hash__`/`__eq__`/
+  `argsort`), the `SpatialLevel` vocabulary, and the two CIC alignment laws (align∘collapse
+  commute; `reindex` idempotent on a superset).
+
+### Changed
+- CI (`ci.yml`) enforces **100% line coverage** (`pytest --cov --cov-fail-under=100`) and now
+  runs on `development` as well as `main`. `pytest-cov` added to the dev dependency group.
+
 ## [1.0.0] — 2026-06-21
 
 **API freeze (ADR-018).** Leaf completion (Epic 5) — the second-round consumer-review

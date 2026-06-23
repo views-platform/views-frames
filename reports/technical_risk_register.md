@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-22                           |
-| Total Concerns    | 27                                   |
+| Total Concerns    | 29                                   |
 | Open Concerns     | 1                                    |
-| Resolved Concerns | 26                                   |
+| Resolved Concerns | 28                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -35,8 +35,9 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The one genuinely open item below is the inherent **concentration risk** (C-13), now an
-> accepted, monitored operational risk.
+> The one genuinely open item below is the inherent **concentration risk** (C-13, accepted /
+> monitored). The 2026-06-22 test-review's gaps (C-29, C-31) were closed by **Epic 6** and are
+> now in **Resolved Concerns**.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
@@ -121,6 +122,31 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 ---
 
 ## Resolved Concerns
+
+> Resolved 2026-06-23 by **Epic 6** (post-freeze test-coverage debt, branch
+> `test/strengthen-tests`): the cluster {C-29, C-31} plus the test-review blind spots
+> (construction red-gaps, green laws, value-object getters) are closed, and CI now enforces
+> **100% line coverage** (`--cov-fail-under=100`).
+
+### C-29: IO failure-mode paths have no red-team tests — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-29 |
+| Resolved | 2026-06-23 (Epic 6, I1 #81) |
+| Resolution | Added a 🟥 IO failure-mode block to `tests/test_io.py`: `arrow.save` with unsupported `values.ndim`, `FeatureFrame.load` from a state missing `feature_names`, `npz.load` with a missing `values.npy`/`header.json`, and `arrow.load` of a non-frame parquet. `io/arrow.py` + `io/npz.py` are now at 100% line coverage, and the I5 gate keeps them there. See C-09 (io state-dict contract), ADR-005. |
+
+---
+
+### C-31: `reindex` tested on `PredictionFrame` only — twin-parity coverage gap — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-31 |
+| Resolved | 2026-06-23 (Epic 6, I2 #82) |
+| Resolution | Added `tests/test_frame_parity.py` — a builder fixture parametrizing the shared frame surface (`reindex`/`select`/`with_metadata`/`save`-`load`) over **all three** frame types, filling the Feature/TargetFrame `reindex` gap (`feature_frame.py:150-155`, `target_frame.py:109-114`) and locking parity so a future twin divergence fails CI. The construction red-gaps + green laws/getters the same test-review flagged were closed alongside (Epic 6 I3/I4); leaf + summarize are now at **100%** coverage. See C-16 (twins are separate siblings), ADR-005. |
+
+---
 
 > Reconciled to Resolved 2026-06-22 against the **v1.0.0 freeze (ADR-018)**: design-phase
 > concerns whose owning ADRs (011–016) merged and shipped. **C-01 / C-08 / C-12** are
@@ -401,6 +427,8 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 ## Register Conventions
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
+- **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern.
+- **Causal clusters** (assigned by `review-rr`): **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
 - **Sources:** `repo-assimilation`, `expert-review`, `test-review`, `falsification-audit`, `persona-critique`, `clean-architecture-review`, `pr-review`, `tech-debt-audit`, `incident`, `manual`.
 - **Resolution:** Move to "Resolved Concerns" with resolution date and summary when addressed.
 - **Header counts:** Manually maintained — update whenever a concern is added or resolved.
