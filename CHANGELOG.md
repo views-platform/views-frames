@@ -4,6 +4,41 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.2.0] — 2026-06-24
+
+**Outside-in HDI tower + mass-aware tip + fail-loud config (register C-44).** Fixes a silent
+output-correctness bug in the v1.1 tower estimators: a **minority duplicated draw** (a couple
+of exact zeros, a lone pair) could hijack the degenerate ~2-sample narrowest floor and collapse
+both `tower_point` and the nested `hdi_tower` bands — confirmed on real faoapi forecast cells.
+No change to the frozen estimators (`map_estimate`/`hdi`/`quantiles`, ADR-018);
+`CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Changed
+- **The canonical tower is now built `outside-in`** (widest floor first, each narrower floor the
+  shortest interval *contained in* its wider parent) instead of inside-out. Robust by
+  construction: a lonely outlier is shed by the well-determined wide floors and the containment
+  constraint forbids a narrower floor from re-selecting it. Nesting + reproducibility laws
+  unchanged.
+- **`tower_point` reads the configurable `tip_mass` floor** (default `0.5` — the "shorth"),
+  not the degenerate 5% floor — a mass-aware, duplicate-robust point.
+- **The tower-family public functions drop their tunable kwargs** (`bins`/`prominence`/
+  `min_mass`/`block_rows`); those values now come from the config (below). `masses` stays a
+  per-call argument. The frozen estimators are untouched.
+
+### Added
+- **`views_frames_summarize.config`** — a fail-loud config (`TOWER_CONFIG` dict, `REQUIRED_KEYS`,
+  `validate_config`, `get`, `canonical_floors`) holding every tower-family tunable (the grid,
+  `tip_mass`, the zero cutoff, the bimodality thresholds, the row-block) with **no silent
+  defaults**: a missing key raises `ValueError` naming it (ADR-008/009).
+- Conformance: the tip law is restated to **tip ∈ the `tip_mass` floor**; a large adversarial +
+  edge test matrix (the C-44 truth table A–L, real faoapi cells, duplicate-count sweep,
+  NaN/inf locality, multimodality, config fail-loud) — `tests/test_summarize_config.py` added.
+
+### Governance
+- **ADR-019 amended** (inside-out → outside-in; `tip_mass`; config). **Register: C-44 → Resolved**
+  (Tier 1); C-32 / C-34 mitigation notes updated. The Summarize CIC records the new construction,
+  the `tip_mass` tip, and the config failure mode.
+
 ## [1.1.1] — 2026-06-24
 
 Documentation only — no public-API or behaviour change (identical contract).

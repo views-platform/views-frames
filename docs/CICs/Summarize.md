@@ -4,7 +4,7 @@
 **Status:** Active
 **Owner:** VIEWS platform maintainers
 **Last reviewed:** 2026-06-24
-**Related ADRs:** ADR-002, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019
+**Related ADRs:** ADR-002, ADR-008, ADR-009, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019
 
 > The `views_frames_summarize` package (functions, not a class). Implemented in
 > v0.2.0; the coherent-tower surface (`hdi_tower`/`tower_point`/`bimodality`/
@@ -60,15 +60,32 @@ re-derive (ADR-017).
 ### Coherent posterior summary — the constrained-nested HDI tower (ADR-019)
 
 - `hdi_tower(frame, masses)` → `(N, …, M, 2)` array aligned to `frame.index`: the
-  requested masses' HDIs, read off a **fixed canonical tower** built inside-out so each
-  floor is the shortest interval *containing* the next-narrower one. **Guarantees:**
-  nested **by construction** (resolves C-33); a mass's interval is **independent of the
-  other requested masses** (requested masses are pinned to the fixed grid, never inserted
-  — the reproducibility law). Quiet rows (`max <= 1`) collapse to `(0, 0)`.
+  requested masses' HDIs, read off a **fixed canonical tower** built **outside-in** so each
+  floor is the shortest interval *contained in* its wider parent. **Guarantees:** nested
+  **by construction** (resolves C-33); **robust to minority duplicated draws** (resolves
+  C-44 — an outlier shed by the wide floors cannot be re-selected by a narrower one); a
+  mass's interval is **independent of the other requested masses** (pinned to the fixed
+  grid, never inserted — the reproducibility law). Quiet rows (`max <= zero_cutoff`)
+  collapse to `(0, 0)`. **Caveat (the nesting trade-off):** a tower band is *coherent and
+  nested*, **not** the unconstrained per-mass shortest interval — the containment cascade
+  can shift a band's *location* (≈ up to ~20% of its width on right-skewed data; the width
+  is near-identical) off the true highest-density region. For the exact single-mass shortest
+  HDI with no nesting constraint, use the frozen `hdi`; use the tower when you need a
+  *coherent, reproducible* family of bands.
 - `tower_point(frame)` → a `(N, …, 1)` frame: the **tower tip**, the median of the
-  narrowest canonical floor, with a raw-count zero short-circuit. Unbinned and median-based,
-  so it carries **none** of `map_estimate`'s histogram tie-break bias (mitigates C-32). It
-  is **not** a consistency-guaranteed mode (fixed 5% smoothing); pair it with `bimodality`.
+  configurable **`tip_mass`** floor (default 0.5 — the shorth), with a raw-count zero
+  short-circuit. Unbinned and median-based, so it carries **none** of `map_estimate`'s
+  histogram tie-break bias (mitigates C-32) **and** is robust to minority duplicates (C-44).
+  It is **not** a consistency-guaranteed mode; pair it with `bimodality`. **Caveat (the
+  semantic shift — read before adopting over a histogram MAP):** on right-skewed /
+  zero-inflated / multi-cluster posteriors `tower_point` returns the **densest** mode, which
+  is often *much lower* than a histogram MAP that lands on a sparse high bin — that
+  disagreement is largely the C-32 bias being **corrected**, not an error. And because
+  `bimodality` flags only *clearly separated* modes (C-34, conservative), a *spread*
+  heavy-tailed cell whose dense mode differs sharply from its histogram MAP may **not** be
+  flagged: the single returned point is the dense mode **by design**, not a hidden second
+  peak. Consumers replacing an incumbent MAP must expect — and validate — this downward,
+  density-following shift on real data.
 - `bimodality(frame)` → a `(N, …, 1)` array of `0.0`/`1.0`: a **deliberately conservative**
   multi-mode flag (zero false positives on skewed/zero/active posteriors; fires only on
   clearly separated modes). It is a heuristic, not a formal test.
@@ -81,6 +98,10 @@ re-derive (ADR-017).
 
 - Inputs are `views_frames` frames with a trailing sample axis (ADR-012).
 - `reducer` reduces the trailing axis; `mapping` is injected by the caller.
+- Tower-family tunables (the canonical grid, `tip_mass`, the zero cutoff, the bimodality
+  thresholds, the row-block) come from `config.TOWER_CONFIG` — a fail-loud single source
+  with **no silent defaults** (ADR-008/009). `masses` is the only per-call tunable; the
+  frozen estimators (ADR-018) are out of scope of the config.
 
 ---
 
@@ -101,6 +122,8 @@ re-derive (ADR-017).
   `tower_point`; redesign for a convergent mode: #89).
 - `hdi_tower` / `summarize_tower` raise `ValueError` on a mass outside `(0, 1)` — fail
   loud rather than silently pin a nonsense value to the nearest floor (ADR-008).
+- A **missing tower-config key** raises `ValueError` naming it (ADR-009 completeness) — the
+  estimators cannot run on an incomplete config, by design.
 - **Out-of-contract input is localized, not guarded:** `NaN` draws are out of contract
   (frames do not ban them); the tower behaves deterministically and confines the effect
   to the offending row — it neither crashes nor corrupts other rows, but the result for a
@@ -147,6 +170,18 @@ crps(pf, actuals)
 
 # WRONG: embedding the priogrid->country geography here — inject it
 aggregate_distributions(pf, level="country")   # mapping is required
+
+# WRONG: treating a tower band as the exact shortest single-mass HDI. It is a
+# coherent *nested* band and may sit off the true HDI by ~20% of its width on
+# skewed data (the nesting trade-off). Use the frozen `hdi` for that:
+hdi_tower(pf, masses=(0.9,))            # nested-coherent band, NOT the bare 90% HDI
+hdi(pf, mass=0.9)                       # RIGHT: the unconstrained shortest 90% interval
+
+# WRONG: expecting tower_point to reproduce an incumbent histogram MAP. On
+# right-skewed / spread cells it returns the *densest* (often much lower) mode by
+# design, and bimodality only flags *clearly separated* peaks — a sharp drop vs a
+# MAP is the C-32 bias being corrected, not a hidden second mode. Validate the shift.
+tower_point(pf)                         # the robust dense mode (may be << a histogram MAP)
 ```
 
 ---
@@ -154,14 +189,16 @@ aggregate_distributions(pf, level="country")   # mapping is required
 ## 10. Test Alignment
 
 - **Green:** collapse/map shape + identifier preservation; quantile ordering; the tower
-  laws (nesting by construction, tip-in-narrowest, the reproducibility law, bundle==trio)
-  and vectorized==per-row reference (`tests/test_summarize_tower.py`).
+  laws (nesting by construction, tip-in-`tip_mass`-floor, the reproducibility law,
+  bundle==trio) and vectorized==per-row reference (`tests/test_summarize_tower.py`).
 - **Beige:** HDI shortest-interval + nesting; index-aligned interval outputs; tower edges
   (S=1, tiny-S median floor, tail pinning to 0.99, FeatureFrame leading axes).
 - **Red:** `HDI(aggregate(...)) ≠ sum(per-cell HDI)` (the C-70 joint-sampling guard);
-  bad reducer fails loud; out-of-range mass fails loud; the zero-cutoff boundary;
-  `tower_point` independent of the frozen `map_estimate`; NaN stays localized; the
-  import-DAG test keeps the leaf pure.
+  the C-44 truth table A–L + real faoapi cells (a minority duplicate must not capture the
+  tip/bands); the duplicate-count sweep; bad reducer / out-of-range mass / missing config
+  key all fail loud; the zero-cutoff boundary; `tower_point` independent of the frozen
+  `map_estimate`; NaN/inf stays localized; the import-DAG test keeps the leaf pure
+  (`tests/test_summarize_tower.py`, `tests/test_summarize_config.py`).
 
 ---
 
