@@ -57,6 +57,8 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 > estimators above are unchanged. The published conformance suite correspondingly grew
 > (`assert_summarizer_contract` now also runs the tower laws). The `CONFORMANCE_FLOOR`
 > stays `1.0.0` because additive surface does not break a consumer pinned at the floor.
+> The threshold **exceedance** estimators (`exceedance` / `exceedance_reducer`, `P(Y > c)`)
+> are likewise additive under this freeze (ADR-021, target v1.5.0); the floor stays `1.0.0`.
 
 **Out of scope (NOT frozen, may still evolve additively or remain deferred):**
 
