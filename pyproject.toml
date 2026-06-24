@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "views-frames"
-version = "1.0.0"
+version = "1.1.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
 authors = [
     { name = "Simon Polichinel von der Maase", email = "simmaa@prio.org" },
@@ -13,6 +13,20 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
+# License is declared via the SPDX `license` expression above (PEP 639); the deprecated
+# `License ::` classifier is intentionally omitted to avoid the expression/classifier clash.
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=1.26,<3",
 ]
@@ -29,6 +43,7 @@ arrow = ["pyarrow>=14,<20"]
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5",
     "ruff>=0.8",
     "mypy>=1.13",
     # pyarrow is the consumer-facing [arrow] extra; installed in dev so CI
@@ -46,9 +61,24 @@ include = ["/src"]
 testpaths = ["tests"]
 addopts = "-ra -q"
 
+# Coverage: the leaf is critical infrastructure (ADR-005) — CI enforces 100%
+# line coverage (`uv run pytest --cov --cov-fail-under=100`). Genuinely
+# unreachable defensive lines must carry an explicit `# pragma: no cover`.
+[tool.coverage.run]
+source = ["src"]
+# Branch coverage on: the `--cov-fail-under=100` gate enforces line AND branch
+# coverage, so a conditional with an untested outcome fails CI (register C-36).
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+# research/ is the volatile estimator lab (outside the frozen, gated src/); it is
+# not held to the leaf's lint/format bar.
+extend-exclude = ["research"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]

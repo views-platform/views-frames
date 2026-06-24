@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-21
+**Last reviewed:** 2026-06-24
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
 
 > Implemented in v0.1.0 (`src/views_frames/feature_frame.py`). This contract governs
@@ -36,8 +36,12 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
   identifiers integer, length-`N`, complete; the sample axis is the **trailing** axis,
   always explicit (`S >= 1`; ADR-012) — a non-sampled feature frame is `(N, F, 1)`.
 - Carries `feature_names: list[str]` (length `F`) and a typed `metadata` header
-  (ADR-013); both serialize **with** the frame (register C-09).
+  (ADR-013); both serialize **with** the frame (register C-09). `from_2d` lifts a
+  legacy `(N, F)` array to `(N, F, 1)`.
 - Immutable with copy-vs-view semantics identical to `PredictionFrame` (C-07).
+- Row ops return new frames preserving `feature_names`: `select(positions | mask)` and
+  `reindex(other)` — the latter raises unless this index is a superset of `other`;
+  selection **copies** the selected `values`.
 
 ---
 
@@ -100,8 +104,8 @@ FeatureFrame.from_grid(cube)          # no such method here
 
 ## 10. Test Alignment
 
-- **Green:** construction validation incl. `feature_names` length; save/load round-trip
-  preserving `feature_names`/`metadata`.
+- **Green:** construction validation incl. `feature_names` length; `select`/`reindex`
+  parity (`test_frame_parity.py`); save/load round-trip preserving `feature_names`/`metadata`.
 - **Beige:** copy-vs-view property (`with_metadata` allocates no second buffer).
 - **Red:** 2-D input / object dtype / mismatched `feature_names` raises; no-pandas
   import-enforcement.

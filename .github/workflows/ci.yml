@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
-    branches: [main]
+    branches: [main, development]
 
 jobs:
   check:
@@ -19,7 +19,7 @@ jobs:
       - run: uv sync --python ${{ matrix.python-version }}
       - run: uv run ruff check .
       - run: uv run mypy src/
-      - run: uv run pytest
+      - run: uv run pytest --cov --cov-report=term-missing --cov-fail-under=100
 
   # The declared numpy floor (1.26.4) behaves differently from the version uv
   # resolves by default (2.x): stricter generic stubs (register C-19) AND ~1-ulp

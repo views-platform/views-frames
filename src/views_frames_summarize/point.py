@@ -35,6 +35,13 @@ def map_estimate(
     For each row: if a fraction ``>= zero_mass_threshold`` of the samples is ~0 the
     MAP is ``0.0``; otherwise it is the centre of the densest histogram bin. The
     work runs in row-blocks of ``block_rows`` to bound peak memory (register C-22).
+
+    Caveat (register C-32): the densest-bin tie-break is the **lowest bin index**
+    (deterministic; register C-24). At low sample counts the histogram peak is
+    usually a multi-way tie, and lowest-index = leftmost = smallest value — so for
+    **right-skewed, zero-inflated** posteriors the mode is biased toward the left
+    tail (zero). This is therefore **not a drop-in** for a production histogram-MAP
+    on such distributions; a robust mode estimator is tracked separately (#89).
     """
     values = frame.values
     lead = values.shape[:-1]
@@ -97,6 +104,9 @@ def _batched_map(flat: NDArray[np.float32], bins: int) -> NDArray[np.float32]:
     # the float64 bin widths differ by ~1 ulp across numpy versions and flip the
     # argmax (register C-24). Integer ``argmax`` is deterministic and identical on
     # every numpy build, so ``map_estimate`` is portable and reproducible.
+    # NOTE (register C-32): lowest-index == leftmost == smallest value, so on the
+    # frequent low-sample ties this biases the mode toward zero for right-skewed,
+    # zero-inflated posteriors. Portable but not unbiased; redesign tracked in #89.
     densest = np.argmax(counts, axis=1)
 
     lo = np.take_along_axis(edges, densest[:, None], axis=1)[:, 0]

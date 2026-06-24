@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-21
-**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012
+**Last reviewed:** 2026-06-24
+**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
 
 > Implemented in v0.1.0 (`src/views_frames/target_frame.py`). This contract governs
 > that implementation.
@@ -35,6 +35,9 @@ boundary array-native, replacing the pandas actuals the eval adapter takes today
   trailing sample axis is explicit with `S == 1` (ADR-012); no object dtype;
   identifiers integer, length-`N`, complete.
 - Immutable with the same copy-vs-view semantics as the other frames (register C-07).
+- Carries a typed `metadata` header (ADR-013) and the same row/metadata surface as the
+  sibling frames: `with_metadata`, `select(positions | mask)`, `reindex(other)` (raises
+  unless this index is a superset of `other`); `sample_count == 1`, `is_sample == False`.
 - The role (ground truth, single realized value) is explicit so line-graph / eval code
   can treat it distinctly from sampled frames.
 
