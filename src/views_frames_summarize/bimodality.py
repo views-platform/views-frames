@@ -26,10 +26,9 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from views_frames_summarize._common import ROW_BLOCK, AnyFrame, block_apply
+from views_frames_summarize import config
+from views_frames_summarize._common import AnyFrame, block_apply
 from views_frames_summarize.tower import _zero_mask
-
-_SMOOTH = 3  # moving-average window over bins; tames sparse-histogram flicker
 
 
 def _coarse_counts(flat: NDArray[np.float32], bins: int) -> NDArray[np.intp]:
@@ -49,24 +48,32 @@ def _coarse_counts(flat: NDArray[np.float32], bins: int) -> NDArray[np.intp]:
 
 
 def _bimodal_block(
-    block: NDArray[np.float32], bins: int, prominence: float, min_mass: float
+    block: NDArray[np.float32],
+    bins: int,
+    prominence: float,
+    min_mass: float,
+    smooth: int,
 ) -> NDArray[np.float32]:
-    """Flag (0/1) per row of a block: ≥ 2 separated regions each holding enough mass."""
+    """Flag (0/1) per row of a block: ≥ 2 separated regions each holding enough mass.
+
+    ``smooth`` is the moving-average window width (the 3-tap normalization; config
+    ``bimodality_smooth``). It tames sparse-histogram flicker.
+    """
     rows = block.shape[0]
     counts = _coarse_counts(block, bins).astype(np.float64)
 
-    # Light moving-average smoothing (window _SMOOTH) over the bins. Normalise each
+    # Light moving-average smoothing (window ``smooth``) over the bins. Normalise each
     # position by the number of *real* bins in its window — the two edge bins have one
     # fewer neighbour, so dividing them by the full window would deflate an edge peak
     # (e.g. the zero atom, which always lands in bin 0) and hide an atom+bump bimodal.
     pad = np.zeros((rows, 1))
     padded = np.concatenate([pad, counts, pad], axis=1)
     window_sum = padded[:, :-2] + padded[:, 1:-1] + padded[:, 2:]
-    divisor = np.full(bins, _SMOOTH, dtype=np.float64)
-    divisor[0] = divisor[-1] = _SMOOTH - 1  # edges contribute one fewer real bin
-    smooth = window_sum / divisor
+    divisor = np.full(bins, smooth, dtype=np.float64)
+    divisor[0] = divisor[-1] = smooth - 1  # edges contribute one fewer real bin
+    smoothed = window_sum / divisor
 
-    significant = smooth >= prominence * smooth.max(axis=1, keepdims=True)
+    significant = smoothed >= prominence * smoothed.max(axis=1, keepdims=True)
     prev = np.concatenate(
         [np.zeros((rows, 1), dtype=bool), significant[:, :-1]], axis=1
     )
@@ -87,27 +94,26 @@ def _bimodal_block(
     return flag
 
 
-def bimodality(
-    frame: AnyFrame,
-    *,
-    bins: int = 16,
-    prominence: float = 0.40,
-    min_mass: float = 0.15,
-    block_rows: int = ROW_BLOCK,
-) -> NDArray[np.float32]:
+def bimodality(frame: AnyFrame) -> NDArray[np.float32]:
     """Per-row bimodality flag over the sample axis → ``(N, …, 1)`` of ``0.0``/``1.0``.
 
     Conservative heuristic (see module docstring): ≥ 2 separated density regions, each
     holding ≥ ``min_mass`` of the samples, after coarse binning + light smoothing.
-    Aligned to ``frame.index``.
+    Aligned to ``frame.index``. Tunables (``bins``, ``prominence``, ``min_mass``,
+    ``smooth``, row-block) come from ``config`` — no silent defaults (ADR-009).
     """
     values = frame.values
     lead = values.shape[:-1]
     s = values.shape[-1]
+    bins = int(config.get("bimodality_bins"))
+    prominence = float(config.get("bimodality_prominence"))
+    min_mass = float(config.get("bimodality_min_mass"))
+    smooth = int(config.get("bimodality_smooth"))
+    block_rows = int(config.get("row_block"))
     flat = np.ascontiguousarray(values).reshape(-1, s)
 
     def _block(block: NDArray[np.float32]) -> NDArray[np.float32]:
-        return _bimodal_block(block, bins, prominence, min_mass)
+        return _bimodal_block(block, bins, prominence, min_mass, smooth)
 
     out = block_apply(flat, block_rows, _block)
     return np.asarray(out, dtype=np.float32).reshape(lead)[..., np.newaxis]

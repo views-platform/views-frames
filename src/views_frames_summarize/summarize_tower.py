@@ -4,7 +4,7 @@
 the canonical tower **once**, deriving the tower-tip point, the pinned nested HDIs, and
 the bimodality flag together. It returns exactly what the three composable functions
 (`tower_point`, `hdi_tower`, `bimodality`) return — the bundle is purely an efficiency
-collapse of the three, not a different computation.
+collapse of the three, not a different computation. All tunables come from `config`.
 """
 
 from __future__ import annotations
@@ -15,14 +15,16 @@ from typing import NamedTuple
 import numpy as np
 from numpy.typing import NDArray
 
-from views_frames_summarize._common import ROW_BLOCK, AnyFrame, rebuild
+from views_frames_summarize import config
+from views_frames_summarize._common import AnyFrame, rebuild
 from views_frames_summarize.bimodality import _bimodal_block
 from views_frames_summarize.tower import (
     _CANONICAL_FLOORS,
     _dense_tower,
     _ks,
+    _median_in,
     _pin,
-    _tip,
+    _tip_floor_index,
     _zero_mask,
 )
 
@@ -46,11 +48,6 @@ class TowerSummary(NamedTuple):
 def summarize_tower(
     frame: AnyFrame,
     masses: Sequence[float] = (0.5, 0.9, 0.99),
-    *,
-    bins: int = 16,
-    prominence: float = 0.40,
-    min_mass: float = 0.15,
-    block_rows: int = ROW_BLOCK,
 ) -> TowerSummary:
     """Point + nested HDIs + bimodality flag in one sort-once pass → `TowerSummary`."""
     values = frame.values
@@ -58,7 +55,12 @@ def summarize_tower(
     s = values.shape[-1]
     ks = _ks(s)
     pin = _pin(masses)
-    k0 = int(ks[0])
+    t = _tip_floor_index(s)
+    bins = int(config.get("bimodality_bins"))
+    prominence = float(config.get("bimodality_prominence"))
+    min_mass = float(config.get("bimodality_min_mass"))
+    smooth = int(config.get("bimodality_smooth"))
+    block_rows = int(config.get("row_block"))
     flat = np.ascontiguousarray(values).reshape(-1, s)
     rows = flat.shape[0]
 
@@ -71,14 +73,19 @@ def summarize_tower(
         srt = np.sort(block, axis=-1)
         zero = _zero_mask(block)
 
-        sel = _dense_tower(srt, ks)[:, pin, :]
+        tower = _dense_tower(srt, ks)
+        sel = tower[:, pin, :]
         sel[zero] = 0.0
-        tip = np.where(zero, np.float32(0.0), _tip(srt, k0))
+        tip = np.where(
+            zero, np.float32(0.0), _median_in(srt, tower[:, t, 0], tower[:, t, 1])
+        )
 
         stop = start + block.shape[0]
         point_flat[start:stop] = tip
         intervals_flat[start:stop] = sel
-        bimodal_flat[start:stop] = _bimodal_block(block, bins, prominence, min_mass)
+        bimodal_flat[start:stop] = _bimodal_block(
+            block, bins, prominence, min_mass, smooth
+        )
 
     point = rebuild(frame, point_flat.reshape(lead)[..., np.newaxis])
     intervals = intervals_flat.reshape(*lead, pin.shape[0], 2)

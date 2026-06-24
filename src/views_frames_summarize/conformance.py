@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from views_frames_summarize import config
 from views_frames_summarize._common import AnyFrame
 from views_frames_summarize.bimodality import bimodality
 from views_frames_summarize.collapse import collapse
@@ -69,10 +70,15 @@ def _assert_tower_contract(frame: AnyFrame, n: int) -> None:
         "tower uppers must be non-decreasing"
     )
 
-    # Tip-in-narrowest law: the point lies inside the narrowest requested floor.
-    lo0, hi0 = tower[..., 0, 0], tower[..., 0, 1]
-    assert (tip.values[..., 0] >= lo0 - 1e-6).all(), "tip below the narrowest floor"
-    assert (tip.values[..., 0] <= hi0 + 1e-6).all(), "tip above the narrowest floor"
+    # Tip-in-tip_mass-floor law (ADR-019, outside-in redesign): the point is the median
+    # of the configured ``tip_mass`` floor, so it lies inside that floor. (It is *not*
+    # tied to the narrowest *requested* floor any longer — a caller may request a
+    # narrower or wider band than ``tip_mass``.)
+    tip_mass = float(config.get("tip_mass"))
+    tip_floor = hdi_tower(frame, masses=(tip_mass,))
+    tlo, thi = tip_floor[..., 0, 0], tip_floor[..., 0, 1]
+    assert (tip.values[..., 0] >= tlo - 1e-6).all(), "tip below the tip_mass floor"
+    assert (tip.values[..., 0] <= thi + 1e-6).all(), "tip above the tip_mass floor"
 
     # Reproducibility law: the 50% HDI is independent of the other requested masses.
     just_50 = hdi_tower(frame, masses=(0.5,))
