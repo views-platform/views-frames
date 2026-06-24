@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
 | Total Concerns    | 48                                   |
-| Open Concerns     | 7                                    |
-| Resolved Concerns | 41                                   |
+| Open Concerns     | 5                                    |
+| Resolved Concerns | 43                                   |
 | Disagreements     | 8                                    |
 
 ---
@@ -123,36 +123,6 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 
 ---
 
-### C-49: aggregate `exceedance` tail is silently wrong when summed samples are not a true joint posterior
-
-| Field | Value |
-|-------|-------|
-| ID | C-49 |
-| Tier | 2 |
-| Source | expert-code-review (2026-06-24, exceedance-probability design; Nygard/Feathers/Hickey lenses) |
-| Trigger | When a consumer (the faoapi twin / reporting) builds a country-level `PredictionFrame` via `aggregate_distributions` (or a hand-rolled element-wise sample sum) from grid samples that are **not** jointly drawn (independent per cell), then calls the planned `exceedance` per row and ships `P(country total > C)`. |
-| Location | (planned) `src/views_frames_summarize/exceedance.py`; the aggregation boundary `src/views_frames_summarize/aggregate.py` (`aggregate_distributions`). |
-| Cross-refs | ADR-021 (the exceedance design — this concern is its documented CIC failure-mode), D-01 (where cross-level aggregation lives), C-50 (the sibling exceedance NaN concern), the upstream "are the reconciled country samples a real joint?" question (handled in views-models / reconciliation, not the leaf). |
-
-Per-row `exceedance` is correct for a frame's level only if each row's S samples are the *true joint posterior* for that unit. The estimator cannot see sample provenance, so it cannot detect a violation. Summing **independently-drawn** finer-level samples element-wise imposes a comonotonic (perfectly rank-aligned) coupling, and an aggregate **tail** probability `P(Σ > C)` is far more sensitive to the cross-cell dependence than an HDI or a quantile — so a wrong coupling yields a confidently-wrong country exceedance with **no error signal**. **Tier 2** — structural fragility with a clear future trigger; correctness rests on an upstream guarantee the estimator deliberately does not enforce (ADR-014 keeps geography/aggregation out of the summarizer). **Mitigation:** make the joint-sample requirement an explicit CIC failure-mode for `exceedance`; contract the coherence obligation on `aggregate_distributions` (the aggregation boundary), not on `exceedance`; recommend a consumer-side coherence check where the country frame is built. **ADR-021 ratifies this mitigation (the CIC failure-mode + the aggregation-boundary contract); the concern stays Open until the implementation and a consumer-side coherence check land.**
-
----
-
-### C-50: naive `exceedance` silently deflates onset (`P(Y>0)`) when NaN draws are present
-
-| Field | Value |
-|-------|-------|
-| ID | C-50 |
-| Tier | 2 |
-| Source | expert-code-review (2026-06-24, exceedance-probability design; Nygard lens) |
-| Trigger | When `exceedance` is implemented as a naive `np.mean(vals > c, axis=-1)` and a frame carrying NaN draws reaches it without upstream NaN-stripping — e.g. a forecast cell with "not calculated" NaN samples routed straight to the estimator. |
-| Location | (planned) `src/views_frames_summarize/exceedance.py`. |
-| Cross-refs | ADR-021 (ratifies the fail-loud-NaN mitigation), C-49 (sibling exceedance concern), C-32 / C-34 (summarize-estimator coherence cluster, #89), D-07 (the NaN-policy disagreement, now settled); relates to the v1.4.0 NaN-tolerant round-trip (`equal_nan`). |
-
-numpy evaluates `NaN > c` as `False`, so under a naive boolean-mean reducer every NaN draw is counted as "not exceeding," biasing `P(Y > c)` **downward** — silently, and worst on the flagship `P(Y > 0)` (onset). Consumers strip NaN upstream today (faoapi/reporting route any-NaN rows through a strip path), but the **published** estimator must define one rule rather than depend on caller hygiene. **Tier 2** — silent output incorrectness on the headline metric whenever NaN reaches the estimator, with a clear trigger (a NaN cell bypasses upstream stripping). **Mitigation (per the review):** fail loud on any NaN in a reduced row (ADR-008), or one explicit documented policy; never the silent `>` default. A `nan_policy='raise'|'skip'` param (skip-and-renormalise) is a reversible future MINOR — see D-07. **ADR-021 settles this as fail-loud; the concern stays Open until the implementation lands the guard + a test asserting it raises.**
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -244,6 +214,28 @@ numpy evaluates `NaN > c` as `False`, so under a naive boolean-mean reducer ever
 ---
 
 ## Resolved Concerns
+
+### C-49: aggregate `exceedance` tail is silently wrong when summed samples are not a true joint posterior — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-49 |
+| Tier | 2 |
+| Resolved | 2026-06-24 (Epic 9 / I3, v1.5.0) |
+| Resolution | The compose path is implemented and proven: country exceedance = `aggregate_distributions(grid, mapping, level)` → `exceedance` per row, never a per-cell combination. `test_aggregate_composition_is_joint_exceedance` (`tests/test_summarize_exceedance.py`) shows `P(Σ > c)` on the summed posterior (= 0.5 for the worked case) is **unrecoverable** from the per-cell exceedances (both 0). The joint-sample requirement is an explicit CIC failure-mode (Summarize §6) contracted on the aggregation boundary, not on `exceedance` — the estimator stays geography-blind (ADR-014). The residual upstream obligation (are the summed samples a true joint?) lives in views-models / reconciliation, outside the leaf. See ADR-021, C-50. |
+
+---
+
+### C-50: naive `exceedance` silently deflates onset (`P(Y>0)`) when NaN draws are present — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-50 |
+| Tier | 2 |
+| Resolved | 2026-06-24 (Epic 9 / I1+I2, v1.5.0) |
+| Resolution | `exceedance` **fails loud** on any NaN in the reduced values (`_exceed` raises `ValueError` before the silent `NaN > c == False` miscount) rather than returning a deflated probability (ADR-008; D-07 settled as fail-loud). `test_nan_draw_raises` (`tests/test_summarize_exceedance.py`) asserts a NaN draw raises. A `nan_policy='skip'` remains a reversible future MINOR (D-07). See ADR-021, C-49. |
+
+---
 
 ### C-51: `assert_frame_envelope`'s structural rejection paths were tested only transitively — RESOLVED
 

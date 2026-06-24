@@ -17,6 +17,7 @@ from views_frames_summarize.aggregate import (
 )
 from views_frames_summarize.bimodality import bimodality
 from views_frames_summarize.collapse import collapse
+from views_frames_summarize.exceedance import exceedance, exceedance_reducer
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
 from views_frames_summarize.summarize_tower import TowerSummary, summarize_tower
@@ -29,6 +30,8 @@ __all__ = [
     "aggregate_distributions_arrays",
     "bimodality",
     "collapse",
+    "exceedance",
+    "exceedance_reducer",
     "hdi",
     "hdi_tower",
     "map_estimate",
