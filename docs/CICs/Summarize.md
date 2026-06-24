@@ -4,12 +4,24 @@
 **Status:** Active
 **Owner:** VIEWS platform maintainers
 **Last reviewed:** 2026-06-24
-**Related ADRs:** ADR-002, ADR-008, ADR-009, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019
+**Related ADRs:** ADR-002, ADR-008, ADR-009, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019, ADR-021
 
 > The `views_frames_summarize` package (functions, not a class). Implemented in
 > v0.2.0; the coherent-tower surface (`hdi_tower`/`tower_point`/`bimodality`/
 > `summarize_tower`, ADR-019) was added additively in v1.1.0. Depends on `views_frames`
 > + numpy only.
+>
+> **Amendment (2026-06-24, ADR-021, register C-49/C-50/D-07/D-08).** Adds the threshold
+> **exceedance** surface (`exceedance`/`exceedance_reducer`) — per-row `P(Y > c)`. **Shipped
+> additively in v1.5.0** (`src/views_frames_summarize/exceedance.py`,
+> `tests/test_summarize_exceedance.py`; register C-49/C-50 Resolved). The §3/§4/§6/§8–§11
+> entries marked *(ADR-021)* describe the live contract.
+>
+> **Amendment (2026-06-25, ADR-022, register C-55/C-56/D-10).** Adds the **worst-case** surface
+> `expected_shortfall` (the tail mean / CVaR) — per-row mean of the worst `⌈t·S⌉` draws. **Shipped
+> additively in v1.6.0** (`src/views_frames_summarize/expected_shortfall.py`,
+> `tests/test_summarize_expected_shortfall.py`; register C-55/C-56 Resolved). Best-case ships **no
+> code** (a low quantile + `exceedance(0)`). The §3/§4/§6/§8–§11 entries marked *(ADR-022)* are live.
 
 ---
 
@@ -30,6 +42,14 @@ re-derive (ADR-017).
   geography.
 - **No scoring / actuals** — comparing a prediction to truth is views-evaluation.
 - **No reconciliation/redistribution, no plotting.**
+- **No threshold *policy* (ADR-021)** — `exceedance` evaluates caller-supplied thresholds; the
+  package ships **no default or named thresholds and no risk tiers**. Which thresholds (per
+  stakeholder / per level) is the consumer's, in the API repos. The canonical VIEWS sets
+  (`25/100/1000` country, `5/25` grid) are documentation only, never an executable default.
+- **No worst-case *policy*, and never `max` (ADR-022)** — `expected_shortfall` evaluates
+  caller-supplied tail levels; the package ships **no default tail level**. `max` (the single
+  worst draw) is **not offered** at all — it is the high-variance, non-reproducible summary this
+  surface exists to replace. Which tail counts as "worst case" is the consumer's.
 - **No `views_*` import except `views_frames`** (enforced by the import-DAG test).
 
 ---
@@ -96,6 +116,47 @@ re-derive (ADR-017).
 - `summarize_tower(frame, masses)` → `TowerSummary(point, intervals, bimodal, masses)`: a
   single-pass bundle deriving all three from one sort; **provably equal** to the trio.
 
+### Threshold exceedance probabilities (ADR-021)
+
+- `exceedance(frame, thresholds)` → `(N, …, K)` numpy array aligned to `frame.index`: the per-row
+  **empirical survival fraction** `P(Y > c_k)` for each of the `K` caller-supplied thresholds — the
+  fraction of sample-axis draws **strictly** greater than `c_k`. Same shape/role family as
+  `quantiles` (an index-aligned array; the caller holds the index), vectorized and block-applied.
+  **Guarantees:** values in `[0, 1]`; **non-increasing in threshold**; `P(> −inf) = 1`,
+  `P(> +inf) = 0`. **Distribution-agnostic** (a counting reducer — no histogram, no config, no
+  unimodality assumption), so it is robust where the tower is weakest (C-34). The flagship is
+  `P(Y > 0)` = probability of *any* activity (onset).
+- `exceedance_reducer(threshold)` → a `collapse`-compatible reducer, so a single-threshold
+  exceedance as a `(N, …, 1)` **frame** is `collapse(frame, exceedance_reducer(c))`. It shares
+  `exceedance`'s one direction/NaN policy — consumers never re-roll `np.mean(samples > c)`.
+- **Strict `>` is a fixed contract, not a knob** — for integer counts wanting `P(Y ≥ k)`, pass
+  `k − 1`. **Geography-blind / per-row only:** "unit" is a row; country exceedance =
+  `aggregate_distributions(...)` **then** `exceedance` (compose; the estimator never aggregates).
+
+### Worst-case scenario — expected shortfall (ADR-022)
+
+- `expected_shortfall(frame, tails)` → `(N, …, K)` numpy array aligned to `frame.index`: for each
+  upper-tail fraction `t` in `tails`, the per-row **mean of the worst `⌈t·S⌉` draws** (the average of
+  the worst-case scenarios). Same shape/role family as `quantiles`/`exceedance`, vectorized and
+  block-applied. **Guarantees:** `min ≤ ES(t) ≤ max`; **non-decreasing as the tail deepens**
+  (`ES(t₁) ≥ ES(t₂)` for `t₁ ≤ t₂`); `ES(t) ≥ the (1 − t) quantile`. A **coherent** (subadditive)
+  risk measure, and the conditional-magnitude companion to `exceedance` ("given a bad scenario, how
+  bad on average").
+- **Upper tail only; `max` is never offered.** Averaging a *set* of tail draws is what makes the
+  worst-case robust; a single extreme order statistic (`max`) is the high-variance summary this
+  replaces. **Geography-blind / per-row only:** country worst-case = `aggregate_distributions(...)`
+  **then** `expected_shortfall` (compose; the estimator never aggregates).
+- **Caveat — extremeness vs stability:** the deeper the tail, the fewer draws support it, so a `t`
+  so small that `⌈t·S⌉` selects only a handful of draws re-approaches `max`'s volatility. **Pick
+  `t ≳ 5/S`.** The level is the consumer's (no default).
+
+### Best-case scenario — no estimator (ADR-022)
+
+- **Best case ships no code.** For fatalities the lower bound is `0` by construction, so a **low
+  quantile** (`quantiles(frame, [0.005])`) returns it; the genuinely informative "the model puts no
+  mass at zero" case is the low quantile being `> 0` **and** `exceedance(frame, [0])` (`P(Y > 0)`)
+  being ≈ 1. Pairing a best-case symbol with the worst-case is rejected (CRP).
+
 ---
 
 ## 4. Inputs and Assumptions
@@ -111,6 +172,14 @@ re-derive (ADR-017).
   "sub-1 ⇒ 0" sets `config.TOWER_CONFIG["zero_cutoff"]` to a float (e.g. `1.0`), *or*
   applies its own zero policy downstream (e.g. faoapi's `mass_at_zero` rule). The leaf
   never imposes a count-domain magnitude assumption on rate/probability/continuous targets.
+- **`exceedance` thresholds (ADR-021)** are a **required** per-call argument, with **no default
+  and not in config** — they are an *input* (*what* you ask of the distribution), like
+  `quantiles`' `qs`, not an algorithm *tunable*. They are in the **frame's own units**
+  (grid thresholds for a grid frame, country thresholds for a country frame); level-dependence is
+  handled by passing different thresholds per single-level frame. `exceedance` reads no config.
+- **`expected_shortfall` tails (ADR-022)** are likewise a **required** per-call argument in `(0, 1]`,
+  with **no default and not in config** — the tail fraction is *what* you ask of the distribution
+  (e.g. `0.01` = "the worst 1%"), the consumer's policy. `expected_shortfall` reads no config.
 
 ---
 
@@ -137,6 +206,32 @@ re-derive (ADR-017).
   (frames do not ban them); the tower behaves deterministically and confines the effect
   to the offending row — it neither crashes nor corrupts other rows, but the result for a
   NaN row is undefined.
+- **`exceedance` is the exception — it fails *loud* on any non-finite draw, NaN or ±inf (ADR-021,
+  register C-50):** a naive `np.mean(v > c)` would count `NaN > c` as `False` and silently deflate the
+  probability — worst on the `P(Y > 0)` onset flagship — and an `inf` draw (always an upstream bug)
+  would silently bless `P` as a valid-looking probability (`inf > c` is `True`), masking the bug. So
+  `exceedance` **raises `ValueError`** on any non-finite value in a reduced row (the guard is
+  `np.isfinite`, not `np.isnan`) rather than return a quietly-wrong probability. Empty `thresholds`
+  likewise raises (no silent `(N, …, 0)`). It is deliberately stricter than the tower's localized-NaN
+  posture (ADR-008). (±inf *thresholds* stay valid — `P(>−inf)=1`, `P(>+inf)=0`; the guard is on the
+  draws, never the thresholds.)
+- **Aggregate exceedance carries an unguarded correctness obligation (register C-49):** per-row
+  `exceedance` is correct for a level only if each row's `S` samples are the *true joint posterior*
+  for that unit. `P(Σ > C)` is **unrecoverable** from per-cell `P(Yᵢ > c)`, so country exceedance
+  must be computed on an already-aggregated frame (`aggregate_distributions` → `exceedance`), and is
+  correct only when the summed samples are jointly drawn (shared-draw-index / sample-space
+  reconciliation). The estimator **cannot** verify this — it is an upstream guarantee.
+- **`expected_shortfall` fails *loud* on any non-finite draw, NaN or ±inf (ADR-022, register C-56):**
+  numpy sorts NaN **and** `+inf` **last**, so a naive top-`⌈t·S⌉` mean would silently select them and
+  return a NaN/`inf` worst-case (an `inf` draw — always an upstream bug — contaminates the tail mean to
+  `inf`) — so it **raises `ValueError`** on any non-finite value in a reduced row (the guard is
+  `np.isfinite`, not `np.isnan`). Empty `tails`, or any `t ∉ (0, 1]`, likewise raise (a tail with no
+  samples). Same fail-loud posture as `exceedance` (ADR-008).
+- **Aggregate worst-case carries the same obligation as exceedance (register C-55):** the tail **mean**
+  of a country total must be computed on an already-aggregated frame (`aggregate_distributions` →
+  `expected_shortfall`); it is correct only when the summed samples are jointly drawn, and a tail mean
+  is *more* sensitive to the cross-cell dependence than a tail probability. The estimator cannot verify
+  it — an upstream guarantee.
 - **`bimodality` is a conservative heuristic, not a loud failure (register C-34):** it is
   biased toward *not* flagging — it will read an ambiguous/overlapping mixture, an
   unequal-weight split (minority mode below `min_mass`), or a tall-narrow-beside-spread pair
@@ -167,6 +262,23 @@ s = summarize_tower(pf, masses=(0.5, 0.9, 0.99))
 s.point          # (N, 1) frame — the tower tip
 s.intervals      # (N, 3, 2) nested HDIs, aligned to pf.index
 s.bimodal        # (N, 1) flag — where a single point is ambiguous
+
+# threshold exceedance (ADR-021): caller-supplied thresholds, in the frame's units
+from views_frames_summarize import exceedance, exceedance_reducer, collapse
+ep = exceedance(grid_pf, thresholds=(0, 5, 25))   # (N, 3) array; P(Y>0), P(Y>5), P(Y>25)
+onset = collapse(grid_pf, exceedance_reducer(0))  # (N, 1) frame — P(Y>0) as a frame
+
+# country exceedance = aggregate the samples first, THEN reduce per row
+country_pf = aggregate_distributions(grid_pf, mapping, level="country")
+country_ep = exceedance(country_pf, thresholds=(100, 1000))   # P(country total > c)
+
+# worst-case scenario (ADR-022): the tail mean, NOT max
+from views_frames_summarize import expected_shortfall, quantiles
+worst = expected_shortfall(grid_pf, tails=(0.05, 0.01))   # (N, 2) — mean of worst 5% / worst 1%
+
+# best-case scenario: no function — a low quantile + the onset probability
+best = quantiles(grid_pf, [0.005])        # (N, 1) — 0 in a zero-inflated cell, >0 if no zero mass
+no_zero_mass = exceedance(grid_pf, [0])   # P(Y>0) ≈ 1 ⟺ even the best case is violent
 ```
 
 ---
@@ -191,6 +303,27 @@ hdi(pf, mass=0.9)                       # RIGHT: the unconstrained shortest 90% 
 # design, and bimodality only flags *clearly separated* peaks — a sharp drop vs a
 # MAP is the C-32 bias being corrected, not a hidden second mode. Validate the shift.
 tower_point(pf)                         # the robust dense mode (may be << a histogram MAP)
+
+# WRONG: recovering aggregate exceedance from per-cell exceedances (register C-49).
+# P(country total > C) is NOT a function of the grid cells' P(Y>c) — aggregate the
+# SAMPLES first, then reduce:
+exceedance(grid_pf, (1000,)).mean()                 # WRONG: meaningless
+exceedance(aggregate_distributions(grid_pf, mapping, "country"), (1000,))  # RIGHT
+
+# WRONG: expecting the package to supply default thresholds / risk tiers. Thresholds are
+# required and caller-supplied; policy lives in the consumer (ADR-021).
+exceedance(pf)                          # TypeError — thresholds are required, no default
+
+# WRONG: using max for the worst case. It is a single extreme order statistic — highest
+# variance, not reproducible. Use a tail mean (ADR-022):
+collapse(pf, np.max)                    # WRONG: volatile worst-case
+expected_shortfall(pf, tails=(0.01,))   # RIGHT: robust, coherent worst-case
+
+# WRONG: a tail so small it selects ~1 draw — that IS max again (caveat: pick t ≳ 5/S).
+expected_shortfall(pf, tails=(1e-4,))   # with small S, ⌈t·S⌉ → 1 → reapproaches max's volatility
+
+# WRONG: recovering aggregate worst-case from per-cell ES (register C-55) — aggregate first:
+expected_shortfall(aggregate_distributions(grid_pf, mapping, "country"), (0.01,))  # RIGHT
 ```
 
 ---
@@ -208,6 +341,27 @@ tower_point(pf)                         # the robust dense mode (may be << a his
   key all fail loud; the zero-cutoff boundary; `tower_point` independent of the frozen
   `map_estimate`; NaN/inf stays localized; the import-DAG test keeps the leaf pure
   (`tests/test_summarize_tower.py`, `tests/test_summarize_config.py`).
+- **Exceedance (ADR-021; `tests/test_summarize_exceedance.py`, v1.5.0):**
+  *Green* — known fraction above `c` → exact `P`; in `[0,1]`; non-increasing across a threshold
+  sweep; `exceedance(frame,[c])` ≡ `collapse(frame, exceedance_reducer(c))` value; **distribution-agnostic
+  onset — `P(Y > 0)` on a zero-inflated / multimodal cell equals the nonzero-draw fraction**
+  (substantiates the §3 "robust where the tower is weakest" claim, C-34). *Beige* — `S=1`; threshold
+  below min → `1.0`, above max → `0.0`; FeatureFrame leading axes; **integer-count `P(Y ≥ k)` via
+  `pass k−1`**. *Red* — threshold exactly equal to a draw pins **strict `>`** (the tie is excluded); a
+  non-finite draw — NaN **or ±inf** — **raises** (`np.isfinite` guard; falsify audit 2026-06-25);
+  empty thresholds raise; `P(>−inf)=1`, `P(>+inf)=0` (inf *thresholds* stay valid); **aggregate
+  composition (C-49) — `exceedance` on an `aggregate_distributions(...)` frame yields `P(Σ > c)`, and naive per-cell
+  exceedances do NOT recover it (the analogue of the tower's `HDI(aggregate) ≠ sum(HDI)` joint-sampling
+  guard).**
+- **Expected shortfall (ADR-022; `tests/test_summarize_expected_shortfall.py`, v1.6.0):**
+  *Green* — known tail mean → exact value (e.g. worst-1-of-4 draws); `min ≤ ES ≤ max`; **non-decreasing
+  as the tail deepens**; `ES(t) ≥ the (1 − t) quantile`; `ES(t=1)` == the mean of all draws. *Beige* —
+  `S=1` (ES == that draw); `⌈t·S⌉` rounding (e.g. `t=0.01, S=100 → k=1 == max`, the documented
+  small-tail caveat); FeatureFrame leading axes + TargetFrame parity. *Red* — a non-finite draw — NaN
+  **or ±inf** — **raises** (not a NaN/`inf` worst-case; `np.isfinite` guard, C-56, falsify audit
+  2026-06-25); empty `tails` and any `t ∉ (0,1]` **raise**; **aggregate composition
+  (C-55) — `expected_shortfall` on an `aggregate_distributions(...)` frame yields the worst-case of the
+  *summed* posterior, and is not recoverable from per-cell ES.**
 
 ---
 
@@ -222,6 +376,17 @@ tower_point(pf)                         # the robust dense mode (may be << a his
   count-domain `max <= 1` magnitude zeroing was removed as a default (zero-inflation is read
   off the `tip_mass`-floor density), leaving an **optional, off-by-default** `zero_cutoff`
   opt-in for count consumers. The zero policy is the consumer's, not a leaf default.
+- **Threshold exceedance (ADR-021):** `exceedance`/`exceedance_reducer` shipped additively in
+  v1.5.0; `CONFORMANCE_FLOOR` stays `1.0.0`. Deliberately deferred, reversible extensions — an
+  `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07), and **relative/reference-frame
+  thresholds** (the "exceed the baseline / last period" deterioration story) — to be added only when
+  a concrete consumer proves the need.
+- **Worst-case expected shortfall (ADR-022):** `expected_shortfall` shipped additively in v1.6.0;
+  `CONFORMANCE_FLOOR` stays `1.0.0`. It lives in its **own module** (`expected_shortfall.py`), written
+  explicitly — *not* refactored into a shared "tail reducer" with `quantiles`/`exceedance` (the
+  duplication is shallow and the concerns change independently — WET before DRY; CCP/CRP). Best-case
+  ships **no code** (low quantile + `exceedance(0)`). Deferred, reversible extensions — a
+  lower-tail/`side` mode, an `expected_shortfall_reducer`, `cvar`/`tail_mean` synonyms (D-10).
 
 ---
 

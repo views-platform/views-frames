@@ -13,6 +13,8 @@ from views_frames_summarize import config
 from views_frames_summarize._common import AnyFrame
 from views_frames_summarize.bimodality import bimodality
 from views_frames_summarize.collapse import collapse
+from views_frames_summarize.exceedance import exceedance
+from views_frames_summarize.expected_shortfall import expected_shortfall
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
 from views_frames_summarize.summarize_tower import summarize_tower
@@ -43,6 +45,36 @@ def assert_summarizer_contract(frame: AnyFrame) -> None:
     qs = quantiles(frame, [0.1, 0.5, 0.9])
     assert qs.shape[0] == n, "quantiles must be aligned to the frame's rows"
     assert qs.shape[-1] == 3, "quantiles must produce one column per quantile"
+
+    # exceedance laws (ADR-021): a survival function — in [0, 1], non-increasing in the
+    # threshold, with P(> -inf) = 1 and P(> +inf) = 0.
+    thresholds = [-np.inf, 0.5, 1.5, np.inf]
+    exc = exceedance(frame, thresholds)
+    assert exc.shape[0] == n, "exceedance must be aligned to the frame's rows"
+    assert exc.shape[-1] == len(thresholds), "exceedance → one column per threshold"
+    assert ((exc >= 0.0) & (exc <= 1.0)).all(), (
+        "exceedance must be a probability in [0, 1]"
+    )
+    assert (np.diff(exc, axis=-1) <= 1e-6).all(), (
+        "exceedance must be non-increasing in the threshold"
+    )
+    assert (exc[..., 0] == 1.0).all(), "P(> -inf) must be 1"
+    assert (exc[..., -1] == 0.0).all(), "P(> +inf) must be 0"
+
+    # expected-shortfall laws (ADR-022): a tail mean — in [min, max], non-decreasing as
+    # the tail deepens (t → 0), and dominating its VaR (ES(t) ≥ the (1 − t) quantile).
+    tails = [1.0, 0.5, 0.1]  # widening tails (deepening worst-case)
+    es = expected_shortfall(frame, tails)
+    lo = frame.values.min(axis=-1)[..., np.newaxis]
+    hi = frame.values.max(axis=-1)[..., np.newaxis]
+    assert es.shape[0] == n, "expected_shortfall must be aligned to the frame's rows"
+    assert es.shape[-1] == len(tails), "expected_shortfall → one column per tail"
+    assert ((es >= lo - 1e-6) & (es <= hi + 1e-6)).all(), "ES must lie in [min, max]"
+    assert (np.diff(es, axis=-1) >= -1e-6).all(), (
+        "ES must be non-decreasing as the tail deepens"
+    )
+    var = quantiles(frame, [0.0, 0.5, 0.9])  # the (1 − t) quantiles for t = 1, 0.5, 0.1
+    assert (es >= var - 1e-6).all(), "ES(t) must dominate the (1 − t) quantile"
 
     _assert_tower_contract(frame, n)
 

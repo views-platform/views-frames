@@ -4,6 +4,92 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.6.0] — 2026-06-25
+
+**Worst-case scenario estimator (ADR-022, register C-55/C-56 Resolved).** Additive surface — the
+frozen v1.0–v1.5 estimators are unchanged; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`expected_shortfall(frame, tails, *, block_rows=ROW_BLOCK)` → `(N, …, K)` array** — the per-row
+  **mean of the worst `⌈t·S⌉` draws** for each upper-tail fraction `t` (the tail mean / CVaR): a
+  robust, **coherent** (subadditive) worst-case risk measure and the companion to `exceedance`.
+  Vectorized over the trailing sample axis in row-blocks.
+- **Conformance:** `assert_summarizer_contract` now also checks the ES laws — `min ≤ ES ≤ max`,
+  non-decreasing as the tail deepens, and `ES(t) ≥ the (1 − t)` quantile.
+
+### Notes
+- **`max` is never offered** — it is the highest-variance, non-reproducible summary `expected_shortfall`
+  replaces (D-10). **Tails are required per-call, no default, not in config**, in `(0, 1]` — the
+  consumer's policy. **Fails loud** on any **non-finite draw — NaN or ±inf** (C-56; the guard is
+  `np.isfinite`, hardened by the falsify audit 2026-06-25 so an `inf` draw can't silently contaminate
+  the tail mean to `inf`), empty `tails`, or any `t ∉ (0, 1]`.
+- **Best case ships no code** — a low quantile (`quantiles(frame, [0.005])`) + `exceedance(frame, [0])`
+  express it, including the "model puts no mass at zero" case.
+- Country worst-case = `aggregate_distributions` → `expected_shortfall` (the estimator never
+  aggregates; the joint-sample obligation is the consumer's, C-55).
+- **WET before DRY:** its own module, written explicitly — *not* refactored into a shared "tail
+  reducer" with `quantiles`/`exceedance`. Deferred, reversible extensions: a lower-tail/`side` mode, an
+  `expected_shortfall_reducer`, `cvar`/`tail_mean` synonyms (D-10).
+
+## [1.5.0] — 2026-06-24
+
+**Threshold exceedance-probability estimator (ADR-021, register C-49/C-50 Resolved).** Additive
+surface — the frozen v1.0–v1.4 estimators are unchanged; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`exceedance(frame, thresholds, *, block_rows=ROW_BLOCK)` → `(N, …, K)` array** — the per-row
+  empirical survival fraction `P(Y > c_k)` for each of `K` caller-supplied thresholds (same
+  shape/role family as `quantiles`), vectorized over the trailing sample axis in row-blocks.
+  Distribution-agnostic (a counting reducer); the flagship is `P(Y > 0)` = onset.
+- **`exceedance_reducer(threshold)` → `Reducer`** — a `collapse`-compatible factory, so
+  `collapse(frame, exceedance_reducer(c))` returns `P(Y > c)` as a `(N, …, 1)` frame, sharing one
+  strict-`>` / fail-loud-non-finite policy.
+- **Conformance:** `assert_summarizer_contract` now also checks the exceedance laws — values in
+  `[0, 1]`, non-increasing in the threshold, `P(> −inf) = 1`, `P(> +inf) = 0`.
+
+### Notes
+- **Thresholds are required per-call, no default, not in config** — an *input* in the frame's own
+  units, like `quantiles`' `qs` (ADR-021). Canonical VIEWS thresholds (25/100/1000 country, 5/25
+  grid) are documentation only, never an executable default.
+- **Strict `>`** (D-08; for integer counts `P(Y ≥ k)`, pass `k − 1`). **Fails loud** on any
+  **non-finite draw — NaN or ±inf** (C-50; `np.isfinite` guard, hardened by the falsify audit
+  2026-06-25 so an `inf` draw can't silently bless `P` as valid — ±inf *thresholds* stay valid) and on
+  empty thresholds. Country exceedance = `aggregate_distributions` → `exceedance` (the estimator never
+  aggregates; the joint-sample obligation is the consumer's, C-49).
+- **Deferred, reversible extensions:** an `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07),
+  relative/reference-frame thresholds, an EP-curve helper.
+
+## [1.4.0] — 2026-06-24
+
+**Generic provenance + a published frame-envelope checker (ADR-020, register C-46/C-47).**
+Operationalises the substrate half of the `MetricFrame` decision: views-evaluation hosts
+`MetricFrame` on the views-frames substrate, and this release provides the two leaf-side
+pieces it reuses. No change to the frozen surface (ADR-018); `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`FrameMetadata.run_id` / `FrameMetadata.data_version`** — optional, **generic** provenance
+  (additive/MINOR, ADR-013). Meaningful for any frame; they ride the existing
+  `to_dict`/`from_dict` and IO round-trip unchanged. Evaluation-specific provenance
+  (`scoring_code_version`, full-precision `evaluation_timestamp`) deliberately stays in
+  views-evaluation's `MetricFrame`, never this generic header (the C-47 guard).
+- **`views_frames.conformance.assert_frame_envelope`** — the shared **frame envelope** (float32
+  values, explicit trailing axis, save/load round-trip) factored out of `assert_frame_contract`
+  as a single written authority. A non-spatiotemporal sibling (views-evaluation's string-keyed
+  `MetricFrame`) validates against it instead of re-asserting drifting copies (mitigates C-46).
+  `assert_frame_contract` now composes the envelope + the spatiotemporal `(time, unit)` rule.
+
+### Fixed
+- **Conformance round-trip is now NaN-tolerant.** `_assert_roundtrip` compared values with
+  `np.array_equal` (NaN-blind: `NaN != NaN`), so a *correct* round-trip of a frame carrying NaN
+  values raised a spurious `"save/load changed values"`. Now uses `equal_nan=True` on the float32
+  values. This matters for `assert_frame_envelope`'s intended consumer — evaluation metrics are
+  realistically NaN ("not calculated"). A bugfix that only *removes a false rejection*, so
+  `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Notes
+- The cross-repo **wire schema + `schema_version`** marker (the other half of the C-46
+  mitigation) is the emit/consume wire contract and remains future work, tracked on C-46.
+
 ## [1.3.0] — 2026-06-24
 
 **Distribution-agnostic tower summary (register C-45).** Removes a count-domain magnitude

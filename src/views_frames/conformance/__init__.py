@@ -10,6 +10,14 @@ Usage in a consumer's test::
     from views_frames.conformance import assert_frame_contract
     assert_frame_contract(my_adapter_output())
 
+A consumer whose type is **not** spatiotemporal (a string-keyed evaluation output, e.g.
+views-evaluation's ``MetricFrame``) validates against the shared envelope instead, so
+the envelope has one written authority rather than re-asserted copies that drift
+(ADR-020, register C-46)::
+
+    from views_frames.conformance import assert_frame_envelope
+    assert_frame_envelope(my_metric_frame())
+
 The floor is governed in ``GOVERNANCE.md``; ``CONFORMANCE_FLOOR`` records the version
 this suite belongs to.
 """
@@ -27,20 +35,26 @@ __all__ = [
     "CONFORMANCE_FLOOR",
     "assert_cross_level_alignment_law",
     "assert_frame_contract",
+    "assert_frame_envelope",
     "assert_index_alignment_laws",
 ]
 
 
-def assert_frame_contract(frame: Any) -> None:
-    """Assert ``frame`` satisfies the views-frames data contract.
+def assert_frame_envelope(frame: Any) -> None:
+    """Assert ``frame`` satisfies the shared **frame envelope**.
 
-    Checks the structural invariants (float32 values, no object dtype, an explicit
-    trailing axis, complete integer identifiers of length ``n_rows``) and the
-    save/load round-trip. (Sample-axis reduction is the ``views_frames_summarize``
-    package's concern, not the contract's — ADR-017.)
+    The envelope is the subset of the contract that applies to *any* frame-like value
+    object, spatiotemporal or not: float32 values with no object dtype, an explicit
+    trailing axis, rows equal to ``n_rows``, and a save/load round-trip that preserves
+    the values and every identifier array. It deliberately says nothing about *which*
+    identifiers exist or their dtype — that is the spatiotemporal layer's concern.
+
+    This is the single written authority for the envelope so a sibling that re-asserts
+    it (views-evaluation's ``MetricFrame``, keyed by string axes — not ``(time, unit)``)
+    validates against this checker rather than drifting from it (ADR-020, C-46).
 
     Raises:
-        AssertionError: any part of the contract is violated.
+        AssertionError: any part of the envelope is violated.
     """
     values = frame.values
     assert isinstance(values, np.ndarray), "values must be a numpy array"
@@ -49,6 +63,22 @@ def assert_frame_contract(frame: Any) -> None:
     assert values.ndim >= 2, "values must have an explicit trailing sample axis"
     assert values.shape[0] == frame.n_rows, "values rows must equal n_rows"
 
+    _assert_roundtrip(frame)
+
+
+def assert_frame_contract(frame: Any) -> None:
+    """Assert ``frame`` satisfies the full views-frames **spatiotemporal** contract.
+
+    The shared envelope (:func:`assert_frame_envelope`) plus the spatiotemporal
+    requirement: complete integer ``time``/``unit`` identifiers of length ``n_rows``.
+    (Sample-axis reduction is the ``views_frames_summarize`` package's concern, not the
+    contract's — ADR-017.)
+
+    Raises:
+        AssertionError: the envelope or the spatiotemporal identifier rule is violated.
+    """
+    assert_frame_envelope(frame)
+
     ids = frame.identifiers
     for key in ("time", "unit"):
         assert key in ids, f"missing required identifier '{key}'"
@@ -56,14 +86,14 @@ def assert_frame_contract(frame: Any) -> None:
         assert np.issubdtype(arr.dtype, np.integer), f"'{key}' must be integer"
         assert arr.shape == (frame.n_rows,), f"'{key}' must be length n_rows"
 
-    _assert_roundtrip(frame)
-
 
 def _assert_roundtrip(frame: Any) -> None:
     with tempfile.TemporaryDirectory() as directory:
         frame.save(directory)
         loaded = type(frame).load(directory)
-        assert np.array_equal(loaded.values, frame.values), "save/load changed values"
+        assert np.array_equal(loaded.values, frame.values, equal_nan=True), (
+            "save/load changed values"
+        )
         for key, arr in frame.identifiers.items():
             assert np.array_equal(loaded.identifiers[key], arr), (
                 f"save/load changed identifier '{key}'"

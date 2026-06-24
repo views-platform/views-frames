@@ -4,11 +4,11 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-24                           |
-| Total Concerns    | 43                                   |
-| Open Concerns     | 4                                    |
-| Resolved Concerns | 39                                   |
-| Disagreements     | 6                                    |
+| Last Updated      | 2026-06-25                           |
+| Total Concerns    | 54                                   |
+| Open Concerns     | 9                                    |
+| Resolved Concerns | 45                                   |
+| Disagreements     | 10                                   |
 
 ---
 
@@ -108,6 +108,81 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 
 ---
 
+### C-46: the leaf's frame-envelope invariants are re-asserted in `views-evaluation`'s `MetricFrame` — no single authority, can drift
+
+| Field | Value |
+|-------|-------|
+| ID | C-46 |
+| Tier | 2 |
+| Source | expert-code-review (2026-06-24, GH #109; Kleppmann/Feathers/Nygard lenses) |
+| Trigger | When `views-evaluation` implements `MetricFrame` on the views-frames substrate (Option B, ADR-020), or when the leaf changes its serialisation/round-trip or float32 discipline (`io/`, `_validation.py`) — at that point the envelope invariants (float32 values, round-trip identity, optional-only metadata) exist in two places with no shared check. Re-run a cross-boundary round-trip contract test that calls the leaf's published conformance checker. |
+| Location | Leaf side: `src/views_frames/conformance/__init__.py` (`assert_frame_envelope` / `assert_frame_contract`), `src/views_frames/io/`, `src/views_frames/metadata.py`. Boundary: the (to-be) `MetricFrame` in `views-evaluation`. |
+| Cross-refs | C-01 (resolved — the home decision: leaf defines only the index/key protocol the eval types conform to), ADR-016 (conformance floor), ADR-020 (the B ratification), GH #109, views-evaluation#21. |
+
+Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-evaluation` and reuses the views-frames *substrate* — `FrameMetadata` plus the conformance/IO **patterns**. The float32 discipline and the serialise→load round-trip are therefore guaranteed in the leaf (`assert_frame_contract`) but only **re-asserted by convention** in `views-evaluation`. There is no single schema authority for the shared "frame-like envelope" across the two repos, so the two can drift — a quiet deserialisation or precision mismatch discovered late at the emit→consume boundary, not an outage. **Tier 2** — structural fragility with a clear future trigger; the leaf publishes nothing itself, but the boundary it underwrites can silently mismatch. **Mitigation (recorded in ADR-020):** publish the leaf's conformance/round-trip checks as a reusable, consumer-runnable checker (the conformance suite is already a public artifact, ADR-016) plus an explicit, versioned wire schema (a `schema_version` marker) that both emit and consume validate against — converting "agree by convention" into "validate against one written contract." **Partially mitigated (v1.4.0):** the reusable checker shipped as `assert_frame_envelope` — the shared envelope (float32, trailing axis, round-trip) factored out as one written authority a non-spatiotemporal `MetricFrame` validates against. **Remaining (stays Open):** the explicit versioned wire schema (`schema_version`) and the cross-repo emit→consume round-trip contract test that calls the checker — both live at the boundary / in `views-evaluation`. Resolved when those land.
+
+---
+
+### C-52: construction-convenience accretion on the leaf — the "camel's nose" for adapters (ADR-001)
+
+| Field | Value |
+|-------|-------|
+| ID | C-52 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
+| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
+| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py`. |
+| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, C-53, C-54, GH #113. |
+
+ADR-001 (line 17) names accretion as the leaf's existential failure mode — "someone adds an adapter, then grid knowledge … becomes pipeline-core-lite." A construction convenience is the most innocuous possible first step onto that slope. **Tier 3** (recalibrated down from an initial Tier 2 with the pipeline-core owner): under the ratified mitigations the residual risk is boundary-erosion a code-review gate catches, not inherent structural fragility. **Mitigations:** ship the **classmethod** form (a class resists becoming a dumping ground far better than an open `factory.py`); keep it **zero-own-logic**; add a CIC "Construction" **non-goal** that explicitly fences out grid / `value_fn` / inference / adapters. Resolved when `from_arrays` lands with those guards, or closed if #113 is declined.
+
+---
+
+### C-53: two frozen `PredictionFrame` construction paths can diverge
+
+| Field | Value |
+|-------|-------|
+| ID | C-53 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-24, GH #113; Kleppmann lens) |
+| Trigger | When a future **additive identifier** (an optional third id beyond `{time, unit}`, ADR-013) is threaded through `PredictionFrame.__init__` / `SpatioTemporalIndex` but **not** through `PredictionFrame.from_arrays` (or vice-versa) — the two **frozen** (ADR-018) construction signatures then drift, and a consumer on one path silently cannot express what the other can. |
+| Location | (planned) `src/views_frames/prediction_frame.py` (`__init__` + `from_arrays`). |
+| Cross-refs | ADR-013 (optional-additive identifiers), ADR-018 (freeze — both paths are forever), D-09, C-52, GH #113. |
+
+Adding `from_arrays` publishes a **second** construction path that ADR-018 then freezes alongside `__init__`; both must evolve together forever. **Tier 3** — maintainability/coupling, not silent corruption. **Mitigation:** `from_arrays` must carry **zero own logic** — pure delegation to `SpatioTemporalIndex(time, unit, level)` + `__init__(values, index, metadata)` — so a new index identifier flows through `from_arrays` automatically with no signature edit. Resolved when `from_arrays` lands as a zero-logic delegator, or closed if #113 is declined.
+
+---
+
+### C-54: #113 DoD overstates scope — "retires the baseline duplicate" would pull a consumer edge into the leaf
+
+| Field | Value |
+|-------|-------|
+| ID | C-54 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-24, GH #113; cross-repo / views-baseline) |
+| Trigger | When a maintainer reads #113's Definition-of-Done literally ("retires baseline's local `build_prediction_frame`") and moves views-baseline's `value_fn` + entity×time grid loop into the leaf to "finish the job" — importing a domain grid-builder (an ADR-001 non-entity / consumer edge) into the data-contract leaf. |
+| Location | views-baseline `views_baseline/model/helpers.py:110` ↔ the leaf. |
+| Cross-refs | ADR-001 (adapters / grid-builders are consumer edges, not leaf entities), C-52, GH #113, views-baseline #21. |
+
+The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over entity×time to emit `dict[str, PredictionFrame]`), not a thin constructor; the planned `from_arrays` retires only its **innermost** `SpatioTemporalIndex + PredictionFrame` construction line, leaving the grid loop in the engine where it belongs. **Tier 3** — boundary/scope erosion, multi-repo. **Mitigation:** re-scope #113's DoD to "retire the index-construction *line* inside the baseline helper," and keep the helper in views-baseline. Resolved when #113's DoD is corrected.
+
+---
+
+### C-57: `map_estimate` raises an obscure `IndexError` (not a clean error) on ±inf draws
+
+| Field | Value |
+|-------|-------|
+| ID | C-57 |
+| Tier | 3 |
+| Source | falsify audit (2026-06-25, P5b — discovered while widening the exceedance/ES guards) |
+| Trigger | When a consumer feeds a frame containing an `inf` draw (a valid float32 the leaf does **not** ban — e.g. an upstream model bug) to the frozen `map_estimate`: the histogram span is `inf`, the bin index divides to `nan`, and the `astype(intp)` cast overflows to the int-min sentinel, so `np.take_along_axis` raises `IndexError: index -9223372036854775808 is out of bounds` instead of a clean `ValueError` or a finite result. |
+| Location | `src/views_frames_summarize/point.py:89-92` (`_batched_map`). |
+| Cross-refs | ADR-018 (frozen v1 surface — behavior is locked), C-50/C-56 (the new estimators now fail loud cleanly on non-finite via `np.isfinite`; `map_estimate` is the frozen sibling that does **not**), ADR-008 (fail-loud posture). |
+
+The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` propagates `inf` (visible), the new `exceedance`/`expected_shortfall` now **fail loud** on it (C-50/C-56), but `map_estimate` **crashes with an obscure `IndexError`** rather than a clean, actionable error. This is **not** silent corruption (it is loud, and `inf` draws are out-of-contract upstream bugs), so it is **not** a publish blocker for v1.6.0 — and `map_estimate`'s behavior is **locked by the ADR-018 freeze**, so it cannot change without an additive hardening pass. **Tier 3** — ungraceful failure on a leaf-permitted input; a future cross-estimator non-finite hardening (a reserved additive MINOR) should give `map_estimate` the same clean `np.isfinite` guard. **Open** — watch-item, no fix shipped in v1.6.0.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -176,7 +251,117 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 
 ---
 
+### D-07: `exceedance` NaN policy — fail-loud vs explicit `nan_policy` vs silent-skip
+
+| Field | Value |
+|-------|-------|
+| ID | D-07 |
+| Source | expert-code-review (2026-06-24, exceedance-probability design) |
+| Perspectives | Nygard / ADR-008 ("fail loud on any NaN — silently counting NaN as non-exceeding deflates the onset metric; an undetected wrong number is worse than an exception"); Beck / ergonomics ("consumers already strip NaN upstream, so a fail-loud default with no param is the smallest viable v1; a `nan_policy` is YAGNI"); middle ("an explicit `nan_policy='raise'|'skip'` — skip-and-renormalise the denominator — serves both, at the cost of an all-NaN-row 0/0 edge"). |
+| Resolution | **Settled by ADR-021** — fail-loud NaN (raise `ValueError` on any NaN in a reduced row, ADR-008); a `nan_policy='skip'` is a reserved, reversible additive MINOR. See C-50. |
+
+---
+
+### D-08: `exceedance` threshold direction — strict `>` vs an `inclusive` (`>=`) option
+
+| Field | Value |
+|-------|-------|
+| ID | D-08 |
+| Source | expert-code-review (2026-06-24, exceedance-probability design) |
+| Perspectives | Beck / onset ("strict `>` only — `P(Y>0)` = 'any violence' requires it, and it matches the survival-function convention `1 − F(c) = P(X>c)` from the Book of Statistical Proofs / catastrophe-modeling EP curve"); Martin / Kleppmann ("integer-count consumers expecting `P(Y ≥ 25)` will pass `25` and silently receive `P(Y > 25)` — an off-by-one for counts; offer an `inclusive` flag or document the `≥k ⇒ pass k−1` workaround"). |
+| Resolution | **Settled by ADR-021** — strict `>` (the survival-function standard; makes onset well-defined), with the integer-count `≥k ⇒ pass k−1` note; an `inclusive`/`≥` flag deferred as a reversible MINOR. See C-50 (same reducer). |
+
+---
+
+### D-09: construction-factory shape — free function vs classmethod
+
+| Field | Value |
+|-------|-------|
+| ID | D-09 |
+| Source | expert-code-review (2026-06-24, GH #113) + pipeline-core owner exchange |
+| Perspectives | **#113-as-filed / pipeline-core:** add a `build_prediction_frame(...)` **free function** to the leaf. **views-frames owner + all eight expert lenses:** a `@classmethod PredictionFrame.from_arrays(y_pred, *, time, unit, level, metadata=None)` — it matches the leaf's only construction-helper convention (`from_2d` / `load`), single-homes construction (SRP/CCP), is the smaller frozen surface (Ousterhout), resists accretion (Nygard), and is the canonical Python Factory Method (GoF); a free-function alias is **strictly dominated** because every consumer already imports `PredictionFrame`. |
+| Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it is not a blocker. See C-52, C-53, C-54, ADR-011, ADR-018, GH #113. |
+
+---
+
+### D-10: worst-case scenario statistic — `max` vs high-quantile vs expected-shortfall
+
+| Field | Value |
+|-------|-------|
+| ID | D-10 |
+| Source | design discussion (2026-06-25, views-frames owner + maintainer) |
+| Perspectives | **min/max** (intuitive "best/worst", but `max` is a single extreme order statistic — the **highest sampling variance** of any summary, not reproducible across re-samples, worst for the heavy-tailed multi-source-uncertainty posteriors here: MC-dropout × distributional head × ensemble all feed one sample axis); **high quantile (e.g. 99.5th) via the existing `quantiles`** (robust, zero new code — but the level is arbitrary and a point quantile is **not** a coherent risk measure); **expected shortfall / tail mean (CVaR)** (the mean of the worst `t` fraction — most stable under re-sampling, a **coherent/subadditive** risk measure, and the conditional-expectation companion to `exceedance` / the catastrophe-modeling OEP-AEP framing). |
+| Resolution | **Settled — `expected_shortfall` is the worst-case** (principled), with the high-quantile path documented as the lighter alternative; **`max` is never offered.** **Best-case ships no function** — a low quantile (via `quantiles`) plus `exceedance(frame, [0])` cover it (CRP — don't force a best-case symbol no one reuses). See C-55, C-56, ADR-022. |
+
+---
+
 ## Resolved Concerns
+
+### C-55: aggregate `expected_shortfall` worst-case is silently wrong when summed samples are not a true joint posterior — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-55 |
+| Tier | 2 |
+| Resolved | 2026-06-25 (Epic 10 / I3, v1.6.0) |
+| Resolution | `expected_shortfall` stays geography-blind; country worst-case = `aggregate_distributions` → `expected_shortfall` (compose). `test_aggregate_composition_is_joint_worst_case` (`tests/test_summarize_expected_shortfall.py`) proves it on **anti-aligned** draws (`[1,2,3,100]`/`[100,3,2,1]` → summed `[101,5,5,101]`): the joint ES(0.5) = **101**, while the per-cell ES sum to **103** — non-recoverable, and subadditive (`101 ≤ 103`). The joint-sample obligation is the consumer's (a documented CIC failure-mode); the residual upstream guarantee lives in views-models / reconciliation. See ADR-022, C-49, C-56. |
+
+---
+
+### C-56: naive `expected_shortfall` silently corrupts the worst-case when NaN draws are present — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-56 |
+| Tier | 2 |
+| Resolved | 2026-06-25 (Epic 10 / I1+I2, v1.6.0) |
+| Resolution | `expected_shortfall` **fails loud** on any non-finite value in the reduced values (`_expected_shortfall` raises `ValueError` before the sort, so the NaN/`+inf`-sorted-last top-`k` mean can never silently select them) rather than return a NaN/`inf` worst-case (ADR-008). The guard is `np.isfinite`, **widened from `np.isnan` to also reject ±inf by the falsify audit 2026-06-25** (an `inf` draw — always an upstream bug — otherwise contaminated the tail mean to `inf` silently; P5b). `test_nan_draw_raises` + `test_inf_draw_raises` (`tests/test_summarize_expected_shortfall.py`) assert it raises (including a NaN in a non-first block). See ADR-022, C-50, C-55, C-57. |
+
+---
+
+### C-49: aggregate `exceedance` tail is silently wrong when summed samples are not a true joint posterior — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-49 |
+| Tier | 2 |
+| Resolved | 2026-06-24 (Epic 9 / I3, v1.5.0) |
+| Resolution | The compose path is implemented and proven: country exceedance = `aggregate_distributions(grid, mapping, level)` → `exceedance` per row, never a per-cell combination. `test_aggregate_composition_is_joint_exceedance` (`tests/test_summarize_exceedance.py`) shows `P(Σ > c)` on the summed posterior (= 0.5 for the worked case) is **unrecoverable** from the per-cell exceedances (both 0). The joint-sample requirement is an explicit CIC failure-mode (Summarize §6) contracted on the aggregation boundary, not on `exceedance` — the estimator stays geography-blind (ADR-014). The residual upstream obligation (are the summed samples a true joint?) lives in views-models / reconciliation, outside the leaf. See ADR-021, C-50. |
+
+---
+
+### C-50: naive `exceedance` silently deflates onset (`P(Y>0)`) when NaN draws are present — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-50 |
+| Tier | 2 |
+| Resolved | 2026-06-24 (Epic 9 / I1+I2, v1.5.0) |
+| Resolution | `exceedance` **fails loud** on any non-finite value in the reduced values (`_exceed` raises `ValueError` before the silent `NaN > c == False` miscount) rather than returning a deflated probability (ADR-008; D-07 settled as fail-loud). The guard is `np.isfinite`, **widened from `np.isnan` to also reject ±inf by the falsify audit 2026-06-25** (an `inf` draw otherwise silently blessed `P` as a valid-looking probability since `inf > c` is `True`, masking the upstream bug; P5b — ±inf *thresholds* stay valid). `test_nan_draw_raises` + `test_inf_draw_raises` (`tests/test_summarize_exceedance.py`) assert a non-finite draw raises. A `nan_policy='skip'` remains a reversible future MINOR (D-07). See ADR-021, C-49, C-57. |
+
+---
+
+### C-51: `assert_frame_envelope`'s structural rejection paths were tested only transitively — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-51 |
+| Tier | 3 |
+| Resolved | 2026-06-24 (test-review follow-up) |
+| Resolution | Added three **direct** adversarial tests for the published checker's reject paths (`tests/test_conformance.py`), each asserting `assert_frame_envelope` raises: `test_envelope_rejects_non_ndarray_values` (a Python list — the `isinstance ndarray` assert), `test_envelope_rejects_missing_trailing_axis` (1-D values — `ndim >= 2`), and `test_envelope_rejects_row_count_mismatch` (`n_rows` ≠ `values.shape[0]`). With the pre-existing `test_envelope_rejects_non_float32_values`, all four **reachable** reject assertions now have a dedicated red test; the object-dtype assert is unreachable (guarded by the `== float32` check) and left as defensive code. Test-only — no `src/` change, `CONFORMANCE_FLOOR` stays 1.0.0. See C-46 (the mitigation this verifies), ADR-020. |
+
+---
+
+### C-47: evaluation-specific provenance must not leak into the generic `FrameMetadata` — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-47 |
+| Tier | 3 |
+| Resolved | 2026-06-24 (v1.4.0; ADR-020 substrate work) |
+| Resolution | The (previously deferred) `FrameMetadata` extension was made and **respects the split** (the C-47 guard). v1.4.0 adds only **generic** provenance — `run_id`, `data_version` — as optional/MINOR fields (ADR-013), meaningful for any frame. **Eval-specific** provenance (`scoring_code_version`, a full-precision `evaluation_timestamp`) was deliberately kept out of the generic header and stays in `views-evaluation`'s `MetricFrame` metadata, so evaluation semantics never enter a package that is explicitly *not* evaluation (ADR-014/ADR-017). The `metadata.py` module docstring records the guard for future extensions. See ADR-020, C-46, D-02; `src/views_frames/metadata.py`. |
+
+---
 
 ### C-42: bimodality caveat + estimator-choice guidance absent from the shipped public docs — RESOLVED
 
@@ -614,7 +799,7 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 ## Register Conventions
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
-- **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern.
+- **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-24):
   - **summarize-estimator coherence (#89)** = {C-32, C-34, + resolved C-33} — point/interval estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead. The register's live work; tracked in #89.
   - **cross-repo coordination** = {C-13, D-04, D-05, D-06} — an N-consumer leaf whose consumer buy-in is *assumed, not elicited*; the concentration/fan-out risk plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.

@@ -57,6 +57,10 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 > estimators above are unchanged. The published conformance suite correspondingly grew
 > (`assert_summarizer_contract` now also runs the tower laws). The `CONFORMANCE_FLOOR`
 > stays `1.0.0` because additive surface does not break a consumer pinned at the floor.
+> The threshold **exceedance** estimators (`exceedance` / `exceedance_reducer`, `P(Y > c)`)
+> are likewise additive under this freeze (ADR-021, target v1.5.0); the floor stays `1.0.0`.
+> The worst-case **expected shortfall** estimator (`expected_shortfall`, the tail mean) is likewise
+> additive under this freeze (ADR-022, target v1.6.0); the floor stays `1.0.0`.
 
 **Out of scope (NOT frozen, may still evolve additively or remain deferred):**
 
@@ -141,6 +145,10 @@ breaking-change rationale from the decision record.
 
 - Whether `MetricFrame` / a non-spatiotemporal key protocol ever enters the leaf is a
   deliberate v2 question, reopened only if a consumer proves the need (still out).
+  **Settled by ADR-020 (2026-06-24, GH#109):** `MetricFrame` is hosted in views-evaluation
+  on the views-frames substrate (the leaf stays spatiotemporal; v1 index unchanged); the v2
+  index generalisation is reopened only if a *second* non-`(time, unit)` frame-like type is
+  independently needed.
 
 ---
 
