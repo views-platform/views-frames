@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 37                                   |
+| Total Concerns    | 38                                   |
 | Open Concerns     | 3                                    |
-| Resolved Concerns | 34                                   |
+| Resolved Concerns | 35                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -163,6 +163,17 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 ---
 
 ## Resolved Concerns
+
+### C-40: no Trove classifiers on the PyPI release — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-40 |
+| Tier | 4 |
+| Resolved | 2026-06-24 (falsify follow-up) |
+| Resolution | A `/falsify` release-readiness audit (soft falsification P3) found `pyproject [project]` declared no Trove `classifiers`, so the public PyPI release would not advertise supported Pythons / development status / topic (publishes fine, but unpolished). Added classifiers (`Development Status :: 5 - Production/Stable`, `Intended Audience :: Science/Research`, `Operating System :: OS Independent`, `Programming Language :: Python :: 3` + 3.10–3.13, `Topic :: Scientific/Engineering`, `Typing :: Typed`); the deprecated `License ::` classifier is intentionally omitted (the PEP-639 `license = "MIT"` expression is used). Verified in the built wheel METADATA; guarded by `tests/test_packaging.py`. The rest of the audit **survived** — additive over the frozen v1.0 contract, wheel builds + installs + imports + runs end-to-end from a clean env (P1/P2/P4/P6). Source: falsify (2026-06-24). |
+
+---
 
 ### C-39: foundational CICs/ADRs lag the code — stale signature, fossil examples, undocumented methods — RESOLVED
 

@@ -4,7 +4,7 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
-## [1.1.0] — 2026-06-23
+## [1.1.0] — 2026-06-24
 
 **Coherent posterior summary (ADR-019).** Additive new surface in `views_frames_summarize`
 — the frozen v1.0 estimators (`map_estimate`/`hdi`/`quantiles`/`collapse`/`aggregate_*`) are
