@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
 | Total Concerns    | 48                                   |
-| Open Concerns     | 8                                    |
-| Resolved Concerns | 40                                   |
+| Open Concerns     | 7                                    |
+| Resolved Concerns | 41                                   |
 | Disagreements     | 8                                    |
 
 ---
@@ -153,21 +153,6 @@ numpy evaluates `NaN > c` as `False`, so under a naive boolean-mean reducer ever
 
 ---
 
-### C-51: `assert_frame_envelope`'s structural rejection paths are tested only transitively — the published checker's reject contract is unverified
-
-| Field | Value |
-|-------|-------|
-| ID | C-51 |
-| Tier | 3 |
-| Source | test-review (2026-06-24, v1.4.0 envelope checker) |
-| Trigger | When a future edit to `assert_frame_envelope` weakens or drops one of its structural rejects (`ndim >= 2`, `shape[0] == n_rows`, `isinstance ndarray`) — the suite stays green because only the float32 reject has a direct adversarial test and `assert` raise-paths are not branch-counted, so the 100% gate does not catch the regression; a malformed `MetricFrame` then passes the published envelope a consumer relies on. |
-| Location | `tests/test_conformance.py` (only `test_envelope_rejects_non_float32_values` directly raises); `src/views_frames/conformance/__init__.py:60-64`. |
-| Cross-refs | C-46 (the cross-repo envelope-drift concern this checker mitigates — its reject contract must be *verified* for that mitigation to hold), ADR-020 (the published checker). |
-
-`assert_frame_envelope` is the published authority a non-spatiotemporal `MetricFrame` validates against (ADR-020, the C-46 mitigation); its whole purpose is to **reject** malformed frame-likes. Of its five reject assertions, only `dtype == float32` has a **direct** red test; the trailing-axis (`ndim >= 2`), row-count (`shape[0] == n_rows`), and non-`ndarray` rejects are exercised only **transitively** (and the object-dtype assert is unreachable, guarded by the float32 check). 100% line+branch coverage **masks** the gap because coverage.py does not count an `assert`'s raise-path as a branch. **Tier 3** — an assurance/maintainability gap on a published contract: the code rejects correctly today, but the reject *guarantee* is unproven and a future refactor could silently regress it. **Mitigation:** add direct adversarial tests using the existing `_MetricLikeFrame` stub (a 1-D `values`; a `shape[0] != n_rows`) asserting `assert_frame_envelope` raises — a small **test-only PR to `development`** (the v1.4.0 code is already merged; out of scope of the ADR-021 docs branch).
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -259,6 +244,17 @@ numpy evaluates `NaN > c` as `False`, so under a naive boolean-mean reducer ever
 ---
 
 ## Resolved Concerns
+
+### C-51: `assert_frame_envelope`'s structural rejection paths were tested only transitively — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-51 |
+| Tier | 3 |
+| Resolved | 2026-06-24 (test-review follow-up) |
+| Resolution | Added three **direct** adversarial tests for the published checker's reject paths (`tests/test_conformance.py`), each asserting `assert_frame_envelope` raises: `test_envelope_rejects_non_ndarray_values` (a Python list — the `isinstance ndarray` assert), `test_envelope_rejects_missing_trailing_axis` (1-D values — `ndim >= 2`), and `test_envelope_rejects_row_count_mismatch` (`n_rows` ≠ `values.shape[0]`). With the pre-existing `test_envelope_rejects_non_float32_values`, all four **reachable** reject assertions now have a dedicated red test; the object-dtype assert is unreachable (guarded by the `== float32` check) and left as defensive code. Test-only — no `src/` change, `CONFORMANCE_FLOOR` stays 1.0.0. See C-46 (the mitigation this verifies), ADR-020. |
+
+---
 
 ### C-47: evaluation-specific provenance must not leak into the generic `FrameMetadata` — RESOLVED
 

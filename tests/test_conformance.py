@@ -149,6 +149,42 @@ def test_envelope_rejects_non_float32_values():
         assert_frame_envelope(_metric_like(dtype=np.float64))
 
 
+# The published envelope's job is to REJECT malformed frame-likes; each structural
+# reject below has a direct adversarial test (register C-51 — 100% branch coverage does
+# not exercise an `assert`'s raise-path, so these are needed beyond the coverage gate).
+
+
+def test_envelope_rejects_non_ndarray_values():
+    # a Python list is not an ndarray — the first envelope assertion must fire.
+    frame = _MetricLikeFrame(
+        [[1.0], [2.0], [3.0]],
+        {"target": np.array(["a", "b", "c"])},
+    )
+    with pytest.raises(AssertionError):
+        assert_frame_envelope(frame)
+
+
+def test_envelope_rejects_missing_trailing_axis():
+    # 1-D values carry no explicit trailing sample axis (ndim < 2).
+    frame = _MetricLikeFrame(
+        np.ones(3, dtype=np.float32),
+        {"target": np.array(["a", "b", "c"])},
+    )
+    with pytest.raises(AssertionError):
+        assert_frame_envelope(frame)
+
+
+def test_envelope_rejects_row_count_mismatch():
+    # values has 3 rows but the frame claims 4 — a structural lie the envelope catches.
+    class _RowMismatch:
+        values = np.ones((3, 1), dtype=np.float32)
+        n_rows = 4
+        identifiers = {"target": np.array(["a", "b", "c"])}
+
+    with pytest.raises(AssertionError):
+        assert_frame_envelope(_RowMismatch())
+
+
 def test_envelope_round_trip_tolerates_nan_values():
     # evaluation metrics are realistically NaN ("not calculated") — a correct round-trip
     # of a NaN-valued frame must PASS the envelope, not trip the value-equality check.
