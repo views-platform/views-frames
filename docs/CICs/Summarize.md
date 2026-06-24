@@ -4,12 +4,17 @@
 **Status:** Active
 **Owner:** VIEWS platform maintainers
 **Last reviewed:** 2026-06-24
-**Related ADRs:** ADR-002, ADR-008, ADR-009, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019
+**Related ADRs:** ADR-002, ADR-008, ADR-009, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019, ADR-021
 
 > The `views_frames_summarize` package (functions, not a class). Implemented in
 > v0.2.0; the coherent-tower surface (`hdi_tower`/`tower_point`/`bimodality`/
 > `summarize_tower`, ADR-019) was added additively in v1.1.0. Depends on `views_frames`
 > + numpy only.
+>
+> **Amendment (2026-06-24, ADR-021, register C-49/C-50/D-07/D-08).** Adds the threshold
+> **exceedance** surface (`exceedance`/`exceedance_reducer`) — per-row `P(Y > c)`. Ratified
+> here; the implementation lands additively (target v1.5.0). The §3/§4/§6/§8–§11 entries
+> marked *(ADR-021)* describe the **intended** contract ahead of the code.
 
 ---
 
@@ -30,6 +35,10 @@ re-derive (ADR-017).
   geography.
 - **No scoring / actuals** — comparing a prediction to truth is views-evaluation.
 - **No reconciliation/redistribution, no plotting.**
+- **No threshold *policy* (ADR-021)** — `exceedance` evaluates caller-supplied thresholds; the
+  package ships **no default or named thresholds and no risk tiers**. Which thresholds (per
+  stakeholder / per level) is the consumer's, in the API repos. The canonical VIEWS sets
+  (`25/100/1000` country, `5/25` grid) are documentation only, never an executable default.
 - **No `views_*` import except `views_frames`** (enforced by the import-DAG test).
 
 ---
@@ -96,6 +105,23 @@ re-derive (ADR-017).
 - `summarize_tower(frame, masses)` → `TowerSummary(point, intervals, bimodal, masses)`: a
   single-pass bundle deriving all three from one sort; **provably equal** to the trio.
 
+### Threshold exceedance probabilities (ADR-021)
+
+- `exceedance(frame, thresholds)` → `(N, …, K)` numpy array aligned to `frame.index`: the per-row
+  **empirical survival fraction** `P(Y > c_k)` for each of the `K` caller-supplied thresholds — the
+  fraction of sample-axis draws **strictly** greater than `c_k`. Same shape/role family as
+  `quantiles` (an index-aligned array; the caller holds the index), vectorized and block-applied.
+  **Guarantees:** values in `[0, 1]`; **non-increasing in threshold**; `P(> −inf) = 1`,
+  `P(> +inf) = 0`. **Distribution-agnostic** (a counting reducer — no histogram, no config, no
+  unimodality assumption), so it is robust where the tower is weakest (C-34). The flagship is
+  `P(Y > 0)` = probability of *any* activity (onset).
+- `exceedance_reducer(threshold)` → a `collapse`-compatible reducer, so a single-threshold
+  exceedance as a `(N, …, 1)` **frame** is `collapse(frame, exceedance_reducer(c))`. It shares
+  `exceedance`'s one direction/NaN policy — consumers never re-roll `np.mean(samples > c)`.
+- **Strict `>` is a fixed contract, not a knob** — for integer counts wanting `P(Y ≥ k)`, pass
+  `k − 1`. **Geography-blind / per-row only:** "unit" is a row; country exceedance =
+  `aggregate_distributions(...)` **then** `exceedance` (compose; the estimator never aggregates).
+
 ---
 
 ## 4. Inputs and Assumptions
@@ -111,6 +137,11 @@ re-derive (ADR-017).
   "sub-1 ⇒ 0" sets `config.TOWER_CONFIG["zero_cutoff"]` to a float (e.g. `1.0`), *or*
   applies its own zero policy downstream (e.g. faoapi's `mass_at_zero` rule). The leaf
   never imposes a count-domain magnitude assumption on rate/probability/continuous targets.
+- **`exceedance` thresholds (ADR-021)** are a **required** per-call argument, with **no default
+  and not in config** — they are an *input* (*what* you ask of the distribution), like
+  `quantiles`' `qs`, not an algorithm *tunable*. They are in the **frame's own units**
+  (grid thresholds for a grid frame, country thresholds for a country frame); level-dependence is
+  handled by passing different thresholds per single-level frame. `exceedance` reads no config.
 
 ---
 
@@ -137,6 +168,17 @@ re-derive (ADR-017).
   (frames do not ban them); the tower behaves deterministically and confines the effect
   to the offending row — it neither crashes nor corrupts other rows, but the result for a
   NaN row is undefined.
+- **`exceedance` is the exception — it fails *loud* on NaN (ADR-021, register C-50):** a naive
+  `np.mean(v > c)` would count `NaN > c` as `False` and silently deflate the probability — worst on
+  the `P(Y > 0)` onset flagship — so `exceedance` **raises `ValueError`** on any NaN in a reduced row
+  rather than return a quietly-wrong probability. Empty `thresholds` likewise raises (no silent
+  `(N, …, 0)`). It is deliberately stricter than the tower's localized-NaN posture (ADR-008).
+- **Aggregate exceedance carries an unguarded correctness obligation (register C-49):** per-row
+  `exceedance` is correct for a level only if each row's `S` samples are the *true joint posterior*
+  for that unit. `P(Σ > C)` is **unrecoverable** from per-cell `P(Yᵢ > c)`, so country exceedance
+  must be computed on an already-aggregated frame (`aggregate_distributions` → `exceedance`), and is
+  correct only when the summed samples are jointly drawn (shared-draw-index / sample-space
+  reconciliation). The estimator **cannot** verify this — it is an upstream guarantee.
 - **`bimodality` is a conservative heuristic, not a loud failure (register C-34):** it is
   biased toward *not* flagging — it will read an ambiguous/overlapping mixture, an
   unequal-weight split (minority mode below `min_mass`), or a tall-narrow-beside-spread pair
@@ -167,6 +209,15 @@ s = summarize_tower(pf, masses=(0.5, 0.9, 0.99))
 s.point          # (N, 1) frame — the tower tip
 s.intervals      # (N, 3, 2) nested HDIs, aligned to pf.index
 s.bimodal        # (N, 1) flag — where a single point is ambiguous
+
+# threshold exceedance (ADR-021): caller-supplied thresholds, in the frame's units
+from views_frames_summarize import exceedance, exceedance_reducer, collapse
+ep = exceedance(grid_pf, thresholds=(0, 5, 25))   # (N, 3) array; P(Y>0), P(Y>5), P(Y>25)
+onset = collapse(grid_pf, exceedance_reducer(0))  # (N, 1) frame — P(Y>0) as a frame
+
+# country exceedance = aggregate the samples first, THEN reduce per row
+country_pf = aggregate_distributions(grid_pf, mapping, level="country")
+country_ep = exceedance(country_pf, thresholds=(100, 1000))   # P(country total > c)
 ```
 
 ---
@@ -191,6 +242,16 @@ hdi(pf, mass=0.9)                       # RIGHT: the unconstrained shortest 90% 
 # design, and bimodality only flags *clearly separated* peaks — a sharp drop vs a
 # MAP is the C-32 bias being corrected, not a hidden second mode. Validate the shift.
 tower_point(pf)                         # the robust dense mode (may be << a histogram MAP)
+
+# WRONG: recovering aggregate exceedance from per-cell exceedances (register C-49).
+# P(country total > C) is NOT a function of the grid cells' P(Y>c) — aggregate the
+# SAMPLES first, then reduce:
+exceedance(grid_pf, (1000,)).mean()                 # WRONG: meaningless
+exceedance(aggregate_distributions(grid_pf, mapping, "country"), (1000,))  # RIGHT
+
+# WRONG: expecting the package to supply default thresholds / risk tiers. Thresholds are
+# required and caller-supplied; policy lives in the consumer (ADR-021).
+exceedance(pf)                          # TypeError — thresholds are required, no default
 ```
 
 ---
@@ -208,6 +269,17 @@ tower_point(pf)                         # the robust dense mode (may be << a his
   key all fail loud; the zero-cutoff boundary; `tower_point` independent of the frozen
   `map_estimate`; NaN/inf stays localized; the import-DAG test keeps the leaf pure
   (`tests/test_summarize_tower.py`, `tests/test_summarize_config.py`).
+- **Exceedance (ADR-021; `tests/test_summarize_exceedance.py`, with the implementation):**
+  *Green* — known fraction above `c` → exact `P`; in `[0,1]`; non-increasing across a threshold
+  sweep; `exceedance(frame,[c])` ≡ `collapse(frame, exceedance_reducer(c))` value; **distribution-agnostic
+  onset — `P(Y > 0)` on a zero-inflated / multimodal cell equals the nonzero-draw fraction**
+  (substantiates the §3 "robust where the tower is weakest" claim, C-34). *Beige* — `S=1`; threshold
+  below min → `1.0`, above max → `0.0`; FeatureFrame leading axes; **integer-count `P(Y ≥ k)` via
+  `pass k−1`**. *Red* — threshold exactly equal to a draw pins **strict `>`** (the tie is excluded); a
+  NaN draw **raises**; empty thresholds raise; `P(>−inf)=1`, `P(>+inf)=0`; **aggregate composition
+  (C-49) — `exceedance` on an `aggregate_distributions(...)` frame yields `P(Σ > c)`, and naive per-cell
+  exceedances do NOT recover it (the analogue of the tower's `HDI(aggregate) ≠ sum(HDI)` joint-sampling
+  guard).**
 
 ---
 
@@ -222,6 +294,11 @@ tower_point(pf)                         # the robust dense mode (may be << a his
   count-domain `max <= 1` magnitude zeroing was removed as a default (zero-inflation is read
   off the `tip_mass`-floor density), leaving an **optional, off-by-default** `zero_cutoff`
   opt-in for count consumers. The zero policy is the consumer's, not a leaf default.
+- **Threshold exceedance (ADR-021):** `exceedance`/`exceedance_reducer` are additive (target
+  v1.5.0); `CONFORMANCE_FLOOR` stays `1.0.0`. Deliberately deferred, reversible extensions — an
+  `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07), and **relative/reference-frame
+  thresholds** (the "exceed the baseline / last period" deterioration story) — to be added only when
+  a concrete consumer proves the need.
 
 ---
 

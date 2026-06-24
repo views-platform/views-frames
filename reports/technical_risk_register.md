@@ -5,10 +5,10 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 45                                   |
-| Open Concerns     | 5                                    |
+| Total Concerns    | 48                                   |
+| Open Concerns     | 8                                    |
 | Resolved Concerns | 40                                   |
-| Disagreements     | 6                                    |
+| Disagreements     | 8                                    |
 
 ---
 
@@ -123,6 +123,51 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 
 ---
 
+### C-49: aggregate `exceedance` tail is silently wrong when summed samples are not a true joint posterior
+
+| Field | Value |
+|-------|-------|
+| ID | C-49 |
+| Tier | 2 |
+| Source | expert-code-review (2026-06-24, exceedance-probability design; Nygard/Feathers/Hickey lenses) |
+| Trigger | When a consumer (the faoapi twin / reporting) builds a country-level `PredictionFrame` via `aggregate_distributions` (or a hand-rolled element-wise sample sum) from grid samples that are **not** jointly drawn (independent per cell), then calls the planned `exceedance` per row and ships `P(country total > C)`. |
+| Location | (planned) `src/views_frames_summarize/exceedance.py`; the aggregation boundary `src/views_frames_summarize/aggregate.py` (`aggregate_distributions`). |
+| Cross-refs | ADR-021 (the exceedance design — this concern is its documented CIC failure-mode), D-01 (where cross-level aggregation lives), C-50 (the sibling exceedance NaN concern), the upstream "are the reconciled country samples a real joint?" question (handled in views-models / reconciliation, not the leaf). |
+
+Per-row `exceedance` is correct for a frame's level only if each row's S samples are the *true joint posterior* for that unit. The estimator cannot see sample provenance, so it cannot detect a violation. Summing **independently-drawn** finer-level samples element-wise imposes a comonotonic (perfectly rank-aligned) coupling, and an aggregate **tail** probability `P(Σ > C)` is far more sensitive to the cross-cell dependence than an HDI or a quantile — so a wrong coupling yields a confidently-wrong country exceedance with **no error signal**. **Tier 2** — structural fragility with a clear future trigger; correctness rests on an upstream guarantee the estimator deliberately does not enforce (ADR-014 keeps geography/aggregation out of the summarizer). **Mitigation:** make the joint-sample requirement an explicit CIC failure-mode for `exceedance`; contract the coherence obligation on `aggregate_distributions` (the aggregation boundary), not on `exceedance`; recommend a consumer-side coherence check where the country frame is built. **ADR-021 ratifies this mitigation (the CIC failure-mode + the aggregation-boundary contract); the concern stays Open until the implementation and a consumer-side coherence check land.**
+
+---
+
+### C-50: naive `exceedance` silently deflates onset (`P(Y>0)`) when NaN draws are present
+
+| Field | Value |
+|-------|-------|
+| ID | C-50 |
+| Tier | 2 |
+| Source | expert-code-review (2026-06-24, exceedance-probability design; Nygard lens) |
+| Trigger | When `exceedance` is implemented as a naive `np.mean(vals > c, axis=-1)` and a frame carrying NaN draws reaches it without upstream NaN-stripping — e.g. a forecast cell with "not calculated" NaN samples routed straight to the estimator. |
+| Location | (planned) `src/views_frames_summarize/exceedance.py`. |
+| Cross-refs | ADR-021 (ratifies the fail-loud-NaN mitigation), C-49 (sibling exceedance concern), C-32 / C-34 (summarize-estimator coherence cluster, #89), D-07 (the NaN-policy disagreement, now settled); relates to the v1.4.0 NaN-tolerant round-trip (`equal_nan`). |
+
+numpy evaluates `NaN > c` as `False`, so under a naive boolean-mean reducer every NaN draw is counted as "not exceeding," biasing `P(Y > c)` **downward** — silently, and worst on the flagship `P(Y > 0)` (onset). Consumers strip NaN upstream today (faoapi/reporting route any-NaN rows through a strip path), but the **published** estimator must define one rule rather than depend on caller hygiene. **Tier 2** — silent output incorrectness on the headline metric whenever NaN reaches the estimator, with a clear trigger (a NaN cell bypasses upstream stripping). **Mitigation (per the review):** fail loud on any NaN in a reduced row (ADR-008), or one explicit documented policy; never the silent `>` default. A `nan_policy='raise'|'skip'` param (skip-and-renormalise) is a reversible future MINOR — see D-07. **ADR-021 settles this as fail-loud; the concern stays Open until the implementation lands the guard + a test asserting it raises.**
+
+---
+
+### C-51: `assert_frame_envelope`'s structural rejection paths are tested only transitively — the published checker's reject contract is unverified
+
+| Field | Value |
+|-------|-------|
+| ID | C-51 |
+| Tier | 3 |
+| Source | test-review (2026-06-24, v1.4.0 envelope checker) |
+| Trigger | When a future edit to `assert_frame_envelope` weakens or drops one of its structural rejects (`ndim >= 2`, `shape[0] == n_rows`, `isinstance ndarray`) — the suite stays green because only the float32 reject has a direct adversarial test and `assert` raise-paths are not branch-counted, so the 100% gate does not catch the regression; a malformed `MetricFrame` then passes the published envelope a consumer relies on. |
+| Location | `tests/test_conformance.py` (only `test_envelope_rejects_non_float32_values` directly raises); `src/views_frames/conformance/__init__.py:60-64`. |
+| Cross-refs | C-46 (the cross-repo envelope-drift concern this checker mitigates — its reject contract must be *verified* for that mitigation to hold), ADR-020 (the published checker). |
+
+`assert_frame_envelope` is the published authority a non-spatiotemporal `MetricFrame` validates against (ADR-020, the C-46 mitigation); its whole purpose is to **reject** malformed frame-likes. Of its five reject assertions, only `dtype == float32` has a **direct** red test; the trailing-axis (`ndim >= 2`), row-count (`shape[0] == n_rows`), and non-`ndarray` rejects are exercised only **transitively** (and the object-dtype assert is unreachable, guarded by the float32 check). 100% line+branch coverage **masks** the gap because coverage.py does not count an `assert`'s raise-path as a branch. **Tier 3** — an assurance/maintainability gap on a published contract: the code rejects correctly today, but the reject *guarantee* is unproven and a future refactor could silently regress it. **Mitigation:** add direct adversarial tests using the existing `_MetricLikeFrame` stub (a 1-D `values`; a `shape[0] != n_rows`) asserting `assert_frame_envelope` raises — a small **test-only PR to `development`** (the v1.4.0 code is already merged; out of scope of the ADR-021 docs branch).
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -188,6 +233,28 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 | Source | expert-review (2026-06-20) |
 | Perspectives | Critique_01 §6 ("viewser→datafactory migration, views-appwrite extraction, and views-frames relocation compete for the same coordination budget and destroy change attribution if run concurrently"), Leverage ("views-frames is highest-leverage but also the largest coordination load") |
 | Resolution | Unresolved — WIP limit: do not run views-frames relocation and views-appwrite extraction in the same repo concurrently; queue consumer adoption behind the data-migration baseline. See C-13. |
+
+---
+
+### D-07: `exceedance` NaN policy — fail-loud vs explicit `nan_policy` vs silent-skip
+
+| Field | Value |
+|-------|-------|
+| ID | D-07 |
+| Source | expert-code-review (2026-06-24, exceedance-probability design) |
+| Perspectives | Nygard / ADR-008 ("fail loud on any NaN — silently counting NaN as non-exceeding deflates the onset metric; an undetected wrong number is worse than an exception"); Beck / ergonomics ("consumers already strip NaN upstream, so a fail-loud default with no param is the smallest viable v1; a `nan_policy` is YAGNI"); middle ("an explicit `nan_policy='raise'|'skip'` — skip-and-renormalise the denominator — serves both, at the cost of an all-NaN-row 0/0 edge"). |
+| Resolution | **Settled by ADR-021** — fail-loud NaN (raise `ValueError` on any NaN in a reduced row, ADR-008); a `nan_policy='skip'` is a reserved, reversible additive MINOR. See C-50. |
+
+---
+
+### D-08: `exceedance` threshold direction — strict `>` vs an `inclusive` (`>=`) option
+
+| Field | Value |
+|-------|-------|
+| ID | D-08 |
+| Source | expert-code-review (2026-06-24, exceedance-probability design) |
+| Perspectives | Beck / onset ("strict `>` only — `P(Y>0)` = 'any violence' requires it, and it matches the survival-function convention `1 − F(c) = P(X>c)` from the Book of Statistical Proofs / catastrophe-modeling EP curve"); Martin / Kleppmann ("integer-count consumers expecting `P(Y ≥ 25)` will pass `25` and silently receive `P(Y > 25)` — an off-by-one for counts; offer an `inclusive` flag or document the `≥k ⇒ pass k−1` workaround"). |
+| Resolution | **Settled by ADR-021** — strict `>` (the survival-function standard; makes onset well-defined), with the integer-count `≥k ⇒ pass k−1` note; an `inclusive`/`≥` flag deferred as a reversible MINOR. See C-50 (same reducer). |
 
 ---
 
@@ -640,7 +707,7 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 ## Register Conventions
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
-- **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern.
+- **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-24):
   - **summarize-estimator coherence (#89)** = {C-32, C-34, + resolved C-33} — point/interval estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead. The register's live work; tracked in #89.
   - **cross-repo coordination** = {C-13, D-04, D-05, D-06} — an N-consumer leaf whose consumer buy-in is *assumed, not elicited*; the concentration/fan-out risk plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
