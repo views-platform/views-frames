@@ -59,6 +59,12 @@ side). It **must not** contain: IO, domain/geographic data, actuals or scoring
 (that is views-evaluation), reconciliation/redistribution, plotting, or any
 `views_*` import except `views_frames`.
 
+> **Extended by ADR-019 (v1.1.0):** the charter's point/interval categories were
+> extended additively with the coherent-tower estimators (`hdi_tower`, `tower_point`,
+> `summarize_tower`) and a new **per-row diagnostic-flag** output class (`bimodality`,
+> a `(N, …, 1)` 0/1 array). All remain within the bounds above (sample-axis only; no IO,
+> domain data, scoring, or foreign `views_*`).
+
 ---
 
 ## Rationale

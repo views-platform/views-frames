@@ -175,7 +175,8 @@ decide); cross-repo adoption (consumers adopt when ready).
 
 - **Invariants (asserted in the conformance suite):** every adjacent floor nests; the tip
   lies in the narrowest floor; `hdi_tower(frame, [0.5])` equals the 50% column of
-  `hdi_tower(frame, [0.5, 0.9])` exactly (reproducibility); the bundle equals the trio.
+  `hdi_tower(frame, [0.5, 0.9, 0.99])` exactly (reproducibility — the property holds for any
+  wider request); the bundle equals the trio.
 - **Signals to watch:** if a future model produces genuinely multimodal posteriors, the
   `bimodality` flag rate should rise on those cells — the trigger to revisit the point
   estimate / pursue #89.
@@ -191,9 +192,10 @@ decide); cross-repo adoption (consumers adopt when ready).
   — still #89; `tower_point` is an interim, low-variance, unbiased-in-direction point.
 - The bimodality detector's thresholds are battery-tuned; they may need revisiting if the
   real posterior shapes shift (registered as C-34).
-- The `research/` lab is committed on this feature branch; whether it **lands in
-  `development`** (vs staying on a research-only branch) is the open packaging decision for
-  the merge.
+- ~~Whether the `research/` lab lands in `development`~~ — **resolved (2026-06-24):** the
+  lab landed in `development` (merged via #90), tracked but lint-excluded
+  (`pyproject.toml [tool.ruff] extend-exclude = ["research"]`); generated artifacts are
+  gitignored. It is the evidence trail for this ADR, retained for reproducibility.
 
 ---
 

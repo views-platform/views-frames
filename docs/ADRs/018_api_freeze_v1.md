@@ -51,6 +51,13 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 - The `views_frames_summarize` estimator surface: `collapse`, `map_estimate`, `hdi`,
   `quantiles`, `aggregate_distributions`(`_arrays`).
 
+> **Additive since v1.0.0 (forward pointer):** v1.1.0 added the coherent posterior
+> summary — `hdi_tower` / `tower_point` / `bimodality` / `summarize_tower` (+ the
+> `TowerSummary` bundle) — **additively** under this freeze (ADR-019); the frozen v1.0
+> estimators above are unchanged. The published conformance suite correspondingly grew
+> (`assert_summarizer_contract` now also runs the tower laws). The `CONFORMANCE_FLOOR`
+> stays `1.0.0` because additive surface does not break a consumer pinned at the floor.
+
 **Out of scope (NOT frozen, may still evolve additively or remain deferred):**
 
 - New surface remains **additive (MINOR)** — a new frame type, optional metadata

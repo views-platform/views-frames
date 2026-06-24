@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-21
-**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
+**Last reviewed:** 2026-06-24
+**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017
 
 > Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from
 > views-pipeline-core with numpy-only validation — the source imports pandas, so the
@@ -37,6 +37,9 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
   and always explicit (`S >= 1`; ADR-012).
 - Immutable: `with_metadata` returns a **new** frame sharing the `values` buffer
   (zero-copy); `mmap` propagates (register C-07).
+- Row ops return new frames: `select(positions | mask)` and `reindex(other)` — the
+  latter raises unless this frame's index is a superset of `other`. Selection **copies**
+  the selected `values` (only structural/metadata ops share the buffer).
 - Sample-axis reduction (collapse/MAP/HDI) is **not** a method here — it lives in
   `views_frames_summarize` (ADR-017). The frame exposes the structural `sample_count`/
   `is_sample` only.
@@ -63,8 +66,8 @@ Violations raise at construction (ADR-008) — never log-and-continue.
 ## 6. Failure Modes and Loudness
 
 - Raises `TypeError` on non-`float32`/object-dtype values; `ValueError` on shape,
-  length, or completeness violations. The structural guarantee is **not temporal**
-  (register C-11).
+  length, or completeness violations, and on `reindex(other)` when `other` is not a
+  subset of this frame's index. The structural guarantee is **not temporal** (register C-11).
 
 ---
 
@@ -80,7 +83,8 @@ Violations raise at construction (ADR-008) — never log-and-continue.
 
 ```python
 pf = PredictionFrame(y_pred=samples.astype("float32"), index=idx)   # (N, S)
-point = pf.collapse("arithmetic_mean")                              # (N, 1)
+from views_frames_summarize import collapse
+point = collapse(pf, np.mean)                                       # (N, 1) frame
 ```
 
 ---
@@ -99,7 +103,8 @@ pf.values[:] = 0          # frames are immutable; build a new frame instead
 
 ## 10. Test Alignment
 
-- **Green:** construction validation; `collapse` shape/semantics; save/load round-trip.
+- **Green:** construction validation; `select`/`reindex` parity (`test_frame_parity.py`);
+  save/load round-trip.
 - **Beige:** `mmap` load keeps peak RAM at the working set; `with_metadata` allocates
   no second `values` buffer (the copy-vs-view property, C-07).
 - **Red:** object-dtype / wrong-dtype / NaN-identifier construction raises;

@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-21
-**Related ADRs:** ADR-001, ADR-006, ADR-009, ADR-012, ADR-013
+**Last reviewed:** 2026-06-24
+**Related ADRs:** ADR-001, ADR-006, ADR-009, ADR-011, ADR-012, ADR-013, ADR-017
 
 > Note: defined in `src/views_frames/protocols.py`. The protocols are the published
 > *abstract surface*; concrete frames are implementation detail (DIP/ISP).
@@ -32,7 +32,8 @@ surface so no consumer depends on methods it does not use: a reconciler needs on
 
 ## 3. Responsibilities and Guarantees
 
-- `SpatioTemporalIndexed`: exposes `n_rows` and `identifiers` (integer arrays).
+- `SpatioTemporalIndexed`: exposes `n_rows`, `identifiers` (integer arrays), and
+  `index` (the `SpatioTemporalIndex` handle alignment is performed through).
 - `Sampled`: exposes `sample_count`, `is_sample` (`S > 1`) — the **structural** facts
   about the trailing sample axis (always explicit, `S >= 1`; ADR-012). Reduction over
   the sample axis is **not** here — it lives in `views_frames_summarize` (ADR-017).
@@ -52,15 +53,16 @@ surface so no consumer depends on methods it does not use: a reconciler needs on
 
 ## 5. Outputs and Side Effects
 
-- Protocol methods return new frames (`collapse`) or perform I/O (`save`/`load`).
-  `collapse` and structural ops are side-effect-free on their inputs.
+- Protocol accessors are pure reads; `Persistable` performs I/O (`save` / `load`).
+  No protocol method mutates its frame — frames are immutable value objects. (Sample-axis
+  reduction is a free function in `views_frames_summarize`, not a protocol method; ADR-017.)
 
 ---
 
 ## 6. Failure Modes and Loudness
 
-- A type that claims to satisfy a protocol but violates it (e.g. `collapse` mutating
-  in place, or `is_sample` ignoring the trailing axis) is a contract bug.
+- A type that claims to satisfy a protocol but violates it (e.g. `is_sample` ignoring
+  the trailing axis, or a `save` / `load` that does not round-trip) is a contract bug.
 - `runtime_checkable` `isinstance` checks confirm structural conformance; they do not
   validate semantics — semantic conformance is enforced by the conformance suite.
 
@@ -80,8 +82,10 @@ surface so no consumer depends on methods it does not use: a reconciler needs on
 def reconcile(frame: SpatioTemporalIndexed) -> None:
     n = frame.n_rows                      # depends only on the index surface
 
-def summarize(frame: Sampled) -> Sampled:
-    return frame.collapse("arithmetic_mean")
+def needs_samples(frame: Sampled) -> bool:
+    return frame.is_sample                # sample_count > 1 — the structural fact
+# Reduction over the sample axis is a free function in the sibling package, not a
+# method here:  from views_frames_summarize import collapse; collapse(frame, np.mean)
 ```
 
 ---
@@ -99,11 +103,13 @@ def reconcile(frame: PredictionFrame) -> None: ...   # over-couples to one frame
 
 ## 10. Test Alignment
 
-- **Green:** each concrete frame satisfies its declared protocols (`isinstance`
-  structural check + semantic conformance suite).
-- **Beige:** `collapse` reduces the trailing axis for every `Sampled` frame.
-- **Red:** a frame missing a protocol member fails the conformance suite; an
-  in-place `collapse` is rejected.
+- **Green:** each concrete frame satisfies its declared protocols — a direct
+  `isinstance` structural check over all four protocols
+  (`tests/test_properties.py::test_frames_satisfy_runtime_checkable_protocols`; it
+  validates member *presence*, not signatures) plus the semantic conformance suite.
+- **Beige:** `sample_count` / `is_sample` report the trailing axis for every `Sampled` frame.
+- **Red:** a frame missing a protocol member is not an instance of that protocol and
+  fails the conformance suite.
 
 ---
 

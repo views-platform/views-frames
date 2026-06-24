@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-21
-**Related ADRs:** ADR-001, ADR-002, ADR-009, ADR-014, ADR-015
+**Last reviewed:** 2026-06-24
+**Related ADRs:** ADR-001, ADR-002, ADR-009, ADR-013, ADR-014, ADR-015
 
 > Implemented in v0.1.0 (`src/views_frames/index.py`). This contract governs that
 > implementation.
@@ -23,9 +23,10 @@ label-alignment that today drags pandas back into the hot path.
 ## 2. Non-Goals (Explicit Exclusions)
 
 - It does **not** own or perform **cross-level** (cm↔pgm, country↔grid) joins as a
-  data operation. It exposes the `cross_level_align(index, mapping)` *protocol* only;
-  the time-varying `priogrid→country` mapping is **injected by the consumer** and is
-  never embedded, fetched, or versioned here (ADR-014, register C-14).
+  data operation. It exposes the `cross_level_align(mapping, target_level)` *protocol*
+  (and the columnar `cross_level_align_arrays(map_keys, map_vals, target_level)`, register
+  C-26) only; the time-varying `(time, unit) → target_unit` mapping is **injected by the
+  consumer** and is never embedded, fetched, or versioned here (ADR-014, register C-14).
 - It does **not** validate **temporal** semantics. `time` is an opaque integer;
   epoch, range, and monotonicity are a producer concern (register C-11).
 - It does **not** import pandas/polars/geopandas or any `views_*` package, and it
@@ -36,13 +37,21 @@ label-alignment that today drags pandas back into the hot path.
 
 ## 3. Responsibilities and Guarantees
 
-- Holds three numpy integer arrays — `time[N]`, `unit[N]` — and a `SpatialLevel`,
-  all length `N`, integer dtype, no NaN.
+- Holds two numpy integer arrays — `time[N]`, `unit[N]` — and a `SpatialLevel`,
+  all length `N`, integer dtype, no NaN. Exposes `n_rows` / `__len__`, `identifiers`
+  (`{time, unit}`), and value-object `__eq__` / `__hash__` (by `level` + the arrays' bytes).
 - Guarantees **same-level** set operations over `(time, unit)` are pure-numpy and
-  deterministic: `intersect`, `align`/`reindex`, `is_superset_of`, `argsort`,
-  `searchsorted`-based joins.
-- Guarantees the alignment laws the conformance suite pins (e.g. intersection is
-  commutative; `align` then `collapse` == `collapse` then `align`).
+  deterministic: `intersect`, `reindex` / `searchsorted`, `is_superset_of`, `argsort`,
+  and `select` (rows at integer positions or a boolean mask).
+- Exposes **cross-level** remap as an injected-mapping protocol — `cross_level_align`
+  and the columnar `cross_level_align_arrays` (register C-26); see §2.
+- **Row-uniqueness stance (register C-21):** duplicate `(time, unit)` rows are *allowed*
+  (not validated at construction — `cross_level_align` can produce them); same-level joins
+  *assume* uniqueness and are undefined on duplicates. `has_unique_rows()` is an opt-in
+  check for consumers that need the guarantee.
+- Guarantees the alignment laws the conformance suite pins: `intersect` commutativity and
+  `reindex` self-round-trip (`tests/test_properties.py`), plus the cross-package
+  `collapse ∘ reindex` order-independence law (`tests/test_value_object_and_laws.py`).
 - Guarantees immutability: operations return a **new** index; structural results
   share buffers where possible (register C-07).
 
@@ -52,8 +61,8 @@ label-alignment that today drags pandas back into the hot path.
 
 - `time` and `unit` are integer numpy arrays of equal length `N`, complete (no NaN).
 - `level` is a `SpatialLevel` (cm or pgm) — see its own contract.
-- For `cross_level_align`, the caller supplies the `(time, priogrid) → country`
-  mapping as an argument; the index never sources it.
+- For `cross_level_align` / `cross_level_align_arrays`, the caller supplies the
+  `(time, unit) → target_unit` mapping plus the `target_level`; the index never sources it.
 
 Assumptions that do not hold **must raise** at construction (ADR-009), never fall back.
 
@@ -91,7 +100,9 @@ Assumptions that do not hold **must raise** at construction (ADR-009), never fal
 idx = SpatioTemporalIndex(time=months, unit=cells, level=SpatialLevel.PGM)
 positions = idx.searchsorted(other_idx)          # same-level join
 combined = idx.intersect(other_idx)              # same-level set op
-grid_idx = idx.cross_level_align(country_idx, mapping=pg_to_country)  # injected
+rows = idx.select(positions)                     # rows at integer positions / mask
+country_idx = idx.cross_level_align(            # consumer-injected (time,unit)->country
+    mapping=pg_to_country, target_level=SpatialLevel.CM)
 ```
 
 ---
@@ -99,8 +110,8 @@ grid_idx = idx.cross_level_align(country_idx, mapping=pg_to_country)  # injected
 ## 9. Examples of Incorrect Usage
 
 ```python
-# WRONG: expecting the index to know the country mapping itself
-idx.cross_level_align(country_idx)               # raises — mapping must be injected
+# WRONG: expecting the index to know the mapping itself (mapping is required + injected)
+idx.cross_level_align(target_level=SpatialLevel.CM)   # raises — mapping must be injected
 
 # WRONG: passing float "time" and expecting epoch validation
 SpatioTemporalIndex(time=year_floats, unit=cells, level=SpatialLevel.CM)  # raises
@@ -110,8 +121,9 @@ SpatioTemporalIndex(time=year_floats, unit=cells, level=SpatialLevel.CM)  # rais
 
 ## 10. Test Alignment
 
-- **Green:** alignment-law property tests (commutativity, align/collapse order);
-  same-level intersect/reindex round-trips.
+- **Green:** alignment-law property tests (`intersect` commutativity, `reindex`
+  self-round-trip, the cross-package `collapse ∘ reindex` order-independence);
+  same-level intersect/reindex round-trips; value-object `__hash__`/`__eq__`/`argsort`.
 - **Beige:** `cross_level_align` with a fixture mapping (the injected-mapping contract).
 - **Red:** construction with mismatched lengths / NaN / float dtype raises;
   `cross_level_align` without a mapping raises; the import-enforcement test

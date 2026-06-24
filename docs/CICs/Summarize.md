@@ -3,11 +3,13 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-23
+**Last reviewed:** 2026-06-24
 **Related ADRs:** ADR-002, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019
 
 > The `views_frames_summarize` package (functions, not a class). Implemented in
-> v0.2.0; depends on `views_frames` + numpy only.
+> v0.2.0; the coherent-tower surface (`hdi_tower`/`tower_point`/`bimodality`/
+> `summarize_tower`, ADR-019) was added additively in v1.1.0. Depends on `views_frames`
+> + numpy only.
 
 ---
 
@@ -48,6 +50,10 @@ re-derive (ADR-017).
 - `aggregate_distributions(frame, mapping, level)` → a coarser frame: element-wise sum
   of sample arrays across constituent cells **preserving sample index** (joint
   sampling), so `HDI(sum) ≠ sum(HDI)` holds.
+- `aggregate_distributions_arrays(frame, map_keys, map_vals, level)` → the **columnar**
+  form of the above: the `(time, unit) → target_unit` mapping as parallel arrays rather
+  than a dict, so a producer holding a grid-scale mapping stays vectorized end-to-end
+  (register C-26).
 - Point estimates return frames; interval estimates return index-aligned arrays
   (ADR-017).
 

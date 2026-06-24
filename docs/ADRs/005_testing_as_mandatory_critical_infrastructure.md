@@ -171,6 +171,7 @@ These costs are accepted intentionally.
 
 Testing in this repository is not merely about correctness.
 
-It is about **preventing silent harm in a contract that N repos trust**. Because no
-`src/` exists yet, this ADR currently constrains how the package is stood up rather than
-describing an existing suite; the conformance suite is itself part of the deliverable.
+It is about **preventing silent harm in a contract that N repos trust**. As of v1.1.0
+this ADR describes a realised suite — 225 tests, a CI **100% line+branch** coverage gate
+(`--cov-fail-under=100`, `branch = true`), and the red/beige/green taxonomy applied across
+`src/`; the published conformance suite is itself part of the deliverable.

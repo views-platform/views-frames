@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 36                                   |
+| Total Concerns    | 37                                   |
 | Open Concerns     | 3                                    |
-| Resolved Concerns | 33                                   |
+| Resolved Concerns | 34                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -163,6 +163,16 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 ---
 
 ## Resolved Concerns
+
+### C-39: foundational CICs/ADRs lag the code — stale signature, fossil examples, undocumented methods — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-39 |
+| Resolved | 2026-06-24 (review-base-docs follow-up) |
+| Resolution | Reconciled the foundational CICs + ADRs against the v1.1.0 code (`validate_docs.sh` green; fossils confirmed removed). **SpatioTemporalIndex CIC:** corrected the `cross_level_align(mapping, target_level)` signature + examples; documented `cross_level_align_arrays`, `select`, `has_unique_rows`, the C-21 duplicate-row stance, and the accessor surface. **Protocols CIC:** purged the pre-ADR-017 `Sampled.collapse` fossil (§5/§6/§8/§10), added the `SpatioTemporalIndexed.index` member, cited `test_frames_satisfy_runtime_checkable_protocols`. **Prediction/Feature/Target CICs:** fixed the `pf.collapse("arithmetic_mean")` example (→ `collapse(pf, np.mean)`) and documented `select`/`reindex`. **Summarize CIC:** added `aggregate_distributions_arrays`, refreshed the v0.2.0 note. **ADR-018:** forward pointer to ADR-019's additive surface; **ADR-019:** fixed the reproducibility example + resolved the `research/`-landing open question; **ADR-017** charter + **ADR-005** testing notes refreshed. Docs-only (no code change). See C-23 (an earlier doc↔code drift fix), ADR-006. |
+
+---
 
 > Resolved 2026-06-24 by **Epic 7** (post-1.1.0 polish, branch `development`): the
 > **post-1.1.0 polish** cluster {C-35, C-36, C-37, C-38} — low-severity doc/test-completeness
