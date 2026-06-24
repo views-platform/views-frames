@@ -16,6 +16,11 @@
 > additively in v1.5.0** (`src/views_frames_summarize/exceedance.py`,
 > `tests/test_summarize_exceedance.py`; register C-49/C-50 Resolved). The §3/§4/§6/§8–§11
 > entries marked *(ADR-021)* describe the live contract.
+>
+> **Amendment (2026-06-25, ADR-022, register C-55/C-56/D-10).** Adds the **worst-case** surface
+> `expected_shortfall` (the tail mean / CVaR) — per-row mean of the worst `⌈t·S⌉` draws. **Ratified
+> here; ships additively in v1.6.0.** Best-case ships **no code** (a low quantile + `exceedance(0)`).
+> The §3/§4/§6/§8–§11 entries marked *(ADR-022)* describe the **intended** contract ahead of the code.
 
 ---
 
@@ -40,6 +45,10 @@ re-derive (ADR-017).
   package ships **no default or named thresholds and no risk tiers**. Which thresholds (per
   stakeholder / per level) is the consumer's, in the API repos. The canonical VIEWS sets
   (`25/100/1000` country, `5/25` grid) are documentation only, never an executable default.
+- **No worst-case *policy*, and never `max` (ADR-022)** — `expected_shortfall` evaluates
+  caller-supplied tail levels; the package ships **no default tail level**. `max` (the single
+  worst draw) is **not offered** at all — it is the high-variance, non-reproducible summary this
+  surface exists to replace. Which tail counts as "worst case" is the consumer's.
 - **No `views_*` import except `views_frames`** (enforced by the import-DAG test).
 
 ---
@@ -123,6 +132,30 @@ re-derive (ADR-017).
   `k − 1`. **Geography-blind / per-row only:** "unit" is a row; country exceedance =
   `aggregate_distributions(...)` **then** `exceedance` (compose; the estimator never aggregates).
 
+### Worst-case scenario — expected shortfall (ADR-022)
+
+- `expected_shortfall(frame, tails)` → `(N, …, K)` numpy array aligned to `frame.index`: for each
+  upper-tail fraction `t` in `tails`, the per-row **mean of the worst `⌈t·S⌉` draws** (the average of
+  the worst-case scenarios). Same shape/role family as `quantiles`/`exceedance`, vectorized and
+  block-applied. **Guarantees:** `min ≤ ES(t) ≤ max`; **non-decreasing as the tail deepens**
+  (`ES(t₁) ≥ ES(t₂)` for `t₁ ≤ t₂`); `ES(t) ≥ the (1 − t) quantile`. A **coherent** (subadditive)
+  risk measure, and the conditional-magnitude companion to `exceedance` ("given a bad scenario, how
+  bad on average").
+- **Upper tail only; `max` is never offered.** Averaging a *set* of tail draws is what makes the
+  worst-case robust; a single extreme order statistic (`max`) is the high-variance summary this
+  replaces. **Geography-blind / per-row only:** country worst-case = `aggregate_distributions(...)`
+  **then** `expected_shortfall` (compose; the estimator never aggregates).
+- **Caveat — extremeness vs stability:** the deeper the tail, the fewer draws support it, so a `t`
+  so small that `⌈t·S⌉` selects only a handful of draws re-approaches `max`'s volatility. **Pick
+  `t ≳ 5/S`.** The level is the consumer's (no default).
+
+### Best-case scenario — no estimator (ADR-022)
+
+- **Best case ships no code.** For fatalities the lower bound is `0` by construction, so a **low
+  quantile** (`quantiles(frame, [0.005])`) returns it; the genuinely informative "the model puts no
+  mass at zero" case is the low quantile being `> 0` **and** `exceedance(frame, [0])` (`P(Y > 0)`)
+  being ≈ 1. Pairing a best-case symbol with the worst-case is rejected (CRP).
+
 ---
 
 ## 4. Inputs and Assumptions
@@ -143,6 +176,9 @@ re-derive (ADR-017).
   `quantiles`' `qs`, not an algorithm *tunable*. They are in the **frame's own units**
   (grid thresholds for a grid frame, country thresholds for a country frame); level-dependence is
   handled by passing different thresholds per single-level frame. `exceedance` reads no config.
+- **`expected_shortfall` tails (ADR-022)** are likewise a **required** per-call argument in `(0, 1]`,
+  with **no default and not in config** — the tail fraction is *what* you ask of the distribution
+  (e.g. `0.01` = "the worst 1%"), the consumer's policy. `expected_shortfall` reads no config.
 
 ---
 
@@ -180,6 +216,15 @@ re-derive (ADR-017).
   must be computed on an already-aggregated frame (`aggregate_distributions` → `exceedance`), and is
   correct only when the summed samples are jointly drawn (shared-draw-index / sample-space
   reconciliation). The estimator **cannot** verify this — it is an upstream guarantee.
+- **`expected_shortfall` fails *loud* on NaN (ADR-022, register C-56):** numpy sorts NaN **last**, so
+  a naive top-`⌈t·S⌉` mean would silently select the NaNs and return a NaN/garbage worst-case — so it
+  **raises `ValueError`** on any NaN in a reduced row. Empty `tails`, or any `t ∉ (0, 1]`, likewise
+  raise (a tail with no samples). Same fail-loud posture as `exceedance` (ADR-008).
+- **Aggregate worst-case carries the same obligation as exceedance (register C-55):** the tail **mean**
+  of a country total must be computed on an already-aggregated frame (`aggregate_distributions` →
+  `expected_shortfall`); it is correct only when the summed samples are jointly drawn, and a tail mean
+  is *more* sensitive to the cross-cell dependence than a tail probability. The estimator cannot verify
+  it — an upstream guarantee.
 - **`bimodality` is a conservative heuristic, not a loud failure (register C-34):** it is
   biased toward *not* flagging — it will read an ambiguous/overlapping mixture, an
   unequal-weight split (minority mode below `min_mass`), or a tall-narrow-beside-spread pair
@@ -219,6 +264,14 @@ onset = collapse(grid_pf, exceedance_reducer(0))  # (N, 1) frame — P(Y>0) as a
 # country exceedance = aggregate the samples first, THEN reduce per row
 country_pf = aggregate_distributions(grid_pf, mapping, level="country")
 country_ep = exceedance(country_pf, thresholds=(100, 1000))   # P(country total > c)
+
+# worst-case scenario (ADR-022): the tail mean, NOT max
+from views_frames_summarize import expected_shortfall, quantiles
+worst = expected_shortfall(grid_pf, tails=(0.05, 0.01))   # (N, 2) — mean of worst 5% / worst 1%
+
+# best-case scenario: no function — a low quantile + the onset probability
+best = quantiles(grid_pf, [0.005])        # (N, 1) — 0 in a zero-inflated cell, >0 if no zero mass
+no_zero_mass = exceedance(grid_pf, [0])   # P(Y>0) ≈ 1 ⟺ even the best case is violent
 ```
 
 ---
@@ -253,6 +306,17 @@ exceedance(aggregate_distributions(grid_pf, mapping, "country"), (1000,))  # RIG
 # WRONG: expecting the package to supply default thresholds / risk tiers. Thresholds are
 # required and caller-supplied; policy lives in the consumer (ADR-021).
 exceedance(pf)                          # TypeError — thresholds are required, no default
+
+# WRONG: using max for the worst case. It is a single extreme order statistic — highest
+# variance, not reproducible. Use a tail mean (ADR-022):
+collapse(pf, np.max)                    # WRONG: volatile worst-case
+expected_shortfall(pf, tails=(0.01,))   # RIGHT: robust, coherent worst-case
+
+# WRONG: a tail so small it selects ~1 draw — that IS max again (caveat: pick t ≳ 5/S).
+expected_shortfall(pf, tails=(1e-4,))   # with small S, ⌈t·S⌉ → 1 → reapproaches max's volatility
+
+# WRONG: recovering aggregate worst-case from per-cell ES (register C-55) — aggregate first:
+expected_shortfall(aggregate_distributions(grid_pf, mapping, "country"), (0.01,))  # RIGHT
 ```
 
 ---
@@ -281,6 +345,14 @@ exceedance(pf)                          # TypeError — thresholds are required,
   (C-49) — `exceedance` on an `aggregate_distributions(...)` frame yields `P(Σ > c)`, and naive per-cell
   exceedances do NOT recover it (the analogue of the tower's `HDI(aggregate) ≠ sum(HDI)` joint-sampling
   guard).**
+- **Expected shortfall (ADR-022; `tests/test_summarize_expected_shortfall.py`, v1.6.0):**
+  *Green* — known tail mean → exact value (e.g. worst-1-of-4 draws); `min ≤ ES ≤ max`; **non-decreasing
+  as the tail deepens**; `ES(t) ≥ the (1 − t) quantile`; `ES(t=1)` == the mean of all draws. *Beige* —
+  `S=1` (ES == that draw); `⌈t·S⌉` rounding (e.g. `t=0.01, S=100 → k=1 == max`, the documented
+  small-tail caveat); FeatureFrame leading axes + TargetFrame parity. *Red* — a NaN draw **raises** (not
+  a NaN/garbage worst-case, C-56); empty `tails` and any `t ∉ (0,1]` **raise**; **aggregate composition
+  (C-55) — `expected_shortfall` on an `aggregate_distributions(...)` frame yields the worst-case of the
+  *summed* posterior, and is not recoverable from per-cell ES.**
 
 ---
 
@@ -300,6 +372,12 @@ exceedance(pf)                          # TypeError — thresholds are required,
   `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07), and **relative/reference-frame
   thresholds** (the "exceed the baseline / last period" deterioration story) — to be added only when
   a concrete consumer proves the need.
+- **Worst-case expected shortfall (ADR-022):** `expected_shortfall` ships additively in v1.6.0;
+  `CONFORMANCE_FLOOR` stays `1.0.0`. It lives in its **own module** (`expected_shortfall.py`), written
+  explicitly — *not* refactored into a shared "tail reducer" with `quantiles`/`exceedance` (the
+  duplication is shallow and the concerns change independently — WET before DRY; CCP/CRP). Best-case
+  ships **no code** (low quantile + `exceedance(0)`). Deferred, reversible extensions — a
+  lower-tail/`side` mode, an `expected_shortfall_reducer`, `cvar`/`tail_mean` synonyms (D-10).
 
 ---
 

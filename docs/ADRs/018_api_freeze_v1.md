@@ -59,6 +59,8 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 > stays `1.0.0` because additive surface does not break a consumer pinned at the floor.
 > The threshold **exceedance** estimators (`exceedance` / `exceedance_reducer`, `P(Y > c)`)
 > are likewise additive under this freeze (ADR-021, target v1.5.0); the floor stays `1.0.0`.
+> The worst-case **expected shortfall** estimator (`expected_shortfall`, the tail mean) is likewise
+> additive under this freeze (ADR-022, target v1.6.0); the floor stays `1.0.0`.
 
 **Out of scope (NOT frozen, may still evolve additively or remain deferred):**
 
