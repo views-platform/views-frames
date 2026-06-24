@@ -5,10 +5,10 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 51                                   |
-| Open Concerns     | 8                                    |
+| Total Concerns    | 53                                   |
+| Open Concerns     | 10                                   |
 | Resolved Concerns | 43                                   |
-| Disagreements     | 9                                    |
+| Disagreements     | 10                                   |
 
 ---
 
@@ -168,6 +168,36 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 
 ---
 
+### C-55: aggregate `expected_shortfall` worst-case is silently wrong when summed samples are not a true joint posterior
+
+| Field | Value |
+|-------|-------|
+| ID | C-55 |
+| Tier | 2 |
+| Source | ADR-022 design (2026-06-25, `expected_shortfall` worst-case estimator) |
+| Trigger | When a consumer builds a country-level `PredictionFrame` via `aggregate_distributions` (or a hand-rolled element-wise sample sum) from grid samples that are **not** jointly drawn, then calls the planned `expected_shortfall` per row and ships a country "worst-case" — the tail mean of a comonotonically-summed posterior is a confidently-wrong worst-case with **no error signal**. |
+| Location | (planned) `src/views_frames_summarize/expected_shortfall.py`; the aggregation boundary `src/views_frames_summarize/aggregate.py`. |
+| Cross-refs | C-49 (the identical pattern for `exceedance` — *any* tail summary on an aggregated frame needs joint samples), ADR-022, ADR-014, D-10. |
+
+Identical root cause to C-49 (the exceedance aggregate-tail), now for `expected_shortfall`. A tail **mean** is if anything *more* sensitive to the cross-cell dependence than a tail probability, so a wrong coupling yields a confidently-wrong country worst-case. **Tier 2** — silent output incorrectness on a headline number; clear trigger. **Mitigation:** `expected_shortfall` stays geography-blind (ADR-014); country worst-case = `aggregate_distributions` → `expected_shortfall`; the joint-sample obligation is the consumer's (an explicit CIC failure-mode), proven by an ES aggregate-composition test. Resolved when `expected_shortfall` + that test land.
+
+---
+
+### C-56: naive `expected_shortfall` silently corrupts the worst-case when NaN draws are present
+
+| Field | Value |
+|-------|-------|
+| ID | C-56 |
+| Tier | 2 |
+| Source | ADR-022 design (2026-06-25) |
+| Trigger | When `expected_shortfall` is implemented naively (sort + mean of the top-`k` draws) and a frame with NaN draws reaches it — numpy sorts NaN to the **end**, so the "worst `k` draws" become the NaNs and the tail mean is silently NaN/garbage. |
+| Location | (planned) `src/views_frames_summarize/expected_shortfall.py`. |
+| Cross-refs | C-50 (the identical NaN lesson for `exceedance`), ADR-008, ADR-022. |
+
+numpy's sort places NaN **last** (ascending), so a naive "mean of the worst `⌈t·S⌉` draws" silently selects the NaNs → a NaN or garbage worst-case on the headline metric. **Tier 2** — silent corruption of the worst-case number whenever NaN reaches the estimator. **Mitigation:** fail loud on any NaN in the reduced values (ADR-008), exactly as `exceedance` does (C-50). Resolved when the guard + a NaN-raises test land.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -266,6 +296,17 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 | Source | expert-code-review (2026-06-24, GH #113) + pipeline-core owner exchange |
 | Perspectives | **#113-as-filed / pipeline-core:** add a `build_prediction_frame(...)` **free function** to the leaf. **views-frames owner + all eight expert lenses:** a `@classmethod PredictionFrame.from_arrays(y_pred, *, time, unit, level, metadata=None)` — it matches the leaf's only construction-helper convention (`from_2d` / `load`), single-homes construction (SRP/CCP), is the smaller frozen surface (Ousterhout), resists accretion (Nygard), and is the canonical Python Factory Method (GoF); a free-function alias is **strictly dominated** because every consumer already imports `PredictionFrame`. |
 | Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it is not a blocker. See C-52, C-53, C-54, ADR-011, ADR-018, GH #113. |
+
+---
+
+### D-10: worst-case scenario statistic — `max` vs high-quantile vs expected-shortfall
+
+| Field | Value |
+|-------|-------|
+| ID | D-10 |
+| Source | design discussion (2026-06-25, views-frames owner + maintainer) |
+| Perspectives | **min/max** (intuitive "best/worst", but `max` is a single extreme order statistic — the **highest sampling variance** of any summary, not reproducible across re-samples, worst for the heavy-tailed multi-source-uncertainty posteriors here: MC-dropout × distributional head × ensemble all feed one sample axis); **high quantile (e.g. 99.5th) via the existing `quantiles`** (robust, zero new code — but the level is arbitrary and a point quantile is **not** a coherent risk measure); **expected shortfall / tail mean (CVaR)** (the mean of the worst `t` fraction — most stable under re-sampling, a **coherent/subadditive** risk measure, and the conditional-expectation companion to `exceedance` / the catastrophe-modeling OEP-AEP framing). |
+| Resolution | **Settled — `expected_shortfall` is the worst-case** (principled), with the high-quantile path documented as the lighter alternative; **`max` is never offered.** **Best-case ships no function** — a low quantile (via `quantiles`) plus `exceedance(frame, [0])` cover it (CRP — don't force a best-case symbol no one reuses). See C-55, C-56, ADR-022. |
 
 ---
 
