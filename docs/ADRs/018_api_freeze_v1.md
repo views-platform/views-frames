@@ -141,6 +141,10 @@ breaking-change rationale from the decision record.
 
 - Whether `MetricFrame` / a non-spatiotemporal key protocol ever enters the leaf is a
   deliberate v2 question, reopened only if a consumer proves the need (still out).
+  **Settled by ADR-020 (2026-06-24, GH#109):** `MetricFrame` is hosted in views-evaluation
+  on the views-frames substrate (the leaf stays spatiotemporal; v1 index unchanged); the v2
+  index generalisation is reopened only if a *second* non-`(time, unit)` frame-like type is
+  independently needed.
 
 ---
 
