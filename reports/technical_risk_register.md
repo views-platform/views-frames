@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 42                                   |
+| Total Concerns    | 43                                   |
 | Open Concerns     | 4                                    |
-| Resolved Concerns | 38                                   |
+| Resolved Concerns | 39                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -263,6 +263,23 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 | ID | C-38 |
 | Resolved | 2026-06-24 (Epic 7, I4 #95) |
 | Resolution | Assessed and **accepted as monitored** (no behaviour change). Measured headroom at n=1M: the scale guards run **4.0–6.8x** under threshold; the tower guard is tightest at **2.1x** (`hdi_tower`/`bimodality`, ~61 MB vs 128 MB input) — adequate for a deterministic op, and a real blocking regression (whole-grid alloc, hundreds of MB+) still trips it. Documented the margin + the trigger in a comment on `test_tower_memory_is_bounded_at_grid_scale`. Reopen if the trigger fires (a `numpy<3` bump or a CI-runner-class change). See C-22, C-25 (resolved). |
+
+---
+
+### C-45: tower "quiet row" rule was an absolute-magnitude (`max ≤ 1.0`) zeroing — count-domain assumption in a domain-agnostic leaf — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-45 |
+| Tier | 2 |
+| Source | views-faoapi integration spike (2026-06) — `REPORT_tower_quiet_rule_scale_contract.md` |
+| Resolved | 2026-06 (Epic 8, ADR-019 amendment; v1.3.0) |
+| Trigger | If a future change re-introduces a magnitude-based zero default (a non-`None` `zero_cutoff`, or a hard `max <= k` short-circuit), it returns — re-run the distribution-agnostic tests (a tight sub-1 mode and a `beta`/`[0,1]` field are not zeroed by default; scale-consistency under ×k; opt-in `zero_cutoff` reproduces the magnitude behaviour). |
+| Location | `src/views_frames_summarize/tower.py` (`_zero_mask`), `config.py` (`zero_cutoff`); the four call sites `tower_point.py`/`summarize_tower.py`/`bimodality.py`/`hdi_tower`. |
+
+**Symptom.** The original "quiet row" short-circuit returned `0.0` for any row whose **maximum draw was ≤ 1.0**, ignoring where the mass sat — zeroing the point **and** all `hdi_tower` bands **and** suppressing `bimodality`. On 1.2.0 it zeroed a tight sub-1 mode (`[0.7]*32 → 0`), zeroed a `beta`/`[0,1]` probability target **everywhere**, flipped at the `max == 1.0` boundary (scale-dependent), and on the FAO raw-count cache silently zeroed ~11,075 low-intensity active cells. A **count-domain magnitude assumption** baked into a domain-agnostic leaf (against ADR-014/ADR-003); the platform reserves "all draws < 1.0" for a scale-plausibility *alarm* (ADR-055 / D-29), not output zeroing. **Distinct from C-44** (the degenerate-tip bug, resolved).
+
+**Resolution (Epic 8 — #102, v1.3.0).** The magnitude rule is **removed as a default**: `config['zero_cutoff']` defaults to `None` (off) and is read **live** by `_zero_mask` (the import-time snapshot wart is fixed). Zero-inflation is now handled entirely by the **density** of the `tip_mass` floor (shipped in C-44) — a zero-majority row reads 0, a body-majority row reads the body mode — so the family is **distribution-agnostic** (counts, continuous, normal, rate/probability), proven across a distribution test matrix. A **count** consumer that wants the old "sub-1 ⇒ 0" behaviour sets `zero_cutoff` to a float (opt-in, runtime-live), *or* applies its own `mass_at_zero` policy (faoapi already has one) — the modeling choice is the consumer's, not a leaf default. ADR-019 amended; Summarize CIC documents the opt-in + the consumer-owns-the-zero-policy note. See C-32 (the sibling "estimator design" concern, #89 cluster), C-44 (resolved, distinct), ADR-014/ADR-003, ADR-019.
 
 ---
 

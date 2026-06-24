@@ -13,9 +13,10 @@ nearest floor, never inserted — "the 50% HDI" is identical regardless of which
 masses a caller asks for (reproducibility).
 
 The construction is vectorized over the sample axis and runs in row-blocks (register
-C-22/C-25): one sort per block, never a whole-grid sorted copy. A raw-count zero
-short-circuit (`max(row) <= zero_cutoff` → the whole summary collapses to 0) kills the
-quiet cells cheaply.
+C-22/C-25): one sort per block, never a whole-grid sorted copy. Zero-inflation is read
+off the *density* of the `tip_mass` floor (a zero-majority row reads 0); an
+**optional, off-by-default** magnitude cutoff (`config['zero_cutoff']`, a count-domain
+opt-in) can additionally force `max(row) <= cutoff` rows to 0 (C-45).
 
 All tunables (the grid, zero cutoff, row-block size) come from `config` with **no silent
 defaults** (ADR-009). The private engine (`_dense_tower`, `_median_in`, `_pin`,
@@ -34,11 +35,10 @@ from numpy.typing import NDArray
 from views_frames_summarize import config
 from views_frames_summarize._common import AnyFrame, block_apply
 
-# The fixed canonical mass grid + the zero cutoff, sourced from the single config (no
-# silent defaults — ADR-009). Kept as module names so the engine and its siblings share
-# one source of truth.
+# The fixed canonical mass grid, sourced from the single config (no silent defaults —
+# ADR-009). The grid is reproducibility-fixed by design (ADR-019), so it is snapshotted
+# here; the *tunable* knobs (``zero_cutoff``, ``tip_mass``) are read live at call time.
 _CANONICAL_FLOORS: Final[NDArray[np.float64]] = config.canonical_floors()
-_ZERO_CUTOFF: Final[float] = float(config.get("zero_cutoff"))
 
 
 def _ks(sample_count: int) -> NDArray[np.intp]:
@@ -65,8 +65,18 @@ def _pin(masses: Sequence[float]) -> NDArray[np.intp]:
 
 
 def _zero_mask(block: NDArray[np.float32]) -> NDArray[np.bool_]:
-    """Rows whose maximum draw is at/below the zero cutoff — the quiet cells."""
-    return np.asarray(block.max(axis=-1) <= _ZERO_CUTOFF, dtype=np.bool_)
+    """Rows the optional magnitude cutoff zeroes — ``max(draws) <= zero_cutoff``.
+
+    **Off by default** (``zero_cutoff is None`` ⇒ no row is masked). A consumer that
+    wants magnitude zeroing (a count target where a sub-1 posterior should read 0) sets
+    ``zero_cutoff`` to a float in ``config`` — read **live** here, so the knob takes
+    effect at runtime. By default the leaf imposes **no** magnitude assumption; zero-
+    inflation is handled by the density of the ``tip_mass`` floor instead (C-45).
+    """
+    cutoff = config.get("zero_cutoff")
+    if cutoff is None:
+        return np.zeros(block.shape[0], dtype=np.bool_)
+    return np.asarray(block.max(axis=-1) <= cutoff, dtype=np.bool_)
 
 
 def _in_range_span(
@@ -203,8 +213,9 @@ def hdi_tower(
     Each requested mass is pinned to the nearest fixed canonical floor; the interval is
     read out of the full canonical tower (built once per block, outside-in). Nested by
     construction, robust to minority duplicates, and reproducible (a mass's interval is
-    independent of the other requested masses). Quiet rows (``max <= zero_cutoff``)
-    collapse to ``(0, 0)``. Aligned to ``frame.index``. Tunables come from ``config``.
+    independent of the other requested masses). If the optional ``zero_cutoff`` is set,
+    ``max <= cutoff`` rows collapse to ``(0, 0)`` (off by default — C-45). Aligned to
+    ``frame.index``. Tunables come from ``config``.
     """
     values = frame.values
     lead = values.shape[:-1]

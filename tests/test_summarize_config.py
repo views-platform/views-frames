@@ -22,8 +22,13 @@ def test_green_shipped_config_is_complete():
 
 def test_green_get_returns_the_set_value():
     assert config.get("tip_mass") == 0.5
-    assert config.get("zero_cutoff") == 1.0
+    assert config.get("zero_cutoff") is None  # magnitude rule off by default (C-45)
     assert config.get("row_block") == (1 << 16)
+
+
+def test_green_disabled_zero_cutoff_still_passes_validation():
+    # A present-but-None tunable is "disabled", not "missing" — completeness holds.
+    config.validate_config({**config.TOWER_CONFIG, "zero_cutoff": None})
 
 
 def test_green_required_keys_match_config_keys():
