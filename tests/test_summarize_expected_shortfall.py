@@ -123,7 +123,18 @@ def test_targetframe_parity():
 
 def test_nan_draw_raises():
     pf = _pf([[0.0, np.nan, 2.0, 3.0]])
-    with pytest.raises(ValueError, match="NaN"):
+    with pytest.raises(ValueError, match="non-finite"):
+        expected_shortfall(pf, [0.5])
+
+
+@pytest.mark.parametrize("bad", [np.inf, -np.inf])
+def test_inf_draw_raises(bad):
+    # falsify audit 2026-06-25 (P5b): an ±inf draw sorts last and contaminates the tail
+    # mean to ±inf — a degenerate, bug-masking "worst case". The guard is `np.isfinite`,
+    # not `np.isnan`, so ±inf fails loud just like NaN. (The leaf permits inf draws;
+    # this worst-case summary rejects them as undefined.)
+    pf = _pf([[0.0, 1.0, bad, 3.0]])
+    with pytest.raises(ValueError, match="non-finite"):
         expected_shortfall(pf, [0.5])
 
 

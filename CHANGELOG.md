@@ -20,7 +20,9 @@ frozen v1.0–v1.5 estimators are unchanged; `CONFORMANCE_FLOOR` stays `1.0.0`.
 ### Notes
 - **`max` is never offered** — it is the highest-variance, non-reproducible summary `expected_shortfall`
   replaces (D-10). **Tails are required per-call, no default, not in config**, in `(0, 1]` — the
-  consumer's policy. **Fails loud** on any NaN draw (C-56), empty `tails`, or any `t ∉ (0, 1]`.
+  consumer's policy. **Fails loud** on any **non-finite draw — NaN or ±inf** (C-56; the guard is
+  `np.isfinite`, hardened by the falsify audit 2026-06-25 so an `inf` draw can't silently contaminate
+  the tail mean to `inf`), empty `tails`, or any `t ∉ (0, 1]`.
 - **Best case ships no code** — a low quantile (`quantiles(frame, [0.005])`) + `exceedance(frame, [0])`
   express it, including the "model puts no mass at zero" case.
 - Country worst-case = `aggregate_distributions` → `expected_shortfall` (the estimator never
@@ -41,7 +43,7 @@ surface — the frozen v1.0–v1.4 estimators are unchanged; `CONFORMANCE_FLOOR`
   Distribution-agnostic (a counting reducer); the flagship is `P(Y > 0)` = onset.
 - **`exceedance_reducer(threshold)` → `Reducer`** — a `collapse`-compatible factory, so
   `collapse(frame, exceedance_reducer(c))` returns `P(Y > c)` as a `(N, …, 1)` frame, sharing one
-  strict-`>` / fail-loud-NaN policy.
+  strict-`>` / fail-loud-non-finite policy.
 - **Conformance:** `assert_summarizer_contract` now also checks the exceedance laws — values in
   `[0, 1]`, non-increasing in the threshold, `P(> −inf) = 1`, `P(> +inf) = 0`.
 
@@ -49,9 +51,11 @@ surface — the frozen v1.0–v1.4 estimators are unchanged; `CONFORMANCE_FLOOR`
 - **Thresholds are required per-call, no default, not in config** — an *input* in the frame's own
   units, like `quantiles`' `qs` (ADR-021). Canonical VIEWS thresholds (25/100/1000 country, 5/25
   grid) are documentation only, never an executable default.
-- **Strict `>`** (D-08; for integer counts `P(Y ≥ k)`, pass `k − 1`). **Fails loud** on any NaN draw
-  (C-50) and on empty thresholds. Country exceedance = `aggregate_distributions` → `exceedance` (the
-  estimator never aggregates; the joint-sample obligation is the consumer's, C-49).
+- **Strict `>`** (D-08; for integer counts `P(Y ≥ k)`, pass `k − 1`). **Fails loud** on any
+  **non-finite draw — NaN or ±inf** (C-50; `np.isfinite` guard, hardened by the falsify audit
+  2026-06-25 so an `inf` draw can't silently bless `P` as valid — ±inf *thresholds* stay valid) and on
+  empty thresholds. Country exceedance = `aggregate_distributions` → `exceedance` (the estimator never
+  aggregates; the joint-sample obligation is the consumer's, C-49).
 - **Deferred, reversible extensions:** an `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07),
   relative/reference-frame thresholds, an EP-curve helper.
 

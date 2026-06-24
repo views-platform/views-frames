@@ -94,11 +94,15 @@ existing pieces; no aggregate variant and no occurrence-vs-aggregate fork in the
   config knob** — a tunable direction would let two callers silently disagree on what "exceed" means.
   For integer counts wanting `P(Y ≥ k)`, pass `k − 1`. An `inclusive`/`≥` flag is **deferred** (a
   reversible MINOR if a consumer needs it).
-- **NaN: fail loud** (settles D-07; mitigates C-50). Any NaN in a reduced row raises `ValueError`. A
-  naive `np.mean(v > c)` evaluates `NaN > c` as `False` and would silently count NaN draws as
-  "not exceeding," biasing `P(Y > 0)` *downward* on the flagship metric. This is deliberately stricter
-  than the lax NaN posture of `hdi`/`quantiles`, because exceedance's failure is a silent wrong
-  *probability*, not a visibly-NaN bound. A `nan_policy='skip'` (skip-and-renormalise) is **deferred**.
+- **Non-finite draws: fail loud** (settles D-07; mitigates C-50). Any non-finite value — NaN **or
+  ±inf** — in a reduced row raises `ValueError` (the guard is `np.isfinite`, not `np.isnan`; widened by
+  the falsify audit 2026-06-25). A naive `np.mean(v > c)` evaluates `NaN > c` as `False` and would
+  silently count NaN draws as "not exceeding," biasing `P(Y > 0)` *downward* on the flagship metric;
+  and an `inf` draw (always an upstream bug) would silently bless `P` as a valid-looking probability
+  (`inf > c` is `True`), masking the bug. This is deliberately stricter than the lax non-finite posture
+  of `hdi`/`quantiles`, because exceedance's failure is a silent wrong *probability*, not a
+  visibly-NaN bound. (±inf *thresholds* stay valid — the guard is on the draws.) A `nan_policy='skip'`
+  (skip-and-renormalise) is **deferred**.
 - **No default or named thresholds, ever, and no risk tiers.** The package ships the *mechanism*; the
   *policy* (which thresholds, per stakeholder/level) lives in the consumer/API repos. The canonical
   VIEWS sets — **25 / 100 / 1000** fatalities at country level, **5 / 25** at grid — are recorded here
@@ -186,7 +190,8 @@ Have `exceedance` aggregate to a target level itself.
 - **Reuse:** `_common.py` `block_apply` + `ROW_BLOCK` for memory-bounded blocking (register C-25);
   `rebuild` via `collapse` for the frame path. Mirror `quantiles`' structure in `interval.py`
   (`vals[..., :, None] > thr`, mean over the sample axis, float32 cast, blocked).
-- **Fail-loud guards:** raise `ValueError` on any NaN in the reduced values (C-50) and on empty
+- **Fail-loud guards:** raise `ValueError` on any non-finite value — NaN or ±inf — in the reduced
+  values (`np.isfinite` guard, C-50; widened by the falsify audit 2026-06-25) and on empty
   `thresholds` (no silent `(N, …, 0)`); ADR-008/009.
 - **Conformance:** extend `assert_summarizer_contract` (`conformance.py`) with the `[0,1]` / monotone /
   `±inf` laws.

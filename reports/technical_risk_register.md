@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-24                           |
-| Total Concerns    | 53                                   |
-| Open Concerns     | 8                                    |
+| Last Updated      | 2026-06-25                           |
+| Total Concerns    | 54                                   |
+| Open Concerns     | 9                                    |
 | Resolved Concerns | 45                                   |
 | Disagreements     | 10                                   |
 
@@ -168,6 +168,21 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 
 ---
 
+### C-57: `map_estimate` raises an obscure `IndexError` (not a clean error) on ±inf draws
+
+| Field | Value |
+|-------|-------|
+| ID | C-57 |
+| Tier | 3 |
+| Source | falsify audit (2026-06-25, P5b — discovered while widening the exceedance/ES guards) |
+| Trigger | When a consumer feeds a frame containing an `inf` draw (a valid float32 the leaf does **not** ban — e.g. an upstream model bug) to the frozen `map_estimate`: the histogram span is `inf`, the bin index divides to `nan`, and the `astype(intp)` cast overflows to the int-min sentinel, so `np.take_along_axis` raises `IndexError: index -9223372036854775808 is out of bounds` instead of a clean `ValueError` or a finite result. |
+| Location | `src/views_frames_summarize/point.py:89-92` (`_batched_map`). |
+| Cross-refs | ADR-018 (frozen v1 surface — behavior is locked), C-50/C-56 (the new estimators now fail loud cleanly on non-finite via `np.isfinite`; `map_estimate` is the frozen sibling that does **not**), ADR-008 (fail-loud posture). |
+
+The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` propagates `inf` (visible), the new `exceedance`/`expected_shortfall` now **fail loud** on it (C-50/C-56), but `map_estimate` **crashes with an obscure `IndexError`** rather than a clean, actionable error. This is **not** silent corruption (it is loud, and `inf` draws are out-of-contract upstream bugs), so it is **not** a publish blocker for v1.6.0 — and `map_estimate`'s behavior is **locked by the ADR-018 freeze**, so it cannot change without an additive hardening pass. **Tier 3** — ungraceful failure on a leaf-permitted input; a future cross-estimator non-finite hardening (a reserved additive MINOR) should give `map_estimate` the same clean `np.isfinite` guard. **Open** — watch-item, no fix shipped in v1.6.0.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -300,7 +315,7 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 | ID | C-56 |
 | Tier | 2 |
 | Resolved | 2026-06-25 (Epic 10 / I1+I2, v1.6.0) |
-| Resolution | `expected_shortfall` **fails loud** on any NaN in the reduced values (`_expected_shortfall` raises `ValueError` before the sort, so the NaN-sorted-last top-`k` mean can never silently select NaNs) rather than return a NaN/garbage worst-case (ADR-008). `test_nan_draw_raises` (`tests/test_summarize_expected_shortfall.py`) asserts it raises (including a NaN in a non-first block). See ADR-022, C-50, C-55. |
+| Resolution | `expected_shortfall` **fails loud** on any non-finite value in the reduced values (`_expected_shortfall` raises `ValueError` before the sort, so the NaN/`+inf`-sorted-last top-`k` mean can never silently select them) rather than return a NaN/`inf` worst-case (ADR-008). The guard is `np.isfinite`, **widened from `np.isnan` to also reject ±inf by the falsify audit 2026-06-25** (an `inf` draw — always an upstream bug — otherwise contaminated the tail mean to `inf` silently; P5b). `test_nan_draw_raises` + `test_inf_draw_raises` (`tests/test_summarize_expected_shortfall.py`) assert it raises (including a NaN in a non-first block). See ADR-022, C-50, C-55, C-57. |
 
 ---
 
@@ -322,7 +337,7 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 | ID | C-50 |
 | Tier | 2 |
 | Resolved | 2026-06-24 (Epic 9 / I1+I2, v1.5.0) |
-| Resolution | `exceedance` **fails loud** on any NaN in the reduced values (`_exceed` raises `ValueError` before the silent `NaN > c == False` miscount) rather than returning a deflated probability (ADR-008; D-07 settled as fail-loud). `test_nan_draw_raises` (`tests/test_summarize_exceedance.py`) asserts a NaN draw raises. A `nan_policy='skip'` remains a reversible future MINOR (D-07). See ADR-021, C-49. |
+| Resolution | `exceedance` **fails loud** on any non-finite value in the reduced values (`_exceed` raises `ValueError` before the silent `NaN > c == False` miscount) rather than returning a deflated probability (ADR-008; D-07 settled as fail-loud). The guard is `np.isfinite`, **widened from `np.isnan` to also reject ±inf by the falsify audit 2026-06-25** (an `inf` draw otherwise silently blessed `P` as a valid-looking probability since `inf > c` is `True`, masking the upstream bug; P5b — ±inf *thresholds* stay valid). `test_nan_draw_raises` + `test_inf_draw_raises` (`tests/test_summarize_exceedance.py`) assert a non-finite draw raises. A `nan_policy='skip'` remains a reversible future MINOR (D-07). See ADR-021, C-49, C-57. |
 
 ---
 

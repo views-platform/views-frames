@@ -59,8 +59,10 @@ ships no code** — it is documented guidance (a low quantile + `exceedance(fram
   fully) is the whole point; **`max` is never offered.** Expected shortfall is also a **coherent**
   (subadditive) risk measure — the worst-case of a sum is ≤ the sum of worst-cases — unlike `max` or a
   raw quantile, which matters for a risk platform.
-- **Fail loud** on: empty `tails`; any `t ∉ (0, 1]` (a tail with no samples); any **NaN** draw (numpy
-  sorts NaN last, so a naive top-`k` mean silently selects NaNs — the C-56 guard, the C-50 lesson).
+- **Fail loud** on: empty `tails`; any `t ∉ (0, 1]` (a tail with no samples); any **non-finite** draw —
+  NaN **or ±inf** (numpy sorts NaN/`+inf` last, so a naive top-`k` mean silently selects them and the
+  tail mean is contaminated to NaN/`inf` — the C-56 guard, the C-50 lesson; the guard is `np.isfinite`,
+  widened by the falsify audit 2026-06-25).
 - **The documented caveat — the extremeness-vs-stability tradeoff.** The deeper the tail, the fewer
   effective samples support it, so *any* worst-case estimator gets shakier. A `t` so small that
   `⌈t·S⌉` selects only a handful of draws re-approaches `max`'s volatility. The CIC states "pick
@@ -120,8 +122,9 @@ CRP). One concept per file; the package keeps screaming its responsibilities.
   config**).
 - **Reduction:** per block, sort the sample axis, take the mean of the top `k = ⌈t·S⌉` draws → `(…, K)`;
   block-applied (`block_apply` / `ROW_BLOCK`, register C-25); float32; index-aligned.
-- **Fail-loud guards:** raise `ValueError` on empty `tails`, on `t ∉ (0, 1]`, and on any NaN in the
-  reduced values (C-56).
+- **Fail-loud guards:** raise `ValueError` on empty `tails`, on `t ∉ (0, 1]`, and on any non-finite
+  value — NaN or ±inf — in the reduced values (`np.isfinite` guard, C-56; widened by the falsify audit
+  2026-06-25).
 - **Conformance:** extend `assert_summarizer_contract` with the `[min, max]` / monotone / `≥ (1−t)
   quantile` laws.
 - **Versioning:** additive ⇒ MINOR (target v1.6.0); `CONFORMANCE_FLOOR` unchanged at `1.0.0`.
@@ -132,8 +135,9 @@ CRP). One concept per file; the package keeps screaming its responsibilities.
 - **C-55 (aggregate tail / joint samples):** the watch-item — country worst-case = `aggregate_distributions`
   → `expected_shortfall`; correct only when the summed samples are jointly drawn (an upstream guarantee the
   estimator does not enforce). Proven by an ES aggregate-composition test.
-- **C-56 (silent NaN corruption):** mitigated by the fail-loud NaN guard; an implementation test must assert
-  it raises rather than returning a NaN/garbage worst-case.
+- **C-56 (silent non-finite corruption):** mitigated by the fail-loud `np.isfinite` guard (NaN **and**
+  ±inf; widened by the falsify audit 2026-06-25); `test_inf_draw_raises` / `test_nan_draw_raises` assert
+  it raises rather than returning a NaN/`inf` worst-case.
 - **Failure mode that would reopen this ADR:** a consumer demonstrates a worst-case need the per-call,
   upper-tail, caller-supplied-level design cannot express without a breaking change — handled by the
   deferred additive extensions (D), not a redesign.

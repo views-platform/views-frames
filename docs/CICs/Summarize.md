@@ -206,21 +206,27 @@ re-derive (ADR-017).
   (frames do not ban them); the tower behaves deterministically and confines the effect
   to the offending row — it neither crashes nor corrupts other rows, but the result for a
   NaN row is undefined.
-- **`exceedance` is the exception — it fails *loud* on NaN (ADR-021, register C-50):** a naive
-  `np.mean(v > c)` would count `NaN > c` as `False` and silently deflate the probability — worst on
-  the `P(Y > 0)` onset flagship — so `exceedance` **raises `ValueError`** on any NaN in a reduced row
-  rather than return a quietly-wrong probability. Empty `thresholds` likewise raises (no silent
-  `(N, …, 0)`). It is deliberately stricter than the tower's localized-NaN posture (ADR-008).
+- **`exceedance` is the exception — it fails *loud* on any non-finite draw, NaN or ±inf (ADR-021,
+  register C-50):** a naive `np.mean(v > c)` would count `NaN > c` as `False` and silently deflate the
+  probability — worst on the `P(Y > 0)` onset flagship — and an `inf` draw (always an upstream bug)
+  would silently bless `P` as a valid-looking probability (`inf > c` is `True`), masking the bug. So
+  `exceedance` **raises `ValueError`** on any non-finite value in a reduced row (the guard is
+  `np.isfinite`, not `np.isnan`) rather than return a quietly-wrong probability. Empty `thresholds`
+  likewise raises (no silent `(N, …, 0)`). It is deliberately stricter than the tower's localized-NaN
+  posture (ADR-008). (±inf *thresholds* stay valid — `P(>−inf)=1`, `P(>+inf)=0`; the guard is on the
+  draws, never the thresholds.)
 - **Aggregate exceedance carries an unguarded correctness obligation (register C-49):** per-row
   `exceedance` is correct for a level only if each row's `S` samples are the *true joint posterior*
   for that unit. `P(Σ > C)` is **unrecoverable** from per-cell `P(Yᵢ > c)`, so country exceedance
   must be computed on an already-aggregated frame (`aggregate_distributions` → `exceedance`), and is
   correct only when the summed samples are jointly drawn (shared-draw-index / sample-space
   reconciliation). The estimator **cannot** verify this — it is an upstream guarantee.
-- **`expected_shortfall` fails *loud* on NaN (ADR-022, register C-56):** numpy sorts NaN **last**, so
-  a naive top-`⌈t·S⌉` mean would silently select the NaNs and return a NaN/garbage worst-case — so it
-  **raises `ValueError`** on any NaN in a reduced row. Empty `tails`, or any `t ∉ (0, 1]`, likewise
-  raise (a tail with no samples). Same fail-loud posture as `exceedance` (ADR-008).
+- **`expected_shortfall` fails *loud* on any non-finite draw, NaN or ±inf (ADR-022, register C-56):**
+  numpy sorts NaN **and** `+inf` **last**, so a naive top-`⌈t·S⌉` mean would silently select them and
+  return a NaN/`inf` worst-case (an `inf` draw — always an upstream bug — contaminates the tail mean to
+  `inf`) — so it **raises `ValueError`** on any non-finite value in a reduced row (the guard is
+  `np.isfinite`, not `np.isnan`). Empty `tails`, or any `t ∉ (0, 1]`, likewise raise (a tail with no
+  samples). Same fail-loud posture as `exceedance` (ADR-008).
 - **Aggregate worst-case carries the same obligation as exceedance (register C-55):** the tail **mean**
   of a country total must be computed on an already-aggregated frame (`aggregate_distributions` →
   `expected_shortfall`); it is correct only when the summed samples are jointly drawn, and a tail mean
@@ -342,16 +348,18 @@ expected_shortfall(aggregate_distributions(grid_pf, mapping, "country"), (0.01,)
   (substantiates the §3 "robust where the tower is weakest" claim, C-34). *Beige* — `S=1`; threshold
   below min → `1.0`, above max → `0.0`; FeatureFrame leading axes; **integer-count `P(Y ≥ k)` via
   `pass k−1`**. *Red* — threshold exactly equal to a draw pins **strict `>`** (the tie is excluded); a
-  NaN draw **raises**; empty thresholds raise; `P(>−inf)=1`, `P(>+inf)=0`; **aggregate composition
-  (C-49) — `exceedance` on an `aggregate_distributions(...)` frame yields `P(Σ > c)`, and naive per-cell
+  non-finite draw — NaN **or ±inf** — **raises** (`np.isfinite` guard; falsify audit 2026-06-25);
+  empty thresholds raise; `P(>−inf)=1`, `P(>+inf)=0` (inf *thresholds* stay valid); **aggregate
+  composition (C-49) — `exceedance` on an `aggregate_distributions(...)` frame yields `P(Σ > c)`, and naive per-cell
   exceedances do NOT recover it (the analogue of the tower's `HDI(aggregate) ≠ sum(HDI)` joint-sampling
   guard).**
 - **Expected shortfall (ADR-022; `tests/test_summarize_expected_shortfall.py`, v1.6.0):**
   *Green* — known tail mean → exact value (e.g. worst-1-of-4 draws); `min ≤ ES ≤ max`; **non-decreasing
   as the tail deepens**; `ES(t) ≥ the (1 − t) quantile`; `ES(t=1)` == the mean of all draws. *Beige* —
   `S=1` (ES == that draw); `⌈t·S⌉` rounding (e.g. `t=0.01, S=100 → k=1 == max`, the documented
-  small-tail caveat); FeatureFrame leading axes + TargetFrame parity. *Red* — a NaN draw **raises** (not
-  a NaN/garbage worst-case, C-56); empty `tails` and any `t ∉ (0,1]` **raise**; **aggregate composition
+  small-tail caveat); FeatureFrame leading axes + TargetFrame parity. *Red* — a non-finite draw — NaN
+  **or ±inf** — **raises** (not a NaN/`inf` worst-case; `np.isfinite` guard, C-56, falsify audit
+  2026-06-25); empty `tails` and any `t ∉ (0,1]` **raise**; **aggregate composition
   (C-55) — `expected_shortfall` on an `aggregate_distributions(...)` frame yields the worst-case of the
   *summed* posterior, and is not recoverable from per-cell ES.**
 
