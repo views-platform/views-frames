@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 38                                   |
-| Open Concerns     | 3                                    |
-| Resolved Concerns | 35                                   |
+| Total Concerns    | 41                                   |
+| Open Concerns     | 4                                    |
+| Resolved Concerns | 37                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -94,6 +94,20 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 
 ---
 
+### C-43: per-row binning duplicated between `bimodality` and the frozen `map_estimate`
+
+| Field | Value |
+|-------|-------|
+| ID | C-43 |
+| Tier | 4 |
+| Source | tech-debt-cleanup (2026-06-24) |
+| Trigger | When `map_estimate` is unfrozen or reworked (#89), or the bimodality binning needs to change — at that point extract a shared row-blocked binning helper. It is **not** safely de-dupable now: `point._batched_map` is frozen (ADR-018) and its bin edges are ~1-ulp-sensitive across numpy versions (the C-24 portability saga), so touching it risks a behaviour change to `map_estimate`. |
+| Location | `src/views_frames_summarize/bimodality.py` (`_coarse_counts`); `src/views_frames_summarize/point.py` (`_batched_map`). |
+
+Both functions implement per-row histogram binning over a row-block. `_coarse_counts` (v1.1.0) is a deliberately simplified clipped-linear bucket for a heuristic flag; `_batched_map` (frozen v1.0.0) reproduces `numpy.histogram`'s edge-exact path bit-for-bit for the MAP. The two are **independently correct and tested** — the "debt" is the maintenance cost of two binning implementations to keep mentally aligned. **Tier 4** — no correctness or reliability impact; bounded because `point.py` is frozen and won't drift. Intentionally **not** unified now (extracting a shared helper would touch frozen, C-24-ulp-sensitive code — a stability risk the tech-debt protocol says to defer). See C-24 (resolved — the binning portability constraint), ADR-018 (the freeze that blocks the fix), #89.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -163,6 +177,28 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 ---
 
 ## Resolved Concerns
+
+### C-42: bimodality caveat + estimator-choice guidance absent from the shipped public docs — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-42 |
+| Tier | 4 |
+| Resolved | 2026-06-24 (publish-review follow-up) |
+| Resolution | Added to the public **README** (§0a Quickstart): a "Which estimator?" note pairing each frozen estimator with its coherent-tower sibling (`map_estimate`↔`tower_point`, `hdi`/`quantiles`↔`hdi_tower`, `summarize_tower`), and a **bimodality caveat** — a `0` flag means "no clear bimodality detected," **not** "proven unimodal" (conservative-by-design). Mirrored in the **CHANGELOG** `[Unreleased]` (Documentation). The behaviour-level limitation remains tracked as the still-open **C-34** (and #89). Docs-only, no contract change. See C-34, ADR-019. |
+
+---
+
+### C-41: ultrareview v1.1.0 nits — misleading `_pin` docstring + stale `audit.py` unpack — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-41 |
+| Tier | 4 |
+| Resolved | 2026-06-24 (ultrareview follow-up) |
+| Resolution | Both `nit`-severity ultrareview findings fixed; no shipped-package behaviour change. (a) Reworded the `_pin` docstring (`tower.py`) — was "the fixed grid produces no exact distance ties" (false; e.g. `0.075` is equidistant from `0.05`/`0.10`), now "`argmin` breaks ties on the lowest index, so a midpoint mass pins **down** to the lower floor" — matching the tested invariant `test_beige_pinning_is_deterministic_on_ties`. (b) Fixed `research/map_hdi/audit.py:79` stale 3-tuple unpack → `obs, _ref, _modes, meta = battery.load()` to match the 4-tuple `battery.load()` returns (and the four sibling scripts). ruff + 100% coverage green. See C-39 (the earlier doc↔code drift cluster). |
+
+---
 
 ### C-40: no Trove classifiers on the PyPI release — RESOLVED
 
