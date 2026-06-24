@@ -9,6 +9,11 @@
 > This ADR ratifies the **design** of a `views_frames_summarize` estimator. No estimator code
 > ships with it; the implementation (TDD, `src/views_frames_summarize/expected_shortfall.py` +
 > conformance laws + tests) is a separate follow-up epic (target v1.6.0) that conforms to this record.
+>
+> **Implemented in v1.6.0 (2026-06-25, Epic 10 / GH #122).** `expected_shortfall` shipped exactly as
+> ratified — required no-default tail levels in `(0,1]`, upper-tail only, never `max`, fail-loud on
+> NaN/empty/out-of-range, geography-blind, with the `[min,max]` / monotone-deepening / `ES ≥ (1−t)`
+> quantile conformance laws. Register **C-55** and **C-56** Resolved; `CONFORMANCE_FLOOR` stays `1.0.0`.
 
 ---
 
