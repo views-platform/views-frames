@@ -4,8 +4,8 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.1.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1.0 surface
-> is purely additive — the coherent posterior summary, ADR-019). This README is the design
+> **Status:** **v1.1.1 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1.0 surface
+> is purely additive — the coherent posterior summary, ADR-019; v1.1.1 is a docs patch). This README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles, the coherent-tower estimators

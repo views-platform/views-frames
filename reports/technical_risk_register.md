@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 40                                   |
-| Open Concerns     | 3                                    |
+| Total Concerns    | 41                                   |
+| Open Concerns     | 4                                    |
 | Resolved Concerns | 37                                   |
 | Disagreements     | 6                                    |
 
@@ -91,6 +91,20 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 | Location | `src/views_frames_summarize/bimodality.py` (the coarse-histogram + smoothing + prominence + `min_mass` heuristic). |
 
 `bimodality` is deliberately tuned for **zero false positives** on the normal regime (right-skewed, zero-inflated, and active unimodal posteriors all read unimodal), at the cost of **recall** on harder cases. Empirically it fires on clearly-separated comparable-mass modes (and a zero-atom + distinct bump when the atom is substantial), but **misses**: (a) a minority mode below `min_mass=0.15` (e.g. an 85/15 split); (b) a mode that is tall-and-narrow beside a spread mode — the spread mode cannot clear the prominence bar the tall peak sets (e.g. a ~17% zero atom under a tight positive bump); (c) overlapping modes with no genuine sub-prominence valley. It is a **heuristic flag for a clear regime change, not a formal multimodality test** (ADR-019 states this; the edge-bin smoothing fix improved the atom case but did not remove the gap). Latent today (Tier 3) — current models are effectively unimodal — but it is a **silent single-point-trust risk** under a future multimodal regime, the same family as **C-32** (biased mode) and **C-33** (no tower coherence, resolved). Resolution path if multimodality becomes real: a stronger detector (a dip test, or a mass-based criterion that does not penalize spread modes); tracked alongside **#89**. See C-32, C-33 (resolved), ADR-019.
+
+---
+
+### C-43: per-row binning duplicated between `bimodality` and the frozen `map_estimate`
+
+| Field | Value |
+|-------|-------|
+| ID | C-43 |
+| Tier | 4 |
+| Source | tech-debt-cleanup (2026-06-24) |
+| Trigger | When `map_estimate` is unfrozen or reworked (#89), or the bimodality binning needs to change — at that point extract a shared row-blocked binning helper. It is **not** safely de-dupable now: `point._batched_map` is frozen (ADR-018) and its bin edges are ~1-ulp-sensitive across numpy versions (the C-24 portability saga), so touching it risks a behaviour change to `map_estimate`. |
+| Location | `src/views_frames_summarize/bimodality.py` (`_coarse_counts`); `src/views_frames_summarize/point.py` (`_batched_map`). |
+
+Both functions implement per-row histogram binning over a row-block. `_coarse_counts` (v1.1.0) is a deliberately simplified clipped-linear bucket for a heuristic flag; `_batched_map` (frozen v1.0.0) reproduces `numpy.histogram`'s edge-exact path bit-for-bit for the MAP. The two are **independently correct and tested** — the "debt" is the maintenance cost of two binning implementations to keep mentally aligned. **Tier 4** — no correctness or reliability impact; bounded because `point.py` is frozen and won't drift. Intentionally **not** unified now (extracting a shared helper would touch frozen, C-24-ulp-sensitive code — a stability risk the tech-debt protocol says to defer). See C-24 (resolved — the binning portability constraint), ADR-018 (the freeze that blocks the fix), #89.
 
 ---
 

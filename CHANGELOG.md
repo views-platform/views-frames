@@ -4,7 +4,7 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
-## [Unreleased]
+## [1.1.1] — 2026-06-24
 
 Documentation only — no public-API or behaviour change (identical contract).
 
