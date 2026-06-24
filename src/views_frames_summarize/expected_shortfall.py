@@ -7,9 +7,9 @@ same shape/role family as `quantiles`.
 
 `max` is deliberately **not** offered — it is the highest-variance, non-reproducible
 summary this replaces. Tails are **required** per-call, in `(0, 1]` (e.g. `0.01` = "the
-worst 1%") — the consumer's policy, never a default or config. Fails loud on NaN draws
-(numpy sorts NaN *last*, so a naive top-`k` mean silently selects them — register C-56),
-on empty `tails`, and on any `t` outside `(0, 1]`.
+worst 1%") — the consumer's policy, never a default or config. Fails loud on any
+non-finite draw — NaN or ±inf (numpy sorts them *last*, so a naive top-`k` mean silently
+selects them — register C-56), on empty `tails`, and on any `t` outside `(0, 1]`.
 
 Written explicitly in its own module — it does **not** share a "tail reducer"
 abstraction with `quantiles`/`exceedance` (the duplication is shallow and the concerns
@@ -33,14 +33,16 @@ def _expected_shortfall(
 
     ``values`` is ``(…, S)``, ``tails`` is ``(K,)`` in ``(0, 1]``; returns ``(…, K)``.
 
-    Fails loud on NaN: numpy sorts NaN *last*, so a top-`k` mean would silently select
-    the NaNs — a NaN/garbage worst-case (register C-56).
+    Fails loud on any **non-finite** draw (NaN or ±inf): numpy sorts NaN *last*, so a
+    top-`k` mean would silently select the NaNs — a NaN/garbage worst-case; and an ±inf
+    draw (always an upstream bug) sorts last and contaminates the tail mean to ±inf — a
+    degenerate "worst case". A draw must be a usable finite number (register C-56).
     """
-    if bool(np.isnan(values).any()):
+    if not bool(np.isfinite(values).all()):
         raise ValueError(
-            "expected_shortfall is undefined on NaN draws; strip or impute upstream "
-            "(numpy sorts NaN last, so the worst-k mean would silently select NaNs; "
-            "register C-56)"
+            "expected_shortfall is undefined on non-finite draws (NaN or ±inf); strip "
+            "or impute upstream (numpy sorts NaN/+inf last, so the worst-k mean would "
+            "silently select them — a NaN/inf worst-case; register C-56)"
         )
     s = values.shape[-1]
     srt = np.sort(values, axis=-1)  # ascending: the worst (largest) draws are last
@@ -65,7 +67,7 @@ def expected_shortfall(
 
     Raises:
         ValueError: ``tails`` is empty (no default), any ``t ∉ (0, 1]`` (a tail with no
-            samples), or any draw is NaN (register C-56).
+            samples), or any draw is non-finite — NaN or ±inf (register C-56).
     """
     thr = np.asarray(tails, dtype=np.float64)
     if thr.size == 0:

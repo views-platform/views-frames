@@ -171,7 +171,18 @@ def test_aggregate_composition_is_joint_exceedance():
 
 def test_nan_draw_raises():
     pf = _pf([[0.0, np.nan, 2.0, 3.0]])
-    with pytest.raises(ValueError, match="NaN"):
+    with pytest.raises(ValueError, match="non-finite"):
+        exceedance(pf, [1.0])
+
+
+@pytest.mark.parametrize("bad", [np.inf, -np.inf])
+def test_inf_draw_raises(bad):
+    # falsify audit 2026-06-25 (P5b): an ±inf DRAW silently blesses P as a
+    # valid-looking probability (inf > c is True), masking the upstream bug. The guard
+    # is `np.isfinite`, not `np.isnan`, so ±inf fails loud like NaN. (inf THRESHOLDS
+    # stay valid — see test_infinite_thresholds; the guard is on draws, not thresholds.)
+    pf = _pf([[0.0, 1.0, bad, 3.0]])
+    with pytest.raises(ValueError, match="non-finite"):
         exceedance(pf, [1.0])
 
 
@@ -181,8 +192,8 @@ def test_empty_thresholds_raises():
         exceedance(pf, [])
 
 
-def test_reducer_path_also_fails_loud_on_nan():
+def test_reducer_path_also_fails_loud_on_nonfinite():
     # the frame path (collapse + exceedance_reducer) shares the same fail-loud core.
     pf = _pf([[0.0, np.nan, 2.0, 3.0]])
-    with pytest.raises(ValueError, match="NaN"):
+    with pytest.raises(ValueError, match="non-finite"):
         collapse(pf, exceedance_reducer(1.0))

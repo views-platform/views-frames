@@ -9,9 +9,9 @@ Distribution-agnostic (a counting reducer — no histogram, no config, no unimod
 assumption), so it is robust where the tower is weakest (register C-34); the flagship
 is `P(Y > 0)` = probability of any activity (onset). Thresholds are **required**
 per-call, in the frame's own units (an *input*, like `quantiles`' ``qs`` — never a
-tunable or a default). **Strict `>`** (register D-08). Fails loud on any NaN draw
-(register C-50) and on empty thresholds; the joint-sample requirement for aggregate
-exceedance is the consumer's (C-49).
+tunable or a default). **Strict `>`** (register D-08). Fails loud on any non-finite
+draw — NaN or ±inf (register C-50) — and on empty thresholds; the joint-sample
+requirement for aggregate exceedance is the consumer's (C-49).
 """
 
 from __future__ import annotations
@@ -32,13 +32,16 @@ def _exceed(
 
     ``values`` is ``(…, S)`` and ``thresholds`` is ``(K,)``; returns ``(…, K)``.
 
-    Fails loud on NaN: ``NaN > c`` is silently ``False``, so a naive count would deflate
-    ``P(Y > c)`` — worst on the ``P(Y > 0)`` onset flagship (register C-50).
+    Fails loud on any **non-finite** draw (NaN or ±inf): ``NaN > c`` is silently
+    ``False``, so a naive count would deflate ``P(Y > c)`` — worst on the ``P(Y > 0)``
+    onset flagship; and an ±inf draw (always an upstream bug) silently blesses ``P``
+    as a valid probability, masking the bug. A draw must be finite (C-50).
     """
-    if bool(np.isnan(values).any()):
+    if not bool(np.isfinite(values).all()):
         raise ValueError(
-            "exceedance is undefined on NaN draws; strip or impute upstream "
-            "(NaN > c is silently False and would deflate P(Y > c); register C-50)"
+            "exceedance is undefined on non-finite draws (NaN or ±inf); strip or "
+            "impute upstream (NaN > c is silently False and would deflate P(Y > c); "
+            "an inf draw masks an upstream bug behind a valid-looking P; register C-50)"
         )
     # (…, S) vs (K,) → (…, K, S) by broadcasting; strict ">"; mean over the sample axis.
     above = values[..., np.newaxis, :] > thresholds[:, np.newaxis]
@@ -59,7 +62,8 @@ def exceedance(
     ``block_rows`` so peak memory is bounded by one block's working set (register C-25).
 
     Raises:
-        ValueError: ``thresholds`` is empty (no default), or any draw is NaN (C-50).
+        ValueError: ``thresholds`` is empty (no default), or any draw is non-finite —
+            NaN or ±inf (C-50).
     """
     thr = np.asarray(thresholds, dtype=np.float64)
     if thr.size == 0:
@@ -79,8 +83,8 @@ def exceedance_reducer(threshold: float) -> Reducer:
     """A `collapse`-compatible reducer for single-threshold exceedance.
 
     ``collapse(frame, exceedance_reducer(c))`` returns `P(Y > c)` as a `(N, …, 1)`
-    frame, sharing `exceedance`'s strict-`>` and fail-loud-NaN policy (so a consumer
-    never re-implements ``np.mean(values > c)`` and drifts on the convention).
+    frame, sharing `exceedance`'s strict-`>` and fail-loud-non-finite policy (so a
+    consumer never re-implements ``np.mean(values > c)`` and drifts on the convention).
     """
     thr = np.asarray([threshold], dtype=np.float64)
 
