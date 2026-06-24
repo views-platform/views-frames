@@ -23,6 +23,14 @@ pieces it reuses. No change to the frozen surface (ADR-018); `CONFORMANCE_FLOOR`
   `MetricFrame`) validates against it instead of re-asserting drifting copies (mitigates C-46).
   `assert_frame_contract` now composes the envelope + the spatiotemporal `(time, unit)` rule.
 
+### Fixed
+- **Conformance round-trip is now NaN-tolerant.** `_assert_roundtrip` compared values with
+  `np.array_equal` (NaN-blind: `NaN != NaN`), so a *correct* round-trip of a frame carrying NaN
+  values raised a spurious `"save/load changed values"`. Now uses `equal_nan=True` on the float32
+  values. This matters for `assert_frame_envelope`'s intended consumer — evaluation metrics are
+  realistically NaN ("not calculated"). A bugfix that only *removes a false rejection*, so
+  `CONFORMANCE_FLOOR` stays `1.0.0`.
+
 ### Notes
 - The cross-repo **wire schema + `schema_version`** marker (the other half of the C-46
   mitigation) is the emit/consume wire contract and remains future work, tracked on C-46.

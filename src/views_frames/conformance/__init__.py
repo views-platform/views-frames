@@ -91,7 +91,9 @@ def _assert_roundtrip(frame: Any) -> None:
     with tempfile.TemporaryDirectory() as directory:
         frame.save(directory)
         loaded = type(frame).load(directory)
-        assert np.array_equal(loaded.values, frame.values), "save/load changed values"
+        assert np.array_equal(loaded.values, frame.values, equal_nan=True), (
+            "save/load changed values"
+        )
         for key, arr in frame.identifiers.items():
             assert np.array_equal(loaded.identifiers[key], arr), (
                 f"save/load changed identifier '{key}'"

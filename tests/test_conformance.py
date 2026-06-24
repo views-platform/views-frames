@@ -147,3 +147,19 @@ def test_full_contract_rejects_a_non_spatiotemporal_frame_like():
 def test_envelope_rejects_non_float32_values():
     with pytest.raises(AssertionError):
         assert_frame_envelope(_metric_like(dtype=np.float64))
+
+
+def test_envelope_round_trip_tolerates_nan_values():
+    # evaluation metrics are realistically NaN ("not calculated") — a correct round-trip
+    # of a NaN-valued frame must PASS the envelope, not trip the value-equality check.
+    frame = _MetricLikeFrame(
+        np.array([[1.0], [np.nan], [3.0]], dtype=np.float32),
+        {"target": np.array(["a", "b", "c"]), "metric": np.array(["crps"] * 3)},
+    )
+    assert_frame_envelope(frame)
+
+
+def test_full_contract_round_trip_tolerates_nan_values():
+    # the same NaN-tolerance holds for the frozen spatiotemporal contract.
+    frame = TargetFrame(np.array([[1.0], [np.nan], [3.0]], dtype=np.float32), _index(3))
+    assert_frame_contract(frame)
