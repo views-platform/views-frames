@@ -53,10 +53,11 @@ def _ks(sample_count: int) -> NDArray[np.intp]:
 def _pin(masses: Sequence[float]) -> NDArray[np.intp]:
     """Index of the nearest canonical floor for each requested mass.
 
-    Deterministic (``argmin`` of the distance); the fixed grid produces no exact
-    distance ties, so the choice is unambiguous and reproducible. Fails loud
-    (ADR-008) on a mass outside ``(0, 1)`` rather than silently pinning a nonsense
-    value to the nearest floor and returning a plausible-looking interval.
+    Deterministic: ``argmin`` of the distance, breaking ties on the lowest index. A
+    mass at the midpoint between two floors (e.g. ``0.075`` between ``0.05`` and
+    ``0.10``) therefore pins **down** to the lower floor — unambiguous and
+    reproducible. Fails loud (ADR-008) on a mass outside ``(0, 1)`` rather than silently
+    pinning a nonsense value to the nearest floor and returning a plausible interval.
     """
     m = np.asarray(masses, dtype=np.float64)
     if m.size == 0 or not np.all((m > 0.0) & (m < 1.0)):

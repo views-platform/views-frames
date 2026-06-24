@@ -76,7 +76,7 @@ def plot_panel(ax, draws, res, title):
 
 def collect_cells():
     cells = []  # (label, draws)
-    obs, _ref, meta = battery.load()
+    obs, _ref, _modes, meta = battery.load()
     for fam in ("zi_lognormal", "bimodal", "heavy"):
         i = next(k for k, m in enumerate(meta) if m[0] == fam)
         cells.append((f"synthetic: {fam}\n(n={meta[i][1]})", np.asarray(obs[i], float)))

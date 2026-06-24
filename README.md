@@ -69,6 +69,21 @@ Both are numpy-only. For the subtler cm↔pgm surface — a time-varying
 `aggregate_distributions` (`HDI(sum) ≠ sum(HDI)`) — see
 [`examples/cross_level.py`](examples/cross_level.py).
 
+**Which estimator? (two coherent paths, v1.1.0).** Each frozen estimator has a
+coherent-tower sibling (ADR-019): `map_estimate` ↔ `tower_point` (an unbinned
+median-of-the-narrowest-floor point, free of `map_estimate`'s histogram tie-break bias),
+and `hdi`/`quantiles` ↔ `hdi_tower(masses=…)` (HDIs nested **by construction** and
+reproducible — a mass's interval is identical regardless of which others you request),
+with `summarize_tower` returning all three in one pass. Use the **frozen** estimators for
+parity with existing pipelines; use the **tower** path when you need coherent, reproducible
+bands plus a matching point.
+
+**Reading the `bimodality` flag.** It is a *deliberately conservative* heuristic, **not** a
+formal multimodality test — tuned for **zero false positives** at the cost of recall on
+overlapping / unequal mixtures. A `1` means "clearly-separated modes detected"; a `0` means
+**"no clear bimodality detected," not "proven unimodal."** (Full caveat: the `bimodality`
+module docstring; register C-34.)
+
 ---
 
 ## 1. Why this package exists (the problems it kills)

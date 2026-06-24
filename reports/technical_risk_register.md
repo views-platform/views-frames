@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 38                                   |
+| Total Concerns    | 40                                   |
 | Open Concerns     | 3                                    |
-| Resolved Concerns | 35                                   |
+| Resolved Concerns | 37                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -163,6 +163,28 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 ---
 
 ## Resolved Concerns
+
+### C-42: bimodality caveat + estimator-choice guidance absent from the shipped public docs — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-42 |
+| Tier | 4 |
+| Resolved | 2026-06-24 (publish-review follow-up) |
+| Resolution | Added to the public **README** (§0a Quickstart): a "Which estimator?" note pairing each frozen estimator with its coherent-tower sibling (`map_estimate`↔`tower_point`, `hdi`/`quantiles`↔`hdi_tower`, `summarize_tower`), and a **bimodality caveat** — a `0` flag means "no clear bimodality detected," **not** "proven unimodal" (conservative-by-design). Mirrored in the **CHANGELOG** `[Unreleased]` (Documentation). The behaviour-level limitation remains tracked as the still-open **C-34** (and #89). Docs-only, no contract change. See C-34, ADR-019. |
+
+---
+
+### C-41: ultrareview v1.1.0 nits — misleading `_pin` docstring + stale `audit.py` unpack — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-41 |
+| Tier | 4 |
+| Resolved | 2026-06-24 (ultrareview follow-up) |
+| Resolution | Both `nit`-severity ultrareview findings fixed; no shipped-package behaviour change. (a) Reworded the `_pin` docstring (`tower.py`) — was "the fixed grid produces no exact distance ties" (false; e.g. `0.075` is equidistant from `0.05`/`0.10`), now "`argmin` breaks ties on the lowest index, so a midpoint mass pins **down** to the lower floor" — matching the tested invariant `test_beige_pinning_is_deterministic_on_ties`. (b) Fixed `research/map_hdi/audit.py:79` stale 3-tuple unpack → `obs, _ref, _modes, meta = battery.load()` to match the 4-tuple `battery.load()` returns (and the four sibling scripts). ruff + 100% coverage green. See C-39 (the earlier doc↔code drift cluster). |
+
+---
 
 ### C-40: no Trove classifiers on the PyPI release — RESOLVED
 

@@ -4,6 +4,19 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [Unreleased]
+
+Documentation only — no public-API or behaviour change (identical contract).
+
+### Documentation
+- README: a "Which estimator?" note (frozen `map_estimate`/`hdi`/`quantiles` vs the
+  coherent-tower `tower_point`/`hdi_tower`/`summarize_tower`) and a **bimodality caveat** —
+  a `bimodality` `0` means "no clear bimodality detected," **not** "proven unimodal"
+  (conservative-by-design, register C-34/C-42).
+- Corrected the `tower._pin` docstring (ties resolve **down** to the lower floor via
+  `argmin`'s lowest-index rule) and the `research/map_hdi/audit.py` stale tuple-unpack
+  (register C-41).
+
 ## [1.1.0] — 2026-06-24
 
 **Coherent posterior summary (ADR-019).** Additive new surface in `views_frames_summarize`
