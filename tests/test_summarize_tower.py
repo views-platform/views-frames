@@ -13,6 +13,7 @@ Categories per ADR-005:
 
 from __future__ import annotations
 
+import contextlib
 import tracemalloc
 
 import numpy as np
@@ -38,7 +39,23 @@ from views_frames_summarize import (
 
 _FLOORS = config.canonical_floors()
 _TIP_MASS = float(config.get("tip_mass"))
-_ZERO_CUTOFF = float(config.get("zero_cutoff"))
+
+
+@contextlib.contextmanager
+def _cutoff(value):
+    """Temporarily set the optional magnitude ``zero_cutoff`` (restored after)."""
+    prev = config.TOWER_CONFIG["zero_cutoff"]
+    config.TOWER_CONFIG["zero_cutoff"] = value
+    try:
+        yield
+    finally:
+        config.TOWER_CONFIG["zero_cutoff"] = prev
+
+
+def _ref_zeroed(row) -> bool:
+    """Mirror of `_zero_mask`: the optional magnitude cutoff (off by default = None)."""
+    cut = config.get("zero_cutoff")
+    return cut is not None and float(np.asarray(row).max()) <= cut
 
 
 def _index(n):
@@ -131,17 +148,17 @@ def _ref_tower(row: NDArray[np.float32], floors) -> list[tuple[float, float]]:
 
 
 def _ref_hdi(row: NDArray[np.float32], masses) -> list[tuple[float, float]]:
-    """Mirror of ``hdi_tower``: full outside-in tower, then pin each mass; zero-mask."""
-    if float(np.asarray(row).max()) <= _ZERO_CUTOFF:
+    """Mirror of ``hdi_tower``: full outside-in tower, pin each mass; opt-in zero."""
+    if _ref_zeroed(row):
         return [(0.0, 0.0)] * len(masses)
     full = _ref_tower(row, _FLOORS)
     return [full[int(np.argmin(np.abs(_FLOORS - m)))] for m in masses]
 
 
 def _ref_tip(row: NDArray[np.float32]) -> float:
-    s = np.sort(row)
-    if float(s.max()) <= _ZERO_CUTOFF:
+    if _ref_zeroed(row):
         return 0.0
+    s = np.sort(row)
     tlo, thi = _ref_hdi(row, (_TIP_MASS,))[0]
     return _ref_median_in(s, tlo, thi)
 
@@ -255,7 +272,7 @@ def test_beige_single_sample():
     pf = _pf([[5.0], [0.0]])  # S=1
     tower = hdi_tower(pf, masses=(0.5, 0.99))
     assert np.array_equal(tower[0], [[5.0, 5.0], [5.0, 5.0]])  # degenerate point
-    assert np.array_equal(tower[1], [[0.0, 0.0], [0.0, 0.0]])  # quiet → 0
+    assert np.array_equal(tower[1], [[0.0, 0.0], [0.0, 0.0]])  # all-zero row → 0
     assert np.array_equal(tower_point(pf).values[:, 0], [5.0, 0.0])
     assert bimodality(pf).sum() == 0.0
 
@@ -504,13 +521,51 @@ def test_red_multimodal_tip_lands_in_a_cluster_not_a_gap():
     assert bimodality(_row(draws))[0, 0] == 1.0
 
 
-def test_red_zero_cutoff_boundary():
-    # max exactly == cutoff collapses; just above does not. The boundary is a contract.
+def test_red_optin_zero_cutoff_boundary():
+    # The magnitude cutoff is OFF by default (C-45); it must NOT zero a sub-1 row.
     at = _pf([[0.0, 1.0, 1.0, 1.0]])
-    above = _pf([[0.0, 1.0, 1.0, 1.0 + 1e-3]])
-    assert float(tower_point(at).values[0, 0]) == 0.0
-    assert np.array_equal(hdi_tower(at, masses=(0.9,))[0, 0], [0.0, 0.0])
-    assert float(tower_point(above).values[0, 0]) > 0.0
+    assert float(tower_point(at).values[0, 0]) > 0.0  # default off → density tip, not 0
+    # Opt-in: with zero_cutoff set, max == cutoff collapses, just above does not.
+    with _cutoff(1.0):
+        above = _pf([[0.0, 1.0, 1.0, 1.0 + 1e-3]])
+        assert float(tower_point(at).values[0, 0]) == 0.0
+        assert np.array_equal(hdi_tower(at, masses=(0.9,))[0, 0], [0.0, 0.0])
+        assert float(tower_point(above).values[0, 0]) > 0.0
+
+
+def test_red_default_does_not_magnitude_zero_subunit_distributions():
+    # The heart of C-45: by default, sub-1 distributions are NOT zeroed.
+    rng = np.random.default_rng(0)
+    assert abs(_tp([0.7] * 32) - 0.7) < 1e-6  # tight unanimous sub-1 mode
+    assert _tp(rng.beta(5, 2, 32).tolist()) > 0.3  # probability target, not all-zero
+    assert abs(_tp(rng.normal(0.5, 0.05, 64).tolist()) - 0.5) < 0.1  # narrow normal < 1
+
+
+def test_red_zero_inflation_still_zero_by_density_with_cutoff_off():
+    # Zero-inflation is handled by the tip_mass-floor density, not magnitude: a
+    # zero-majority row reads 0 even with the magnitude cutoff off.
+    assert _tp([0.0] * 20 + [5.0] * 12) == 0.0  # 62.5% exact zeros → 0
+    assert _tp([0.0] * 13 + [5.0] * 19) == 5.0  # body majority → body mode
+
+
+def test_red_optin_cutoff_zeroes_all_four_functions():
+    # When a count consumer opts in, the magnitude rule re-applies to point, bands, and
+    # suppresses bimodality — across all four functions.
+    f = _row([0.7] * 32)
+    with _cutoff(1.0):
+        assert float(tower_point(f).values[0, 0]) == 0.0
+        assert np.array_equal(hdi_tower(f, masses=(0.9,))[0, 0], [0.0, 0.0])
+        assert float(summarize_tower(f).point.values[0, 0]) == 0.0
+        assert float(bimodality(f)[0, 0]) == 0.0
+    assert abs(float(tower_point(f).values[0, 0]) - 0.7) < 1e-6  # restored: off again
+
+
+def test_red_zero_cutoff_is_runtime_live():
+    # Editing the config takes effect without re-import (import-snapshot wart fixed).
+    assert _tp([2.0] * 32) == 2.0  # default off
+    with _cutoff(3.0):
+        assert _tp([2.0] * 32) == 0.0  # live: 2.0 <= 3.0 → zeroed
+    assert _tp([2.0] * 32) == 2.0  # restored
 
 
 def test_red_tower_point_independent_of_frozen_map_estimate():
@@ -587,3 +642,77 @@ def test_tower_memory_is_bounded_at_grid_scale(fn, name):
         f"{name} peak {peak / 1e6:.0f} MB scales with rows*S "
         f"(input {input_bytes / 1e6:.0f} MB) — blocking regressed"
     )
+
+
+# ============ I2 — distribution-agnostic (register C-45, off-by-default) ==========
+
+
+@pytest.mark.parametrize(
+    "name,draws_fn",
+    [
+        ("beta[0,1]", lambda r: r.beta(5, 2, 256)),
+        ("uniform[0,1]", lambda r: r.uniform(0, 1, 256)),
+        ("narrow-normal<1", lambda r: r.normal(0.5, 0.1, 256)),
+        ("normal", lambda r: r.normal(50.0, 5.0, 256)),
+        ("lognormal", lambda r: r.lognormal(0.0, 1.0, 256)),
+        ("low-intensity-count", lambda r: r.gamma(2.0, 0.1, 256)),
+    ],
+)
+def test_green_default_summary_is_distribution_agnostic(name, draws_fn):
+    # By default (no magnitude cutoff) the tip sits in-range and bands are not all 0,
+    # for every distribution shape — counts, continuous, normal, and [0,1] (C-45).
+    draws = np.asarray(draws_fn(np.random.default_rng(0)), dtype=np.float32)
+    pf = _row(draws)
+    tip = float(tower_point(pf).values[0, 0])
+    assert float(draws.min()) - 1e-3 <= tip <= float(draws.max()) + 1e-3
+    assert not np.allclose(hdi_tower(pf, masses=(0.5, 0.9))[0], 0.0)
+
+
+def test_green_probability_target_not_globally_zeroed():
+    # A [0,1] (beta) field must not collapse to all-zeros — the C-45 headline failure.
+    rng = np.random.default_rng(1)
+    pf = PredictionFrame(rng.beta(5, 2, (50, 256)).astype(np.float32), _index(50))
+    assert (tower_point(pf).values[:, 0] > 0).all()
+
+
+@pytest.mark.parametrize("k", [0.1, 10.0, 1000.0])
+def test_green_default_is_scale_consistent(k):
+    # No magnitude rule by default → scaling all draws never flips a cell 0<->nonzero.
+    base = [0.2, 0.3, 0.4, 0.5, 0.6] * 6 + [0.4, 0.4]
+    assert _tp(base) > 0 and _tp([x * k for x in base]) > 0
+
+
+def test_green_vectorized_matches_scalar_with_cutoff_on_and_off():
+    # The vectorized engine equals the per-row reference whether the cutoff is off
+    # (None) or on (1.0) — the reference mirrors `_zero_mask` live.
+    rng = np.random.default_rng(7)
+    values = rng.lognormal(0.3, 0.8, (20, 64)).astype(np.float32)
+    values[rng.random(values.shape) < 0.2] = 0.0
+    pf = PredictionFrame(values, _index(20))
+    masses = tuple(float(m) for m in _FLOORS)
+    for cut in (None, 1.0):
+        with _cutoff(cut):
+            tower = hdi_tower(pf, masses=masses).reshape(-1, len(masses), 2)
+            tip = tower_point(pf).values[:, 0]
+            for r, row in enumerate(values):
+                assert np.array_equal(
+                    tower[r], np.asarray(_ref_hdi(row, masses), dtype=np.float32)
+                )
+                np.testing.assert_allclose(tip[r], _ref_tip(row), rtol=1e-5, atol=1e-6)
+
+
+def test_green_frame_parity_default_no_zeroing():
+    # FeatureFrame and TargetFrame [0,1] data are not zeroed by default either.
+    rng = np.random.default_rng(3)
+    ff = _ff(rng.beta(5, 2, (4, 3, 128)).astype(np.float32))
+    assert (tower_point(ff).values[..., 0] > 0).all()
+    tf = TargetFrame(np.array([[0.7], [0.3]], dtype=np.float32), _index(2))
+    assert (tower_point(tf).values[:, 0] > 0).all()
+
+
+def test_green_optin_cutoff_reproduces_legacy_magnitude_behaviour():
+    # Regression parity: with zero_cutoff=1.0 the 1.2.0 magnitude rule returns exactly.
+    with _cutoff(1.0):
+        assert _tp([0.7] * 32) == 0.0
+        assert _tp(list(np.random.default_rng(0).beta(5, 2, 32))) == 0.0
+        assert _tp([2.0] * 32) == 2.0  # max > cutoff → unaffected

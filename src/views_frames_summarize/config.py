@@ -31,9 +31,12 @@ TOWER_CONFIG: Final[dict[str, Any]] = {
     # The tower-tip reads the median of the floor at this mass — the "shorth". 0.5 is
     # the maximally-robust choice: a duplicate would need ~half the draws to hijack it.
     "tip_mass": 0.5,
-    # Raw-count zero rule: a row whose every draw is <= this collapses to 0 (the quiet
-    # cell). A *count* rule, distinct from ``map_estimate``'s zero-mass-fraction rule.
-    "zero_cutoff": 1.0,
+    # Optional magnitude zero rule, OFF by default (``None``). When set to a float, a
+    # row whose every draw is <= it collapses to 0 — a *count* opt-in (sub-1 ⇒ 0).
+    # Left ``None`` for any non-count target: zero-inflation is otherwise handled by the
+    # density of the ``tip_mass`` floor, not by magnitude (register C-45). The leaf
+    # imposes no magnitude assumption by default; a consumer that wants it sets this.
+    "zero_cutoff": None,
     # Bimodality detector (coarse histogram + light smoothing; see bimodality.py).
     "bimodality_bins": 16,
     "bimodality_prominence": 0.40,

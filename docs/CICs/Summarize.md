@@ -65,7 +65,9 @@ re-derive (ADR-017).
   **by construction** (resolves C-33); **robust to minority duplicated draws** (resolves
   C-44 — an outlier shed by the wide floors cannot be re-selected by a narrower one); a
   mass's interval is **independent of the other requested masses** (pinned to the fixed
-  grid, never inserted — the reproducibility law). Quiet rows (`max <= zero_cutoff`)
+  grid, never inserted — the reproducibility law). **Distribution-agnostic** (C-45): no
+  magnitude zeroing by default — works for counts, continuous, normal, and `[0,1]`
+  (rate/probability) targets; if the optional `zero_cutoff` is set, `max <= cutoff` rows
   collapse to `(0, 0)`. **Caveat (the nesting trade-off):** a tower band is *coherent and
   nested*, **not** the unconstrained per-mass shortest interval — the containment cascade
   can shift a band's *location* (≈ up to ~20% of its width on right-skewed data; the width
@@ -73,9 +75,11 @@ re-derive (ADR-017).
   HDI with no nesting constraint, use the frozen `hdi`; use the tower when you need a
   *coherent, reproducible* family of bands.
 - `tower_point(frame)` → a `(N, …, 1)` frame: the **tower tip**, the median of the
-  configurable **`tip_mass`** floor (default 0.5 — the shorth), with a raw-count zero
-  short-circuit. Unbinned and median-based, so it carries **none** of `map_estimate`'s
-  histogram tie-break bias (mitigates C-32) **and** is robust to minority duplicates (C-44).
+  configurable **`tip_mass`** floor (default 0.5 — the shorth). Zero-inflation is read off
+  that floor's density (a zero-majority row reads 0; the optional `zero_cutoff` magnitude
+  rule is off by default — C-45). Unbinned and median-based, so it carries **none** of
+  `map_estimate`'s histogram tie-break bias (mitigates C-32) **and** is robust to minority
+  duplicates (C-44).
   It is **not** a consistency-guaranteed mode; pair it with `bimodality`. **Caveat (the
   semantic shift — read before adopting over a histogram MAP):** on right-skewed /
   zero-inflated / multi-cluster posteriors `tower_point` returns the **densest** mode, which
@@ -98,10 +102,15 @@ re-derive (ADR-017).
 
 - Inputs are `views_frames` frames with a trailing sample axis (ADR-012).
 - `reducer` reduces the trailing axis; `mapping` is injected by the caller.
-- Tower-family tunables (the canonical grid, `tip_mass`, the zero cutoff, the bimodality
-  thresholds, the row-block) come from `config.TOWER_CONFIG` — a fail-loud single source
-  with **no silent defaults** (ADR-008/009). `masses` is the only per-call tunable; the
-  frozen estimators (ADR-018) are out of scope of the config.
+- Tower-family tunables (the canonical grid, `tip_mass`, the optional `zero_cutoff`, the
+  bimodality thresholds, the row-block) come from `config.TOWER_CONFIG` — a fail-loud single
+  source with **no silent defaults** (ADR-008/009); `zero_cutoff` is read live. `masses` is
+  the only per-call tunable; the frozen estimators (ADR-018) are out of scope of the config.
+- **Consumer owns the zero policy (C-45).** The leaf does **no** magnitude zeroing by
+  default — it is distribution-agnostic. A consumer with a **count** target that wants
+  "sub-1 ⇒ 0" sets `config.TOWER_CONFIG["zero_cutoff"]` to a float (e.g. `1.0`), *or*
+  applies its own zero policy downstream (e.g. faoapi's `mass_at_zero` rule). The leaf
+  never imposes a count-domain magnitude assumption on rate/probability/continuous targets.
 
 ---
 
@@ -209,6 +218,10 @@ tower_point(pf)                         # the robust dense mode (may be << a his
 - The canonical tower grid (ADR-019) is a **fixed constant, not a parameter** — a
   different grid would be a *new* function, never a tunable density (which would break the
   reproducibility law). A fully-consistent convergent mode remains #89.
+- **v1.3.0 (register C-45):** the tower summary is **distribution-agnostic** — the
+  count-domain `max <= 1` magnitude zeroing was removed as a default (zero-inflation is read
+  off the `tip_mass`-floor density), leaving an **optional, off-by-default** `zero_cutoff`
+  opt-in for count consumers. The zero policy is the consumer's, not a leaf default.
 
 ---
 

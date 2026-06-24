@@ -4,9 +4,10 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.2.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
-> purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilds the tower
-> `outside-in` and makes it config-driven, register C-44). This README is the design
+> **Status:** **v1.3.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
+> purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
+> `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
+> zeroing by default, register C-45). This README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles, the coherent-tower estimators
@@ -70,16 +71,20 @@ Both are numpy-only. For the subtler cm↔pgm surface — a time-varying
 `aggregate_distributions` (`HDI(sum) ≠ sum(HDI)`) — see
 [`examples/cross_level.py`](examples/cross_level.py).
 
-**Which estimator? (two coherent paths, v1.2.0).** Each frozen estimator has a
+**Which estimator? (two coherent paths, v1.3.0).** Each frozen estimator has a
 coherent-tower sibling (ADR-019): `map_estimate` ↔ `tower_point` (an unbinned
 median-of-the-`tip_mass`-floor point — the "shorth", free of `map_estimate`'s histogram
 tie-break bias **and** robust to minority duplicated draws, register C-44), and
 `hdi`/`quantiles` ↔ `hdi_tower(masses=…)` (HDIs built **outside-in**, nested **by
 construction** and reproducible — a mass's interval is identical regardless of which others
-you request), with `summarize_tower` returning all three in one pass. The tower's tunables
-live in `views_frames_summarize.config` (fail-loud, no silent defaults). Use the **frozen**
-estimators for parity with existing pipelines; use the **tower** path when you need coherent,
-reproducible bands plus a matching, duplicate-robust point.
+you request), with `summarize_tower` returning all three in one pass. The tower path is
+**distribution-agnostic** — it works for counts, continuous, normal, and `[0,1]`
+(rate/probability) targets, with **no magnitude zeroing by default** (zero-inflation is read
+off the floor's density, register C-45); a count consumer that wants "sub-1 ⇒ 0" opts in via
+`config['zero_cutoff']`. The tower's tunables live in `views_frames_summarize.config`
+(fail-loud, no silent defaults). Use the **frozen** estimators for parity with existing
+pipelines; use the **tower** path when you need coherent, reproducible bands plus a matching,
+duplicate-robust point.
 
 **Reading the `bimodality` flag.** It is a *deliberately conservative* heuristic, **not** a
 formal multimodality test — tuned for **zero false positives** at the cost of recall on

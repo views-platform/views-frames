@@ -2,8 +2,8 @@
 
 `tower_point` is the "most likely single value" we report to a consumer: the median of
 the draws inside the **`tip_mass` floor** of the nested tower (config-driven, default
-0.5 — the "shorth"), with the same raw-count zero short-circuit as the tower
-(`max(row) <= zero_cutoff` → 0).
+0.5 — the "shorth"). Zero-inflation is handled by that floor's density (a zero-majority
+row reads 0); the optional, off-by-default magnitude cutoff applies too if set (C-45).
 
 It is a *new* estimator, deliberately distinct from the frozen `map_estimate` (ADR-018):
 `map_estimate` is a binned histogram mode with a zero-*mass*-fraction rule and a
@@ -34,9 +34,10 @@ from views_frames_summarize.tower import (
 def tower_point(frame: AnyFrame) -> AnyFrame:
     """Per-row tower-tip point estimate over the sample axis → a `(N, …, 1)` frame.
 
-    The median of the ``tip_mass`` floor's samples; ``0.0`` for quiet rows (every draw
-    ``<= zero_cutoff``). Returns a frame of the same type as ``frame``. Tunables (the
-    ``tip_mass``, the grid, the zero cutoff, the row-block) come from ``config``.
+    The median of the ``tip_mass`` floor's samples (``0`` when the zero atom dominates,
+    by density); if the optional ``zero_cutoff`` is set, ``max <= cutoff`` rows are
+    forced to ``0`` (off by default — C-45). Returns the same frame type as ``frame``.
+    Tunables (``tip_mass``, grid, ``zero_cutoff``, row-block) come from ``config``.
     """
     values = frame.values
     lead = values.shape[:-1]

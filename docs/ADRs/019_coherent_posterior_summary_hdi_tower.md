@@ -1,12 +1,12 @@
 # ADR-019: Coherent posterior summary — fixed-grid constrained-nested HDI tower
 
-**Status:** Accepted (amended 2026-06-24 — see *Amendment* below)
+**Status:** Accepted (amended 2026-06-24 — see *Amendments* below)
 **Date:** 2026-06-23
 **Deciders:** VIEWS platform maintainers
-**Consulted:** views-faoapi integration spike (C-32/C-33/C-44); research lab `research/map_hdi/`
+**Consulted:** views-faoapi integration spike (C-32/C-33/C-44/C-45); research lab `research/map_hdi/`
 **Informed:** views-reporting, views-faoapi (consumers of `views_frames_summarize`)
 
-> **Amendment (2026-06-24, register C-44).** The original tower was built *inside-out*
+> **Amendment 1 (2026-06-24, register C-44).** The original tower was built *inside-out*
 > from the degenerate narrowest (5% ≈ 2-sample) floor, which let a **minority duplicated
 > draw** (a couple of exact zeros, a lone pair) hijack the foundation and silently collapse
 > both the tip and the nested bands — confirmed on real faoapi cells. The tower is now built
@@ -15,6 +15,14 @@
 > 0.5, the "shorth"), not the 5% floor. All tower-family tunables moved to a fail-loud
 > `config.py` (no silent defaults, ADR-009). The sections below are updated in place; the
 > *In scope* surface and signatures are otherwise unchanged.
+>
+> **Amendment 2 (2026-06, register C-45, v1.3.0).** The `max(row) <= 1` raw-count zero
+> short-circuit baked a count-domain magnitude assumption into the domain-agnostic leaf
+> (it zeroed *every* cell of a rate/probability `[0,1]` target and silently erased
+> low-intensity counts). It is **removed as a default**: zero-inflation is handled by the
+> `tip_mass`-floor density, and the magnitude rule is now an **optional, off-by-default**
+> `config['zero_cutoff']` (read live) for count consumers that want it. The summary family is
+> now **distribution-agnostic**. See the *Decided properties* below.
 
 ---
 
@@ -72,8 +80,9 @@ new surface (MINOR under ADR-018); the frozen estimators (`map_estimate`, `hdi`,
   **independent of the other requested masses** (the reproducibility guarantee that resolves
   C-33).
 - `tower_point(frame) -> (N, …, 1)` frame. The "tower tip": the median of the configurable
-  **`tip_mass`** floor's samples (default 0.5 — the "shorth"), with a raw-count zero
-  short-circuit. Unbinned and median-based, so it carries **none** of `map_estimate`'s
+  **`tip_mass`** floor's samples (default 0.5 — the "shorth"); zero-inflation is read off
+  that floor's density (an optional `zero_cutoff` magnitude rule is off by default — C-45).
+  Unbinned and median-based, so it carries **none** of `map_estimate`'s
   histogram tie-break bias (mitigates C-32), and — reading a *mass-aware* floor rather than
   the degenerate 2-sample 5% floor — it is robust to minority duplicates (C-44). It is not a
   symmetric/unbiased estimator of the mode — only free of the lowest-index artifact.
@@ -92,9 +101,16 @@ new surface (MINOR under ADR-018); the frozen estimators (`map_estimate`, `hdi`,
   **no silent defaults**: a missing key raises `ValueError` naming it (ADR-009). The grid is
   built from rounded literals (not `np.arange`, which drifts ~1 ulp across numpy versions).
   `masses` is the only per-call tunable.
-- **The zero short-circuit is a raw-count rule** (`max(row) <= 1` ⇒ collapse to 0),
-  deliberately distinct from `map_estimate`'s zero-mass-fraction rule, so the two point
-  estimators stay independent.
+- **Zero-inflation is handled by density, not magnitude** (amended 2026-06, register
+  **C-45**). The original `max(row) <= 1` raw-count short-circuit baked a count-domain
+  magnitude assumption into the domain-agnostic leaf — it zeroed *every* cell of a
+  rate/probability `[0,1]` target and silently erased low-intensity counts. It is
+  **removed as a default**: the `tip_mass`-floor density already reads 0 when the zero
+  atom dominates and the body mode otherwise, for any distribution. A consumer that wants
+  a count-style magnitude rule sets the **optional, off-by-default** `config['zero_cutoff']`
+  (a float) — read live, so it is honoured at runtime; the leaf imposes no magnitude
+  assumption by default. The modeling choice "should a sub-1 *count* posterior read 0?" is
+  the **consumer's**, expressed in that config, not a leaf default.
 - **Masses are validated to `(0, 1)`** and fail loud (ADR-008).
 - **Bimodality is flagged, never resolved.** No density or point estimator disambiguates
   a genuinely two-peaked posterior; the honest contract is to surface it.
