@@ -119,6 +119,12 @@ Introduce a non-spatiotemporal `EvaluationIndex` and a generalised `Frame`/index
   additive `FrameMetadata` fields `run_id`, `data_version` (optional/MINOR, ADR-013); export of
   the conformance/round-trip checker + the published wire schema with `schema_version`. No code
   ships in this ADR beyond the decision record.
+  - **Update (v1.4.0, 2026-06-24):** the first two leaf-side pieces shipped — the generic
+    `FrameMetadata` provenance fields `run_id`/`data_version` (eval-specific provenance kept out:
+    register **C-47 → Resolved**) and the reusable `assert_frame_envelope` checker factored out of
+    `assert_frame_contract` as the single written authority for the shared envelope (**C-46
+    partially mitigated**). `CONFORMANCE_FLOOR` stays `1.0.0` (additive surface). The versioned wire
+    schema (`schema_version`) + the cross-repo round-trip contract test remain the open half of C-46.
 - **In views-evaluation (not this repo):** define `MetricFrame` and its eval-specific metadata,
   wrapping `EvaluationReport`; emit it; validate against the published checker/schema
   (views-evaluation#21).

@@ -4,6 +4,29 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.4.0] — 2026-06-24
+
+**Generic provenance + a published frame-envelope checker (ADR-020, register C-46/C-47).**
+Operationalises the substrate half of the `MetricFrame` decision: views-evaluation hosts
+`MetricFrame` on the views-frames substrate, and this release provides the two leaf-side
+pieces it reuses. No change to the frozen surface (ADR-018); `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`FrameMetadata.run_id` / `FrameMetadata.data_version`** — optional, **generic** provenance
+  (additive/MINOR, ADR-013). Meaningful for any frame; they ride the existing
+  `to_dict`/`from_dict` and IO round-trip unchanged. Evaluation-specific provenance
+  (`scoring_code_version`, full-precision `evaluation_timestamp`) deliberately stays in
+  views-evaluation's `MetricFrame`, never this generic header (the C-47 guard).
+- **`views_frames.conformance.assert_frame_envelope`** — the shared **frame envelope** (float32
+  values, explicit trailing axis, save/load round-trip) factored out of `assert_frame_contract`
+  as a single written authority. A non-spatiotemporal sibling (views-evaluation's string-keyed
+  `MetricFrame`) validates against it instead of re-asserting drifting copies (mitigates C-46).
+  `assert_frame_contract` now composes the envelope + the spatiotemporal `(time, unit)` rule.
+
+### Notes
+- The cross-repo **wire schema + `schema_version`** marker (the other half of the C-46
+  mitigation) is the emit/consume wire contract and remains future work, tracked on C-46.
+
 ## [1.3.0] — 2026-06-24
 
 **Distribution-agnostic tower summary (register C-45).** Removes a count-domain magnitude

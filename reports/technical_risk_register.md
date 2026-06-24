@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
 | Total Concerns    | 45                                   |
-| Open Concerns     | 6                                    |
-| Resolved Concerns | 39                                   |
+| Open Concerns     | 5                                    |
+| Resolved Concerns | 40                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -116,25 +116,10 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 | Tier | 2 |
 | Source | expert-code-review (2026-06-24, GH #109; Kleppmann/Feathers/Nygard lenses) |
 | Trigger | When `views-evaluation` implements `MetricFrame` on the views-frames substrate (Option B, ADR-020), or when the leaf changes its serialisation/round-trip or float32 discipline (`io/`, `_validation.py`) — at that point the envelope invariants (float32 values, round-trip identity, optional-only metadata) exist in two places with no shared check. Re-run a cross-boundary round-trip contract test that calls the leaf's published conformance checker. |
-| Location | Leaf side: `src/views_frames/conformance/__init__.py` (`assert_frame_contract`), `src/views_frames/io/`, `src/views_frames/metadata.py`. Boundary: the (to-be) `MetricFrame` in `views-evaluation`. |
-| Cross-refs | C-01 (resolved — the home decision: leaf defines only the index/key protocol the eval types conform to), ADR-016 (conformance floor), ADR-020 (the B ratification, if recorded), GH #109, views-evaluation#21. |
+| Location | Leaf side: `src/views_frames/conformance/__init__.py` (`assert_frame_envelope` / `assert_frame_contract`), `src/views_frames/io/`, `src/views_frames/metadata.py`. Boundary: the (to-be) `MetricFrame` in `views-evaluation`. |
+| Cross-refs | C-01 (resolved — the home decision: leaf defines only the index/key protocol the eval types conform to), ADR-016 (conformance floor), ADR-020 (the B ratification), GH #109, views-evaluation#21. |
 
-Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-evaluation` and reuses the views-frames *substrate* — `FrameMetadata` plus the conformance/IO **patterns**. The float32 discipline and the serialise→load round-trip are therefore guaranteed in the leaf (`assert_frame_contract`) but only **re-asserted by convention** in `views-evaluation`. There is no single schema authority for the shared "frame-like envelope" across the two repos, so the two can drift — a quiet deserialisation or precision mismatch discovered late at the emit→consume boundary, not an outage. **Tier 2** — structural fragility with a clear future trigger; the leaf publishes nothing itself, but the boundary it underwrites can silently mismatch. **Mitigation (recorded in ADR-020):** publish the leaf's conformance/round-trip checks as a reusable, consumer-runnable checker (the conformance suite is already a public artifact, ADR-016) plus an explicit, versioned wire schema (a `schema_version` marker) that both emit and consume validate against — converting "agree by convention" into "validate against one written contract." Resolved when the checker + schema land and a cross-repo round-trip contract test is in place.
-
----
-
-### C-47: evaluation-specific provenance must not leak into the generic `FrameMetadata`
-
-| Field | Value |
-|-------|-------|
-| ID | C-47 |
-| Tier | 3 |
-| Source | expert-code-review (2026-06-24, GH #109; Martin/Ousterhout/Hickey lenses) |
-| Trigger | When `FrameMetadata` is extended to carry the evaluation-of-record provenance #109 needs (`run_id`, `data_version`, `scoring_code_version`, a full-precision `evaluation_timestamp`) — if the **eval-specific** fields (`scoring_code_version`, the eval timestamp) are added to the shared header rather than kept in `views-evaluation`'s `MetricFrame` metadata. |
-| Location | `src/views_frames/metadata.py` (`FrameMetadata`). |
-| Cross-refs | D-02 (run-identity is a cross-repo decision the leaf only homes), C-01 (resolved — eval vocabulary lives in views-evaluation), ADR-013 (optional-additive metadata rule), ADR-014 (domain knowledge injected, not embedded), ADR-020, GH #109. |
-
-`FrameMetadata` is the generic provenance header carried by **every** frame (`PredictionFrame`/`TargetFrame`/`FeatureFrame`). Adding eval-specific fields such as `scoring_code_version` to it forces those frames to carry provenance that is meaningless to them (a fat header) and re-introduces the "infer/embed domain semantics in the leaf" anti-pattern ADR-014 forbids — here, evaluation semantics in a package that is explicitly *not* evaluation (ADR-017). **Tier 3** — maintainability/coupling and boundary erosion; no correctness impact. **Mitigation (recorded in ADR-020):** when the extension lands, add only **generic** provenance (`run_id`, `data_version`) to `FrameMetadata` as optional/MINOR (ADR-013); keep **eval-specific** provenance (`scoring_code_version`, the eval timestamp) in `views-evaluation`'s `MetricFrame` metadata. Resolved when the (deferred) `FrameMetadata` extension is made and respects the split.
+Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-evaluation` and reuses the views-frames *substrate* — `FrameMetadata` plus the conformance/IO **patterns**. The float32 discipline and the serialise→load round-trip are therefore guaranteed in the leaf (`assert_frame_contract`) but only **re-asserted by convention** in `views-evaluation`. There is no single schema authority for the shared "frame-like envelope" across the two repos, so the two can drift — a quiet deserialisation or precision mismatch discovered late at the emit→consume boundary, not an outage. **Tier 2** — structural fragility with a clear future trigger; the leaf publishes nothing itself, but the boundary it underwrites can silently mismatch. **Mitigation (recorded in ADR-020):** publish the leaf's conformance/round-trip checks as a reusable, consumer-runnable checker (the conformance suite is already a public artifact, ADR-016) plus an explicit, versioned wire schema (a `schema_version` marker) that both emit and consume validate against — converting "agree by convention" into "validate against one written contract." **Partially mitigated (v1.4.0):** the reusable checker shipped as `assert_frame_envelope` — the shared envelope (float32, trailing axis, round-trip) factored out as one written authority a non-spatiotemporal `MetricFrame` validates against. **Remaining (stays Open):** the explicit versioned wire schema (`schema_version`) and the cross-repo emit→consume round-trip contract test that calls the checker — both live at the boundary / in `views-evaluation`. Resolved when those land.
 
 ---
 
@@ -207,6 +192,17 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 ---
 
 ## Resolved Concerns
+
+### C-47: evaluation-specific provenance must not leak into the generic `FrameMetadata` — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-47 |
+| Tier | 3 |
+| Resolved | 2026-06-24 (v1.4.0; ADR-020 substrate work) |
+| Resolution | The (previously deferred) `FrameMetadata` extension was made and **respects the split** (the C-47 guard). v1.4.0 adds only **generic** provenance — `run_id`, `data_version` — as optional/MINOR fields (ADR-013), meaningful for any frame. **Eval-specific** provenance (`scoring_code_version`, a full-precision `evaluation_timestamp`) was deliberately kept out of the generic header and stays in `views-evaluation`'s `MetricFrame` metadata, so evaluation semantics never enter a package that is explicitly *not* evaluation (ADR-014/ADR-017). The `metadata.py` module docstring records the guard for future extensions. See ADR-020, C-46, D-02; `src/views_frames/metadata.py`. |
+
+---
 
 ### C-42: bimodality caveat + estimator-choice guidance absent from the shipped public docs — RESOLVED
 

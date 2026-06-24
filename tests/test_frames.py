@@ -48,6 +48,22 @@ def test_metadata_is_frozen():
         md.model = "y"  # type: ignore[misc]
 
 
+def test_metadata_generic_provenance_fields_default_none():
+    # run_id / data_version are optional generic provenance (ADR-020, C-47 guard):
+    # absent by default, so adding them is additive/MINOR and they omit from to_dict.
+    md = FrameMetadata(model="x")
+    assert md.run_id is None
+    assert md.data_version is None
+    assert "run_id" not in md.to_dict()
+    assert "data_version" not in md.to_dict()
+
+
+def test_metadata_provenance_roundtrip():
+    md = FrameMetadata(run_id="abc123", data_version="v2024.1")
+    assert md.to_dict() == {"run_id": "abc123", "data_version": "v2024.1"}
+    assert FrameMetadata.from_dict(md.to_dict()) == md
+
+
 # --- F2: PredictionFrame -----------------------------------------------------
 
 
