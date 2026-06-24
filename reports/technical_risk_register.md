@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
 | Total Concerns    | 53                                   |
-| Open Concerns     | 10                                   |
-| Resolved Concerns | 43                                   |
+| Open Concerns     | 8                                    |
+| Resolved Concerns | 45                                   |
 | Disagreements     | 10                                   |
 
 ---
@@ -168,36 +168,6 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 
 ---
 
-### C-55: aggregate `expected_shortfall` worst-case is silently wrong when summed samples are not a true joint posterior
-
-| Field | Value |
-|-------|-------|
-| ID | C-55 |
-| Tier | 2 |
-| Source | ADR-022 design (2026-06-25, `expected_shortfall` worst-case estimator) |
-| Trigger | When a consumer builds a country-level `PredictionFrame` via `aggregate_distributions` (or a hand-rolled element-wise sample sum) from grid samples that are **not** jointly drawn, then calls the planned `expected_shortfall` per row and ships a country "worst-case" — the tail mean of a comonotonically-summed posterior is a confidently-wrong worst-case with **no error signal**. |
-| Location | (planned) `src/views_frames_summarize/expected_shortfall.py`; the aggregation boundary `src/views_frames_summarize/aggregate.py`. |
-| Cross-refs | C-49 (the identical pattern for `exceedance` — *any* tail summary on an aggregated frame needs joint samples), ADR-022, ADR-014, D-10. |
-
-Identical root cause to C-49 (the exceedance aggregate-tail), now for `expected_shortfall`. A tail **mean** is if anything *more* sensitive to the cross-cell dependence than a tail probability, so a wrong coupling yields a confidently-wrong country worst-case. **Tier 2** — silent output incorrectness on a headline number; clear trigger. **Mitigation:** `expected_shortfall` stays geography-blind (ADR-014); country worst-case = `aggregate_distributions` → `expected_shortfall`; the joint-sample obligation is the consumer's (an explicit CIC failure-mode), proven by an ES aggregate-composition test. Resolved when `expected_shortfall` + that test land.
-
----
-
-### C-56: naive `expected_shortfall` silently corrupts the worst-case when NaN draws are present
-
-| Field | Value |
-|-------|-------|
-| ID | C-56 |
-| Tier | 2 |
-| Source | ADR-022 design (2026-06-25) |
-| Trigger | When `expected_shortfall` is implemented naively (sort + mean of the top-`k` draws) and a frame with NaN draws reaches it — numpy sorts NaN to the **end**, so the "worst `k` draws" become the NaNs and the tail mean is silently NaN/garbage. |
-| Location | (planned) `src/views_frames_summarize/expected_shortfall.py`. |
-| Cross-refs | C-50 (the identical NaN lesson for `exceedance`), ADR-008, ADR-022. |
-
-numpy's sort places NaN **last** (ascending), so a naive "mean of the worst `⌈t·S⌉` draws" silently selects the NaNs → a NaN or garbage worst-case on the headline metric. **Tier 2** — silent corruption of the worst-case number whenever NaN reaches the estimator. **Mitigation:** fail loud on any NaN in the reduced values (ADR-008), exactly as `exceedance` does (C-50). Resolved when the guard + a NaN-raises test land.
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -311,6 +281,28 @@ numpy's sort places NaN **last** (ascending), so a naive "mean of the worst `⌈
 ---
 
 ## Resolved Concerns
+
+### C-55: aggregate `expected_shortfall` worst-case is silently wrong when summed samples are not a true joint posterior — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-55 |
+| Tier | 2 |
+| Resolved | 2026-06-25 (Epic 10 / I3, v1.6.0) |
+| Resolution | `expected_shortfall` stays geography-blind; country worst-case = `aggregate_distributions` → `expected_shortfall` (compose). `test_aggregate_composition_is_joint_worst_case` (`tests/test_summarize_expected_shortfall.py`) proves it on **anti-aligned** draws (`[1,2,3,100]`/`[100,3,2,1]` → summed `[101,5,5,101]`): the joint ES(0.5) = **101**, while the per-cell ES sum to **103** — non-recoverable, and subadditive (`101 ≤ 103`). The joint-sample obligation is the consumer's (a documented CIC failure-mode); the residual upstream guarantee lives in views-models / reconciliation. See ADR-022, C-49, C-56. |
+
+---
+
+### C-56: naive `expected_shortfall` silently corrupts the worst-case when NaN draws are present — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-56 |
+| Tier | 2 |
+| Resolved | 2026-06-25 (Epic 10 / I1+I2, v1.6.0) |
+| Resolution | `expected_shortfall` **fails loud** on any NaN in the reduced values (`_expected_shortfall` raises `ValueError` before the sort, so the NaN-sorted-last top-`k` mean can never silently select NaNs) rather than return a NaN/garbage worst-case (ADR-008). `test_nan_draw_raises` (`tests/test_summarize_expected_shortfall.py`) asserts it raises (including a NaN in a non-first block). See ADR-022, C-50, C-55. |
+
+---
 
 ### C-49: aggregate `exceedance` tail is silently wrong when summed samples are not a true joint posterior — RESOLVED
 

@@ -18,9 +18,10 @@
 > entries marked *(ADR-021)* describe the live contract.
 >
 > **Amendment (2026-06-25, ADR-022, register C-55/C-56/D-10).** Adds the **worst-case** surface
-> `expected_shortfall` (the tail mean / CVaR) — per-row mean of the worst `⌈t·S⌉` draws. **Ratified
-> here; ships additively in v1.6.0.** Best-case ships **no code** (a low quantile + `exceedance(0)`).
-> The §3/§4/§6/§8–§11 entries marked *(ADR-022)* describe the **intended** contract ahead of the code.
+> `expected_shortfall` (the tail mean / CVaR) — per-row mean of the worst `⌈t·S⌉` draws. **Shipped
+> additively in v1.6.0** (`src/views_frames_summarize/expected_shortfall.py`,
+> `tests/test_summarize_expected_shortfall.py`; register C-55/C-56 Resolved). Best-case ships **no
+> code** (a low quantile + `exceedance(0)`). The §3/§4/§6/§8–§11 entries marked *(ADR-022)* are live.
 
 ---
 
@@ -372,7 +373,7 @@ expected_shortfall(aggregate_distributions(grid_pf, mapping, "country"), (0.01,)
   `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07), and **relative/reference-frame
   thresholds** (the "exceed the baseline / last period" deterioration story) — to be added only when
   a concrete consumer proves the need.
-- **Worst-case expected shortfall (ADR-022):** `expected_shortfall` ships additively in v1.6.0;
+- **Worst-case expected shortfall (ADR-022):** `expected_shortfall` shipped additively in v1.6.0;
   `CONFORMANCE_FLOOR` stays `1.0.0`. It lives in its **own module** (`expected_shortfall.py`), written
   explicitly — *not* refactored into a shared "tail reducer" with `quantiles`/`exceedance` (the
   duplication is shallow and the concerns change independently — WET before DRY; CCP/CRP). Best-case

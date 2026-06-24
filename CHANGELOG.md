@@ -4,6 +4,31 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.6.0] — 2026-06-25
+
+**Worst-case scenario estimator (ADR-022, register C-55/C-56 Resolved).** Additive surface — the
+frozen v1.0–v1.5 estimators are unchanged; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`expected_shortfall(frame, tails, *, block_rows=ROW_BLOCK)` → `(N, …, K)` array** — the per-row
+  **mean of the worst `⌈t·S⌉` draws** for each upper-tail fraction `t` (the tail mean / CVaR): a
+  robust, **coherent** (subadditive) worst-case risk measure and the companion to `exceedance`.
+  Vectorized over the trailing sample axis in row-blocks.
+- **Conformance:** `assert_summarizer_contract` now also checks the ES laws — `min ≤ ES ≤ max`,
+  non-decreasing as the tail deepens, and `ES(t) ≥ the (1 − t)` quantile.
+
+### Notes
+- **`max` is never offered** — it is the highest-variance, non-reproducible summary `expected_shortfall`
+  replaces (D-10). **Tails are required per-call, no default, not in config**, in `(0, 1]` — the
+  consumer's policy. **Fails loud** on any NaN draw (C-56), empty `tails`, or any `t ∉ (0, 1]`.
+- **Best case ships no code** — a low quantile (`quantiles(frame, [0.005])`) + `exceedance(frame, [0])`
+  express it, including the "model puts no mass at zero" case.
+- Country worst-case = `aggregate_distributions` → `expected_shortfall` (the estimator never
+  aggregates; the joint-sample obligation is the consumer's, C-55).
+- **WET before DRY:** its own module, written explicitly — *not* refactored into a shared "tail
+  reducer" with `quantiles`/`exceedance`. Deferred, reversible extensions: a lower-tail/`side` mode, an
+  `expected_shortfall_reducer`, `cvar`/`tail_mean` synonyms (D-10).
+
 ## [1.5.0] — 2026-06-24
 
 **Threshold exceedance-probability estimator (ADR-021, register C-49/C-50 Resolved).** Additive
