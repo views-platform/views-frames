@@ -4,6 +4,29 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.3.0] — 2026-06-24
+
+**Distribution-agnostic tower summary (register C-45).** Removes a count-domain magnitude
+assumption from the tower estimators: the "quiet row" rule zeroed any posterior whose
+`max(draws) <= 1.0` — zeroing *every* cell of a rate/probability `[0,1]` target and silently
+erasing low-intensity counts. The estimators now work for **any** distribution (counts,
+continuous, normal, beta/probability). No change to the frozen estimators (ADR-018);
+`CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Changed
+- **No magnitude-based zeroing by default.** `tower_point` / `hdi_tower` / `summarize_tower` /
+  `bimodality` no longer collapse sub-1 rows to 0. Zero-inflation is handled by the **density**
+  of the `tip_mass` floor (a zero-majority row reads 0 naturally), which is distribution-agnostic.
+- **`config['zero_cutoff']` is now an optional, off-by-default opt-in** (default `None`). A count
+  consumer that wants "sub-1 ⇒ 0" sets it to a float; it is read **live** (the prior import-time
+  snapshot, which made the knob non-configurable at runtime, is fixed).
+
+### Notes
+- The modeling choice "should a sub-1 *count* posterior read 0?" is the **consumer's** (set
+  `zero_cutoff`, or apply a downstream `mass_at_zero` policy) — not a leaf default.
+- ADR-019 amended; the Summarize CIC documents the opt-in and the consumer-owns-the-zero-policy
+  note. Register **C-45 → Resolved**.
+
 ## [1.2.0] — 2026-06-24
 
 **Outside-in HDI tower + mass-aware tip + fail-loud config (register C-44).** Fixes a silent
