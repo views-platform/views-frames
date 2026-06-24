@@ -13,6 +13,7 @@ from views_frames_summarize import config
 from views_frames_summarize._common import AnyFrame
 from views_frames_summarize.bimodality import bimodality
 from views_frames_summarize.collapse import collapse
+from views_frames_summarize.exceedance import exceedance
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
 from views_frames_summarize.summarize_tower import summarize_tower
@@ -43,6 +44,21 @@ def assert_summarizer_contract(frame: AnyFrame) -> None:
     qs = quantiles(frame, [0.1, 0.5, 0.9])
     assert qs.shape[0] == n, "quantiles must be aligned to the frame's rows"
     assert qs.shape[-1] == 3, "quantiles must produce one column per quantile"
+
+    # exceedance laws (ADR-021): a survival function — in [0, 1], non-increasing in the
+    # threshold, with P(> -inf) = 1 and P(> +inf) = 0.
+    thresholds = [-np.inf, 0.5, 1.5, np.inf]
+    exc = exceedance(frame, thresholds)
+    assert exc.shape[0] == n, "exceedance must be aligned to the frame's rows"
+    assert exc.shape[-1] == len(thresholds), "exceedance → one column per threshold"
+    assert ((exc >= 0.0) & (exc <= 1.0)).all(), (
+        "exceedance must be a probability in [0, 1]"
+    )
+    assert (np.diff(exc, axis=-1) <= 1e-6).all(), (
+        "exceedance must be non-increasing in the threshold"
+    )
+    assert (exc[..., 0] == 1.0).all(), "P(> -inf) must be 1"
+    assert (exc[..., -1] == 0.0).all(), "P(> +inf) must be 0"
 
     _assert_tower_contract(frame, n)
 

@@ -9,6 +9,11 @@
 > This ADR ratifies the **design** of a new `views_frames_summarize` estimator. No estimator
 > code ships with it; the implementation (TDD, `src/views_frames_summarize/exceedance.py` +
 > conformance laws + tests) is a separate follow-up epic that conforms to this record.
+>
+> **Implemented in v1.5.0 (2026-06-24, Epic 9 / GH #114).** `exceedance` + `exceedance_reducer`
+> shipped exactly as ratified — required no-default thresholds, strict `>`, fail-loud NaN/empty,
+> geography-blind (country = `aggregate_distributions` → `exceedance`), with the `[0,1]` / monotone /
+> `±inf` conformance laws. Register **C-49** and **C-50** Resolved; `CONFORMANCE_FLOOR` stays `1.0.0`.
 
 ---
 

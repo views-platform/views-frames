@@ -4,6 +4,32 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.5.0] — 2026-06-24
+
+**Threshold exceedance-probability estimator (ADR-021, register C-49/C-50 Resolved).** Additive
+surface — the frozen v1.0–v1.4 estimators are unchanged; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`exceedance(frame, thresholds, *, block_rows=ROW_BLOCK)` → `(N, …, K)` array** — the per-row
+  empirical survival fraction `P(Y > c_k)` for each of `K` caller-supplied thresholds (same
+  shape/role family as `quantiles`), vectorized over the trailing sample axis in row-blocks.
+  Distribution-agnostic (a counting reducer); the flagship is `P(Y > 0)` = onset.
+- **`exceedance_reducer(threshold)` → `Reducer`** — a `collapse`-compatible factory, so
+  `collapse(frame, exceedance_reducer(c))` returns `P(Y > c)` as a `(N, …, 1)` frame, sharing one
+  strict-`>` / fail-loud-NaN policy.
+- **Conformance:** `assert_summarizer_contract` now also checks the exceedance laws — values in
+  `[0, 1]`, non-increasing in the threshold, `P(> −inf) = 1`, `P(> +inf) = 0`.
+
+### Notes
+- **Thresholds are required per-call, no default, not in config** — an *input* in the frame's own
+  units, like `quantiles`' `qs` (ADR-021). Canonical VIEWS thresholds (25/100/1000 country, 5/25
+  grid) are documentation only, never an executable default.
+- **Strict `>`** (D-08; for integer counts `P(Y ≥ k)`, pass `k − 1`). **Fails loud** on any NaN draw
+  (C-50) and on empty thresholds. Country exceedance = `aggregate_distributions` → `exceedance` (the
+  estimator never aggregates; the joint-sample obligation is the consumer's, C-49).
+- **Deferred, reversible extensions:** an `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07),
+  relative/reference-frame thresholds, an EP-curve helper.
+
 ## [1.4.0] — 2026-06-24
 
 **Generic provenance + a published frame-envelope checker (ADR-020, register C-46/C-47).**

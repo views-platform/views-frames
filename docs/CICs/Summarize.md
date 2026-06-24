@@ -12,9 +12,10 @@
 > + numpy only.
 >
 > **Amendment (2026-06-24, ADR-021, register C-49/C-50/D-07/D-08).** Adds the threshold
-> **exceedance** surface (`exceedance`/`exceedance_reducer`) — per-row `P(Y > c)`. Ratified
-> here; the implementation lands additively (target v1.5.0). The §3/§4/§6/§8–§11 entries
-> marked *(ADR-021)* describe the **intended** contract ahead of the code.
+> **exceedance** surface (`exceedance`/`exceedance_reducer`) — per-row `P(Y > c)`. **Shipped
+> additively in v1.5.0** (`src/views_frames_summarize/exceedance.py`,
+> `tests/test_summarize_exceedance.py`; register C-49/C-50 Resolved). The §3/§4/§6/§8–§11
+> entries marked *(ADR-021)* describe the live contract.
 
 ---
 
@@ -269,7 +270,7 @@ exceedance(pf)                          # TypeError — thresholds are required,
   key all fail loud; the zero-cutoff boundary; `tower_point` independent of the frozen
   `map_estimate`; NaN/inf stays localized; the import-DAG test keeps the leaf pure
   (`tests/test_summarize_tower.py`, `tests/test_summarize_config.py`).
-- **Exceedance (ADR-021; `tests/test_summarize_exceedance.py`, with the implementation):**
+- **Exceedance (ADR-021; `tests/test_summarize_exceedance.py`, v1.5.0):**
   *Green* — known fraction above `c` → exact `P`; in `[0,1]`; non-increasing across a threshold
   sweep; `exceedance(frame,[c])` ≡ `collapse(frame, exceedance_reducer(c))` value; **distribution-agnostic
   onset — `P(Y > 0)` on a zero-inflated / multimodal cell equals the nonzero-draw fraction**
@@ -294,8 +295,8 @@ exceedance(pf)                          # TypeError — thresholds are required,
   count-domain `max <= 1` magnitude zeroing was removed as a default (zero-inflation is read
   off the `tip_mass`-floor density), leaving an **optional, off-by-default** `zero_cutoff`
   opt-in for count consumers. The zero policy is the consumer's, not a leaf default.
-- **Threshold exceedance (ADR-021):** `exceedance`/`exceedance_reducer` are additive (target
-  v1.5.0); `CONFORMANCE_FLOOR` stays `1.0.0`. Deliberately deferred, reversible extensions — an
+- **Threshold exceedance (ADR-021):** `exceedance`/`exceedance_reducer` shipped additively in
+  v1.5.0; `CONFORMANCE_FLOOR` stays `1.0.0`. Deliberately deferred, reversible extensions — an
   `inclusive`/`≥` flag (D-08), a `nan_policy='skip'` (D-07), and **relative/reference-frame
   thresholds** (the "exceed the baseline / last period" deterioration story) — to be added only when
   a concrete consumer proves the need.

@@ -4,12 +4,13 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.4.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
+> **Status:** **v1.5.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
 > zeroing by default, register C-45; v1.4.0 adds generic provenance to `FrameMetadata`
 > (`run_id`/`data_version`) and publishes the shared `assert_frame_envelope` checker,
-> ADR-020). This README is the design
+> ADR-020; v1.5.0 adds the threshold **exceedance** estimator `P(Y > c)`, ADR-021). This
+> README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles, the coherent-tower estimators
