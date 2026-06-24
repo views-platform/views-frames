@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 41                                   |
+| Total Concerns    | 42                                   |
 | Open Concerns     | 4                                    |
-| Resolved Concerns | 37                                   |
+| Resolved Concerns | 38                                   |
 | Disagreements     | 6                                    |
 
 ---
@@ -76,7 +76,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 
 **Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Resolution path: estimator-design effort tracked in **#89** (a distributional assumption *or* `n`-adaptive smoothing + floor; **not** merely a better tie-break; SemVer decision required). See C-24 (resolved), C-25, C-33.
 
-**Mitigation shipped (2026-06-23, ADR-019) — not a full resolution; stays open.** `tower_point` ships as an **unbinned, median-based** point estimator (the median of the narrowest canonical tower floor), so it carries **none** of the lowest-index histogram tie-break's directional bias. Scored against a *non-circular analytic-mode* oracle (the active families only — zero-mode families have no analytic continuous mode), it ties/beats `map_estimate` on clean active cells **at the production sample size n=1024**; at **n=128 the two are mixed** (the tip wins on some families, loses on others — see `research/map_hdi/point_pass.py`), so this is a mitigation at production `n`, not a guaranteed win at the low-`n` regime where the bias bites hardest. `bimodality` flags the multimodal cells where any single mode is ill-defined (with its own recall caveat — see C-34). **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** 5% smoothing, so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
+**Mitigation shipped (2026-06-23, ADR-019; redesigned 2026-06-24, C-44) — not a full resolution; stays open.** `tower_point` ships as an **unbinned, median-based** point estimator (the median of the configurable **`tip_mass`** floor, default 0.5 — the shorth), so it carries **none** of the lowest-index histogram tie-break's directional bias, and — reading a *mass-aware* floor rather than the degenerate 2-sample 5% floor — it is now also **robust to minority duplicated draws** (C-44). Scored against a *non-circular analytic-mode* oracle (the active families only — zero-mode families have no analytic continuous mode), it ties/beats `map_estimate` on clean active cells **at the production sample size n=1024**; at **n=128 the two are mixed** (the tip wins on some families, loses on others — see `research/map_hdi/point_pass.py`), so this is a mitigation at production `n`, not a guaranteed win at the low-`n` regime where the bias bites hardest. `bimodality` flags the multimodal cells where any single mode is ill-defined (with its own recall caveat — see C-34). **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** `tip_mass` (50%) floor, so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
 
 ---
 
@@ -88,7 +88,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 | Tier | 3 |
 | Source | merge-gate review (2026-06-23) |
 | Trigger | When a model change begins producing genuinely multimodal posteriors, watch whether the `bimodality` flag rate rises on those cells. If it stays ~0 while separated modes appear — especially an unequal-weight split, or one mode tall-and-narrow beside a spread mode — the detector is under-flagging and a consumer trusting the single `tower_point` / a single interval will be misled. |
-| Location | `src/views_frames_summarize/bimodality.py` (the coarse-histogram + smoothing + prominence + `min_mass` heuristic). |
+| Location | `src/views_frames_summarize/bimodality.py` (the coarse-histogram + smoothing + prominence + `min_mass` heuristic). Thresholds (`bimodality_bins`/`prominence`/`min_mass`/`smooth`) now live in `config.TOWER_CONFIG` (C-44 redesign) — still battery-tuned; the trigger is unchanged. |
 
 `bimodality` is deliberately tuned for **zero false positives** on the normal regime (right-skewed, zero-inflated, and active unimodal posteriors all read unimodal), at the cost of **recall** on harder cases. Empirically it fires on clearly-separated comparable-mass modes (and a zero-atom + distinct bump when the atom is substantial), but **misses**: (a) a minority mode below `min_mass=0.15` (e.g. an 85/15 split); (b) a mode that is tall-and-narrow beside a spread mode — the spread mode cannot clear the prominence bar the tall peak sets (e.g. a ~17% zero atom under a tight positive bump); (c) overlapping modes with no genuine sub-prominence valley. It is a **heuristic flag for a clear regime change, not a formal multimodality test** (ADR-019 states this; the edge-bin smoothing fix improved the atom case but did not remove the gap). Latent today (Tier 3) — current models are effectively unimodal — but it is a **silent single-point-trust risk** under a future multimodal regime, the same family as **C-32** (biased mode) and **C-33** (no tower coherence, resolved). Resolution path if multimodality becomes real: a stronger detector (a dip test, or a mass-based criterion that does not penalize spread modes); tracked alongside **#89**. See C-32, C-33 (resolved), ADR-019.
 
@@ -266,13 +266,30 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 
 ---
 
+### C-44: `tower`/`tower_point` minority-duplicate collapse (inside-out construction) — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-44 |
+| Tier | 1 |
+| Source | views-faoapi integration audit (2026-06-24) — confirmed on the real forecast cache |
+| Resolved | 2026-06-24 (ADR-019 amendment) |
+| Location | `src/views_frames_summarize/tower.py` (`_dense_tower`, `_shortest_contained_in`, `_shortest_seed`); `tower_point.py`; `summarize_tower.py`. |
+| Trigger | If a future change reverts to a **narrowest-floor-first** construction, drops the containment constraint, or sets `tip_mass` back to the ~2-sample 5% floor, the collapse returns — re-run the A–L truth-table + real-faoapi-cell red tests in `tests/test_summarize_tower.py`. |
+
+**Symptom (silent output incorrectness — Tier 1).** The tower was built **inside-out** from the narrowest 5% floor, which at S≈32 holds only ~2 samples. "Shortest interval holding 2 samples" = "the two closest draws", and any **minority duplicated value** (a couple of exact zeros, a lone pair) is distance 0 apart and unbeatably "shortest". That degenerate floor became the foundation, and the inside-out nesting dragged the tip **and every published band** onto it. Confirmed on real faoapi cells (`pred_ln_sb_best`, 32 draws): cells with 2–3 exact zeros + a clear positive body returned `tower_point = 0.0` and `hdi 50% = [0, 1.49]` — silent signal loss on a non-trivial slice (~289 cells with faoapi mode > 0.5, up to 4.38, zeroed). The trigger is *any* duplicate, at any value (the bug report's case L: a lone `3.0` pair in an otherwise-distinct body captured the point at 3.0).
+
+**Resolution.** The tower is now built **outside-in** (widest floor first, each narrower floor the shortest interval *contained in* its wider parent), robust by construction: the wide floors are well-determined and shed lonely outliers, and the containment constraint forbids a narrower floor from re-selecting an outlier window. The tip reads the configurable **`tip_mass`** floor (default 0.5 — the shorth), not the degenerate 5% floor. A `k<=0` floor collapses to a real *sample* (not an averaged median), keeping containment well-defined. The superseded partial fix (`_select_window`, a 50%-density tie-break that handled competing duplicates but not the lone-duplicate / real-data case) was removed. Covered by the A–L truth table, the duplicate-count sweep, the two real faoapi cells, and vectorized==scalar across seeds/shapes (all green; 100% line+branch). See C-32 (shared root — the directional-mode half, still open at #89), C-33 (the nesting half, resolved), ADR-019 (amended), ADR-009 (the config that now holds `tip_mass`).
+
+---
+
 ### C-33: `hdi` computes each mass independently — no nesting (tower) guarantee — RESOLVED
 
 | Field | Value |
 |-------|-------|
 | ID | C-33 |
 | Resolved | 2026-06-23 (ADR-019) |
-| Resolution | Delivered the multi-mass guaranteed tower the entry prescribed: `views_frames_summarize.hdi_tower(frame, masses)` reads each requested mass off a **fixed canonical tower** built inside-out (each floor the shortest interval *containing* the next-narrower one), so the bands **nest by construction** — no post-hoc expand/shift, no MAP coupling. Requested masses are **pinned** to the fixed grid (never inserted), so a mass's interval is independent of the other requested masses (the **reproducibility law**, asserted in the conformance suite). `tower_point` (the tower tip) and `bimodality` accompany it; `summarize_tower` bundles all three in one pass. The frozen single-mass `hdi` is unchanged — additive, MINOR under ADR-018. See C-32 (shared root — the directional-mode half, mitigated by `tower_point` but still open), ADR-019, #89. |
+| Resolution | Delivered the multi-mass guaranteed tower the entry prescribed: `views_frames_summarize.hdi_tower(frame, masses)` reads each requested mass off a **fixed canonical tower** built outside-in (each narrower floor the shortest interval *contained in* its wider parent — the direction was reversed in the C-44 redesign), so the bands **nest by construction** — no post-hoc expand/shift, no MAP coupling. Requested masses are **pinned** to the fixed grid (never inserted), so a mass's interval is independent of the other requested masses (the **reproducibility law**, asserted in the conformance suite). `tower_point` (the tower tip) and `bimodality` accompany it; `summarize_tower` bundles all three in one pass. The frozen single-mass `hdi` is unchanged — additive, MINOR under ADR-018. See C-32 (shared root — the directional-mode half, mitigated by `tower_point` but still open), ADR-019, #89. |
 
 ---
 

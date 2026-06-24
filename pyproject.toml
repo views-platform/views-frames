@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "views-frames"
-version = "1.1.1"
+version = "1.2.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
 authors = [
     { name = "Simon Polichinel von der Maase", email = "simmaa@prio.org" },

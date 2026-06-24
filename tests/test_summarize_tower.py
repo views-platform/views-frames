@@ -1,9 +1,14 @@
 """The constrained-nested HDI tower + tower-tip point + bimodality flag (ADR-019).
 
+Built **outside-in** (widest floor first, each narrower floor contained in its parent);
+the tip is the median of the configurable ``tip_mass`` floor. Robust to minority
+duplicated draws (register C-44).
+
 Categories per ADR-005:
   🟩 Green — the laws hold, vectorized == per-row reference, bundle == trio.
-  🟫 Beige — realistic edges: S=1, tiny S, all-equal, tail pinning, FF axes.
-  🟥 Red — adversarial: the zero boundary, map_estimate independence, NaN locality.
+  🟫 Beige — realistic edges: S=1, tiny S, all-equal, tail pinning, FF/TF axes.
+  🟥 Red — adversarial: the truth table A–L, real faoapi cells, duplicate sweeps,
+            NaN/inf locality, multimodality, the zero boundary, map_estimate parity.
 """
 
 from __future__ import annotations
@@ -24,12 +29,16 @@ from views_frames import (
 from views_frames_summarize import (
     TowerSummary,
     bimodality,
+    config,
     hdi_tower,
     map_estimate,
     summarize_tower,
     tower_point,
 )
-from views_frames_summarize.tower import _CANONICAL_FLOORS
+
+_FLOORS = config.canonical_floors()
+_TIP_MASS = float(config.get("tip_mass"))
+_ZERO_CUTOFF = float(config.get("zero_cutoff"))
 
 
 def _index(n):
@@ -52,70 +61,110 @@ def _ff(values):
     )
 
 
+def _row(draws):
+    return PredictionFrame(np.asarray(draws, dtype=np.float32)[None, :], _index(1))
+
+
+def _tp(draws):
+    return float(tower_point(_row(draws)).values.reshape(-1)[0])
+
+
 # --- per-row scalar references (the golden the vectorized engine must match) --
+# Mirror tower.py exactly: outside-in, leftmost tie-break, a k<=0 floor is the middle
+# *sample* (a real draw), the tip is the *averaged* median of the tip_mass floor.
+
+
+def _ref_seed(s, k):
+    n = s.size
+    if k <= 0:
+        return float(s[n // 2]), float(s[n // 2])
+    if k >= n - 1:
+        return float(s[0]), float(s[-1])
+    w = s[k:] - s[: n - k]
+    i = int(np.argmin(w))
+    return float(s[i]), float(s[i + k])
+
+
+def _ref_span(s, lo, hi):
+    inside = (s >= lo) & (s <= hi)
+    return int(np.argmax(inside)), int(inside.sum())
+
+
+def _ref_mid_sample_in(s, lo, hi):
+    first, cnt = _ref_span(s, lo, hi)
+    return float(s[first + (cnt - 1) // 2])
+
+
+def _ref_median_in(s, lo, hi):
+    first, cnt = _ref_span(s, lo, hi)
+    return float((s[first + (cnt - 1) // 2] + s[first + cnt // 2]) * 0.5)
+
+
+def _ref_contained_in(s, k, plo, phi):
+    n = s.size
+    if k <= 0:
+        v = _ref_mid_sample_in(s, plo, phi)
+        return v, v
+    starts, ends = s[: n - k], s[k:]
+    ok = (starts >= plo) & (ends <= phi)
+    w = np.where(ok, ends - starts, np.inf)
+    i = int(np.argmin(w))
+    return float(starts[i]), float(ends[i])
 
 
 def _ref_tower(row: NDArray[np.float32], floors) -> list[tuple[float, float]]:
     s = np.sort(row)
     n = s.size
-    out: list[tuple[float, float]] = []
-    inner: tuple[float, float] | None = None
-    for m in floors:
-        k = int(np.floor(m * n))
-        if inner is None:
-            if k <= 0:
-                lo = hi = float(s[n // 2])
-            else:
-                w = s[k:] - s[: n - k]
-                i = int(np.argmin(w))
-                lo, hi = float(s[i]), float(s[i + k])
-        elif k <= 0:
-            lo, hi = inner
-        elif k >= n - 1:
-            lo, hi = float(s[0]), float(s[-1])
+    f = len(floors)
+    out: list[tuple[float, float]] = [(0.0, 0.0)] * f
+    plo: float | None = None
+    phi: float | None = None
+    for j in range(f - 1, -1, -1):  # widest → narrowest
+        k = int(np.floor(floors[j] * n))
+        if plo is None or phi is None:
+            lo, hi = _ref_seed(s, k)
         else:
-            a, b = s[: n - k], s[k:]
-            ok = (a <= inner[0]) & (b >= inner[1])
-            w = np.where(ok, b - a, np.inf)
-            i = int(np.argmin(w))
-            lo, hi = float(a[i]), float(b[i])
-        out.append((lo, hi))
-        inner = (lo, hi)
+            lo, hi = _ref_contained_in(s, k, plo, phi)
+        out[j] = (lo, hi)
+        plo, phi = lo, hi
     return out
+
+
+def _ref_hdi(row: NDArray[np.float32], masses) -> list[tuple[float, float]]:
+    """Mirror of ``hdi_tower``: full outside-in tower, then pin each mass; zero-mask."""
+    if float(np.asarray(row).max()) <= _ZERO_CUTOFF:
+        return [(0.0, 0.0)] * len(masses)
+    full = _ref_tower(row, _FLOORS)
+    return [full[int(np.argmin(np.abs(_FLOORS - m)))] for m in masses]
 
 
 def _ref_tip(row: NDArray[np.float32]) -> float:
     s = np.sort(row)
-    n = s.size
-    if float(s.max()) <= 1.0:
+    if float(s.max()) <= _ZERO_CUTOFF:
         return 0.0
-    k0 = int(np.floor(0.05 * n))
-    if k0 <= 0:
-        return float(s[n // 2])
-    w = s[k0:] - s[: n - k0]
-    i = int(np.argmin(w))
-    return float((s[i + k0 // 2] + s[i + (k0 + 1) // 2]) * 0.5)
+    tlo, thi = _ref_hdi(row, (_TIP_MASS,))[0]
+    return _ref_median_in(s, tlo, thi)
 
 
 # =========================== 🟩 GREEN — happy path ===========================
 
 
-def test_green_tower_golden_row():
-    # samples [1,2,3,4,100]: for mass 0.5 (k=2) the shortest 3-window is (1,3);
-    # wider floors must contain it. Hand-checkable nesting.
+def test_green_outside_in_golden_row():
+    # samples [1,2,3,4,100]: the 50% floor (shortest 3 of 5, contained in the wider
+    # floors) excludes the 100 outlier; the band matches the reference and nests.
     pf = _pf([[1.0, 2.0, 3.0, 4.0, 100.0]])
     out = hdi_tower(pf, masses=(0.5, 0.9))
     assert out.shape == (1, 2, 2)
-    assert np.array_equal(out[0, 0], [1.0, 3.0])  # 50% = shortest 3 of 5
-    lo, hi = out[0, 1]
-    assert lo <= 1.0 and hi >= 3.0  # 90% contains the 50%
+    ref = _ref_hdi(np.array([1.0, 2.0, 3.0, 4.0, 100.0], np.float32), (0.5, 0.9))
+    assert np.array_equal(out[0], np.asarray(ref, dtype=np.float32))
+    assert out[0, 0, 1] < 100.0  # the 50% band sheds the outlier
+    assert out[0, 1, 0] <= out[0, 0, 0] and out[0, 1, 1] >= out[0, 0, 1]  # nesting
 
 
 def test_green_tip_recovers_unimodal_peak():
     rng = np.random.default_rng(0)
     samples = rng.normal(10.0, 0.5, 5000).astype(np.float32)
-    pf = PredictionFrame(samples[np.newaxis, :], _index(1))
-    out = tower_point(pf)
+    out = tower_point(_row(samples))
     assert isinstance(out, PredictionFrame)
     assert abs(float(out.values[0, 0]) - 10.0) < 0.3
 
@@ -125,29 +174,24 @@ def test_green_tip_recovers_unimodal_peak():
 def test_green_vectorized_matches_scalar_reference(seed, shape):
     rng = np.random.default_rng(seed)
     values = rng.lognormal(0.5, 0.8, shape).astype(np.float32)
-    values[rng.random(shape) < 0.15] = 0.0
+    values[rng.random(shape) < 0.15] = 0.0  # zero-inflate, like the real domain
     frame = (
         _ff(values) if len(shape) == 3 else PredictionFrame(values, _index(shape[0]))
     )
-    masses = tuple(float(m) for m in _CANONICAL_FLOORS)  # request the whole grid
+    masses = tuple(float(m) for m in _FLOORS)  # request the whole grid
 
-    tower = hdi_tower(frame, masses=masses)
-    tip = tower_point(frame).values[..., 0]
+    tower = hdi_tower(frame, masses=masses).reshape(-1, len(masses), 2)
+    tip = tower_point(frame).values[..., 0].reshape(-1)
     flat = values.reshape(-1, shape[-1])
     for r, row in enumerate(flat):
-        ref = _ref_tower(row, masses)
-        got = tower.reshape(-1, len(masses), 2)[r]
-        if float(row.max()) <= 1.0:
-            assert np.array_equal(got, np.zeros_like(got))
-        else:
-            assert np.array_equal(got, np.asarray(ref, dtype=np.float32))
-        np.testing.assert_allclose(
-            tip.reshape(-1)[r], _ref_tip(row), rtol=1e-5, atol=1e-6
+        assert np.array_equal(
+            tower[r], np.asarray(_ref_hdi(row, masses), dtype=np.float32)
         )
+        np.testing.assert_allclose(tip[r], _ref_tip(row), rtol=1e-5, atol=1e-6)
 
 
 @pytest.mark.parametrize("seed", [0, 2, 5])
-def test_green_laws_nesting_tip_reproducibility(seed):
+def test_green_laws_nesting_and_reproducibility(seed):
     rng = np.random.default_rng(seed)
     pf = PredictionFrame(
         rng.lognormal(0.3, 1.0, (40, 300)).astype(np.float32), _index(40)
@@ -156,15 +200,23 @@ def test_green_laws_nesting_tip_reproducibility(seed):
     # nesting: lowers non-increasing, uppers non-decreasing across the M axis
     assert np.all(np.diff(tower[..., 0], axis=-1) <= 1e-6)
     assert np.all(np.diff(tower[..., 1], axis=-1) >= -1e-6)
-    # tip inside the narrowest requested floor
-    tip = tower_point(pf).values[:, 0]
-    assert np.all(tip >= tower[:, 0, 0] - 1e-6)
-    assert np.all(tip <= tower[:, 0, 1] + 1e-6)
     # reproducibility: the 50% interval is invariant to the other requested masses
-    just_50 = hdi_tower(pf, masses=(0.5,))
-    assert np.array_equal(just_50[:, 0, :], tower[:, 0, :])
+    assert np.array_equal(hdi_tower(pf, masses=(0.5,))[:, 0, :], tower[:, 0, :])
     weird = hdi_tower(pf, masses=(0.5, 0.123, 0.876))
     assert np.array_equal(weird[:, 0, :], tower[:, 0, :])
+
+
+@pytest.mark.parametrize("seed", [0, 2, 5])
+def test_green_law_tip_in_tip_mass_floor(seed):
+    # The restated law (ADR-019): the tip lies inside the configured tip_mass floor.
+    rng = np.random.default_rng(seed)
+    v = rng.lognormal(0.3, 1.0, (40, 300)).astype(np.float32)
+    v[rng.random(v.shape) < 0.2] = 0.0
+    pf = PredictionFrame(v, _index(40))
+    tip = tower_point(pf).values[:, 0]
+    floor = hdi_tower(pf, masses=(_TIP_MASS,))
+    assert np.all(tip >= floor[:, 0, 0] - 1e-6)
+    assert np.all(tip <= floor[:, 0, 1] + 1e-6)
 
 
 def test_green_bundle_equals_trio():
@@ -212,30 +264,28 @@ def test_beige_all_equal_row():
     pf = _pf([[7.0] * 50])
     tower = hdi_tower(pf, masses=(0.5, 0.9))
     assert np.allclose(tower[0], 7.0)
-    assert abs(float(tower_point(pf).values[0, 0]) - 7.0) < 1e-6
+    assert abs(_tp([7.0] * 50) - 7.0) < 1e-6
     assert bimodality(pf)[0, 0] == 0.0
 
 
-def test_beige_tiny_sample_k0_floor_is_median():
-    # S=5: floor(0.05*5)=0 → narrowest floor degenerates to the median; floor(0.10*5)=0
-    # → the next floor inherits it (exercises _shortest_containing's k<=0 branch).
+def test_beige_tiny_sample_tip_is_tip_mass_shorth():
+    # S=5, tip_mass=0.5 → the 50% floor is the shortest 3 of [2,4,6,8,10] = (2,4,6),
+    # whose median is 4.0 (NOT the global median 6.0 — the tip is the shorth, not the
+    # row median). Narrow floors (k<=0) collapse to a real sample and stay nested.
     pf = _pf([[2.0, 4.0, 6.0, 8.0, 10.0]])
-    assert abs(float(tower_point(pf).values[0, 0]) - 6.0) < 1e-6  # median
-    tower = hdi_tower(pf, masses=(0.05, 0.10))
-    assert np.array_equal(tower[0, 0], [6.0, 6.0])
-    assert np.array_equal(tower[0, 1], [6.0, 6.0])
+    assert abs(_tp([2.0, 4.0, 6.0, 8.0, 10.0]) - 4.0) < 1e-6
+    tower = hdi_tower(pf, masses=(0.05, 0.5))
+    assert tower[0, 0, 0] >= tower[0, 1, 0] - 1e-6  # 5% nested in 50%
+    assert tower[0, 0, 1] <= tower[0, 1, 1] + 1e-6
 
 
 def test_beige_single_positive_among_zeros_not_bimodal():
     row = np.zeros(200, dtype=np.float32)
     row[0] = 9.0  # one positive draw, max > 1 so NOT zero-short-circuited
-    pf = PredictionFrame(row[np.newaxis, :], _index(1))
-    assert bimodality(pf)[0, 0] == 0.0  # a lone outlier is not a second mode
+    assert bimodality(_row(row))[0, 0] == 0.0  # a lone outlier is not a second mode
 
 
 def test_beige_high_mass_tail_pins_exactly():
-    # The fine tail carries the common high-mass levels exactly: 0.95 and 0.99 each pin
-    # to themselves (not collapsed to a coarser 5%-grid floor), and 0.99 ⊋ 0.95.
     rng = np.random.default_rng(0)
     pf = PredictionFrame(rng.lognormal(0, 1, (5, 2000)).astype(np.float32), _index(5))
     assert summarize_tower(pf, masses=(0.95,)).masses[0] == np.float32(0.95)
@@ -271,11 +321,191 @@ def test_beige_targetframe_supported():
     assert hdi_tower(tf).shape == (2, 3, 2)
 
 
+def test_beige_duplicate_body_value_is_unimodal():
+    # 100 exact copies of 3.0 + a smooth tail: a *majority* duplicate is the real mode,
+    # not an outlier — the tip is 3.0 and the row reads unimodal.
+    rng = np.random.default_rng(0)
+    row = np.concatenate([np.full(100, 3.0), rng.normal(3.0, 0.3, 28)]).astype(
+        np.float32
+    )
+    assert abs(_tp(row) - 3.0) < 0.3
+    assert bimodality(_row(row))[0, 0] == 0.0
+
+
 # =========================== 🟥 RED — adversarial =============================
+
+# The bug report truth table (register C-44): a minority duplicated value must not
+# hijack the tip or the bands. S=32 rows; "correct mode" is visually unambiguous.
+
+_TRUTH_TABLE = [
+    ("A_two_zeros_thirty_twos", [0.0, 0.0] + [2.0] * 30, 2.0),
+    ("E_three_zeros_29_threes", [0.0, 0.0, 0.0] + [3.0] * 29, 3.0),
+    ("F_thirty_twos_two_fives", [2.0] * 30 + [5.0, 5.0], 2.0),
+    ("H_thirty_twos_two_ones", [2.0] * 30 + [1.0, 1.0], 2.0),
+    ("J_thirty_twos_two_zeros", [2.0] * 30 + [0.0, 0.0], 2.0),
+]
+
+
+@pytest.mark.parametrize(
+    "name,draws,expected", _TRUTH_TABLE, ids=[t[0] for t in _TRUTH_TABLE]
+)
+def test_red_minority_duplicate_does_not_capture_the_tip(name, draws, expected):
+    assert _tp(draws) == expected
+
+
+def test_red_minority_zero_spike_does_not_drag_the_intervals():
+    # Two zeros among thirty 2.0s: the old inside-out build dragged every band to [0,2];
+    # outside-in keeps the body bands on [2,2] (only the >94% band must reach a zero).
+    a = _row([0.0, 0.0] + [2.0] * 30)
+    lo, hi = hdi_tower(a, masses=(0.5,))[0, 0]
+    assert (float(lo), float(hi)) == (2.0, 2.0)
+    assert float(hdi_tower(a, masses=(0.9,))[0, 0, 1]) == 2.0
+
+
+def test_red_lone_duplicate_pair_in_distinct_body_does_not_win():
+    # Case L: thirty DISTINCT body values in [0.1,1.9] + a lone 3.0 pair. The pair is
+    # the unique zero-width interval — a naive tie-break (the old _select_window) chose
+    # it. Outside-in sheds it: the tip is the body (~1.0), never 3.0.
+    draws = list(np.linspace(0.1, 1.9, 30)) + [3.0, 3.0]
+    tp = _tp(draws)
+    assert 0.1 <= tp <= 1.9 and tp != 3.0
+    # The tip and the central 50%/80% bands sit on the body, shedding the outlier. The
+    # wide ≥90% coverage bands legitimately reach the 6%-mass tail at 3.0 (nesting is
+    # preserved) — the old failure was the *tip* and the *tight* band collapsing.
+    band = hdi_tower(_row(draws), masses=(0.5, 0.8))
+    assert float(band[0, 0, 1]) < 3.0 and float(band[0, 1, 1]) < 3.0
+
+
+def test_red_majority_duplicate_is_the_mode():
+    # The guard against over-correction: when the spike is the genuine MAJORITY, it IS
+    # the mode and must be returned.
+    assert _tp([0.0] * 25 + [5.0] * 7) == 0.0  # 25/32 zeros → 0
+    assert _tp([4.0] * 20 + list(np.linspace(0.1, 1.0, 12))) == 4.0  # 20/32 fours → 4
+
+
+@pytest.mark.parametrize("k", [0, 1, 2, 3, 5, 8])
+def test_red_duplicate_count_sweep(k):
+    # k zeros + (32-k) twos, k below the tip-floor majority: the old bug fired at k=2;
+    # outside-in returns the body 2.0 for every minority count.
+    assert _tp([0.0] * k + [2.0] * (32 - k)) == 2.0
+
+
+@pytest.mark.parametrize("val", [0.0, 0.01, 1000.0, 1e6, -5.0])
+def test_red_minority_duplicate_at_value_extremes(val):
+    # Two duplicates of an extreme value among a clear body at 2.0: the body wins.
+    draws = [2.0] * 30 + [val, val]
+    assert _tp(draws) == 2.0
+
+
+def test_red_minority_high_outlier_in_widest_band_only():
+    # A huge minority duplicate is shed from the body bands but the *widest* band (99%,
+    # which must hold ~all samples) still contains it — nesting is honest re: the tail.
+    draws = [2.0] * 30 + [1e6, 1e6]
+    assert _tp(draws) == 2.0
+    assert float(hdi_tower(_row(draws), masses=(0.5,))[0, 0, 1]) == 2.0
+    assert float(hdi_tower(_row(draws), masses=(0.99,))[0, 0, 1]) == 1e6
+
+
+# Real FAO forecast cells (pred_ln_sb_best, 32 draws) that collapsed to 0 under the bug.
+
+_REAL_416 = [
+    0,
+    0,
+    0.15,
+    0.21,
+    0.27,
+    0.31,
+    0.35,
+    0.36,
+    0.54,
+    0.64,
+    0.71,
+    1.15,
+    1.24,
+    1.32,
+    1.38,
+    1.49,
+    1.64,
+    1.65,
+    1.83,
+    1.88,
+    1.94,
+    2.61,
+    2.63,
+    2.65,
+    2.67,
+    2.85,
+    2.92,
+    3.65,
+    4.05,
+    4.51,
+    5.91,
+    0,
+]
+_REAL_425 = [
+    0,
+    0,
+    0.07,
+    0.12,
+    0.28,
+    0.3,
+    0.34,
+    0.37,
+    0.39,
+    0.4,
+    0.41,
+    0.59,
+    0.61,
+    0.76,
+    0.81,
+    1.27,
+    1.53,
+    1.78,
+    2.12,
+    2.22,
+    2.37,
+    2.47,
+    3.35,
+    3.39,
+    3.79,
+    3.97,
+    3.98,
+    4.2,
+    4.36,
+    4.4,
+    4.85,
+    4.9,
+]
+
+
+@pytest.mark.parametrize("draws", [_REAL_416, _REAL_425], ids=["m416", "m425"])
+def test_red_real_faoapi_cells_no_longer_collapse(draws):
+    # These have only 2-3 exact zeros; under the bug tower_point == 0.0 (signal loss).
+    # Now the tip is the robust body shorth: nonzero, finite, == the scalar reference.
+    tp = _tp(draws)
+    assert tp > 0.0
+    assert np.isfinite(tp)
+    np.testing.assert_allclose(tp, _ref_tip(np.asarray(draws, np.float32)), rtol=1e-5)
+
+
+def test_red_multimodal_tip_lands_in_a_cluster_not_a_gap():
+    # Three separated clusters: the tip must be inside one of them, never in a gap, and
+    # the row is flagged bimodal.
+    rng = np.random.default_rng(7)
+    draws = np.concatenate(
+        [
+            rng.normal(1.0, 0.1, 350),
+            rng.normal(10.0, 0.1, 350),
+            rng.normal(20.0, 0.1, 350),
+        ]
+    ).astype(np.float32)
+    tp = _tp(draws)
+    assert min(abs(tp - c) for c in (1.0, 10.0, 20.0)) < 0.5  # in a cluster
+    assert bimodality(_row(draws))[0, 0] == 1.0
 
 
 def test_red_zero_cutoff_boundary():
-    # max exactly == 1.0 collapses; max just above does not. The boundary is a contract.
+    # max exactly == cutoff collapses; just above does not. The boundary is a contract.
     at = _pf([[0.0, 1.0, 1.0, 1.0]])
     above = _pf([[0.0, 1.0, 1.0, 1.0 + 1e-3]])
     assert float(tower_point(at).values[0, 0]) == 0.0
@@ -284,25 +514,24 @@ def test_red_zero_cutoff_boundary():
 
 
 def test_red_tower_point_independent_of_frozen_map_estimate():
-    # Right-skewed, low-sample rows: map_estimate's binned histogram mode and the
-    # unbinned tower tip are computed differently and must be free to disagree (the
-    # C-32 motivation). They may coincide on some rows; independence means they do
-    # NOT coincide everywhere. The frozen map_estimate is exercised, never modified.
+    # The unbinned tower tip and the binned frozen map_estimate are computed differently
+    # and must be free to disagree (the C-32 motivation). map_estimate is untouched.
     rng = np.random.default_rng(11)
-    rows = rng.gamma(2.0, 1.5, (20, 60)).astype(np.float32)
-    pf = PredictionFrame(rows, _index(20))
-    tips = tower_point(pf).values[:, 0]
-    modes = map_estimate(pf).values[:, 0]
-    assert np.any(tips != modes)  # independent estimators — free to disagree
+    pf = PredictionFrame(rng.gamma(2.0, 1.5, (20, 60)).astype(np.float32), _index(20))
+    assert np.any(tower_point(pf).values[:, 0] != map_estimate(pf).values[:, 0])
 
 
 @pytest.mark.parametrize("bad", [1.0, 1.5, 0.0, -0.2, (0.5, 2.0)])
 def test_red_out_of_range_mass_fails_loud(bad):
-    # A mass outside (0,1) must raise, not silently pin to the nearest floor (ADR-008).
     pf = _pf([[1.0, 2.0, 3.0, 4.0]])
     masses = bad if isinstance(bad, tuple) else (bad,)
     with pytest.raises(ValueError, match="open interval"):
         hdi_tower(pf, masses=masses)
+
+
+def test_red_empty_masses_fails_loud():
+    with pytest.raises(ValueError, match="open interval"):
+        hdi_tower(_pf([[1.0, 2.0, 3.0, 4.0]]), masses=())
 
 
 def test_red_nan_row_stays_local_and_does_not_crash():
@@ -314,10 +543,20 @@ def test_red_nan_row_stays_local_and_does_not_crash():
     pf = PredictionFrame(np.stack([good, bad]), _index(2))
     tower = hdi_tower(pf, masses=(0.5,))
     tip = tower_point(pf).values[:, 0]
-    # the clean row is unaffected by its neighbour's NaN
-    clean_ref = _ref_tower(good, (0.5,))[0]
+    clean_ref = _ref_hdi(good, (0.5,))[0]
     assert np.array_equal(tower[0, 0], np.asarray(clean_ref, dtype=np.float32))
     assert np.isfinite(tip[0])
+
+
+def test_red_inf_row_stays_local_and_does_not_crash():
+    good = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=np.float32)
+    bad = good.copy()
+    bad[-1] = np.inf
+    pf = PredictionFrame(np.stack([good, bad]), _index(2))
+    tower = hdi_tower(pf, masses=(0.5,))
+    clean_ref = _ref_hdi(good, (0.5,))[0]
+    assert np.array_equal(tower[0, 0], np.asarray(clean_ref, dtype=np.float32))
+    assert np.isfinite(tower_point(pf).values[0, 0])
 
 
 # --- scale guard: memory must not scale with rows ----------------------------
@@ -332,12 +571,9 @@ def test_red_nan_row_stays_local_and_does_not_crash():
     ],
 )
 def test_tower_memory_is_bounded_at_grid_scale(fn, name):
-    # Threshold = input size, a "does not scale with n" proxy. At n=1M the blocked
-    # peak is ~61 MB vs the 128 MB input — the tightest memory guard (~2.1x headroom;
-    # the test_summarize_scale.py guards run 4-7x). A real blocking regression
-    # allocates the whole grid (hundreds of MB+), far above the threshold, so this
-    # still catches it. tracemalloc is environment-sensitive: monitored as register
-    # C-38 (trigger = a `numpy<3` bump or a CI-runner-class change), not a fix.
+    # Threshold = input size, a "does not scale with n" proxy. A blocking regression
+    # allocates the whole grid (hundreds of MB+), far above the threshold. tracemalloc
+    # environment-sensitive: monitored as register C-38, not a fix.
     n, s = 1_000_000, 32
     rng = np.random.default_rng(0)
     pf = PredictionFrame(rng.random((n, s), dtype=np.float32), _index(n))
