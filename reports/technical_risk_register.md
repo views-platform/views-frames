@@ -5,10 +5,10 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-24                           |
-| Total Concerns    | 48                                   |
-| Open Concerns     | 5                                    |
+| Total Concerns    | 51                                   |
+| Open Concerns     | 8                                    |
 | Resolved Concerns | 43                                   |
-| Disagreements     | 8                                    |
+| Disagreements     | 9                                    |
 
 ---
 
@@ -123,6 +123,51 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 
 ---
 
+### C-52: construction-convenience accretion on the leaf — the "camel's nose" for adapters (ADR-001)
+
+| Field | Value |
+|-------|-------|
+| ID | C-52 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
+| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
+| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py`. |
+| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, C-53, C-54, GH #113. |
+
+ADR-001 (line 17) names accretion as the leaf's existential failure mode — "someone adds an adapter, then grid knowledge … becomes pipeline-core-lite." A construction convenience is the most innocuous possible first step onto that slope. **Tier 3** (recalibrated down from an initial Tier 2 with the pipeline-core owner): under the ratified mitigations the residual risk is boundary-erosion a code-review gate catches, not inherent structural fragility. **Mitigations:** ship the **classmethod** form (a class resists becoming a dumping ground far better than an open `factory.py`); keep it **zero-own-logic**; add a CIC "Construction" **non-goal** that explicitly fences out grid / `value_fn` / inference / adapters. Resolved when `from_arrays` lands with those guards, or closed if #113 is declined.
+
+---
+
+### C-53: two frozen `PredictionFrame` construction paths can diverge
+
+| Field | Value |
+|-------|-------|
+| ID | C-53 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-24, GH #113; Kleppmann lens) |
+| Trigger | When a future **additive identifier** (an optional third id beyond `{time, unit}`, ADR-013) is threaded through `PredictionFrame.__init__` / `SpatioTemporalIndex` but **not** through `PredictionFrame.from_arrays` (or vice-versa) — the two **frozen** (ADR-018) construction signatures then drift, and a consumer on one path silently cannot express what the other can. |
+| Location | (planned) `src/views_frames/prediction_frame.py` (`__init__` + `from_arrays`). |
+| Cross-refs | ADR-013 (optional-additive identifiers), ADR-018 (freeze — both paths are forever), D-09, C-52, GH #113. |
+
+Adding `from_arrays` publishes a **second** construction path that ADR-018 then freezes alongside `__init__`; both must evolve together forever. **Tier 3** — maintainability/coupling, not silent corruption. **Mitigation:** `from_arrays` must carry **zero own logic** — pure delegation to `SpatioTemporalIndex(time, unit, level)` + `__init__(values, index, metadata)` — so a new index identifier flows through `from_arrays` automatically with no signature edit. Resolved when `from_arrays` lands as a zero-logic delegator, or closed if #113 is declined.
+
+---
+
+### C-54: #113 DoD overstates scope — "retires the baseline duplicate" would pull a consumer edge into the leaf
+
+| Field | Value |
+|-------|-------|
+| ID | C-54 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-24, GH #113; cross-repo / views-baseline) |
+| Trigger | When a maintainer reads #113's Definition-of-Done literally ("retires baseline's local `build_prediction_frame`") and moves views-baseline's `value_fn` + entity×time grid loop into the leaf to "finish the job" — importing a domain grid-builder (an ADR-001 non-entity / consumer edge) into the data-contract leaf. |
+| Location | views-baseline `views_baseline/model/helpers.py:110` ↔ the leaf. |
+| Cross-refs | ADR-001 (adapters / grid-builders are consumer edges, not leaf entities), C-52, GH #113, views-baseline #21. |
+
+The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over entity×time to emit `dict[str, PredictionFrame]`), not a thin constructor; the planned `from_arrays` retires only its **innermost** `SpatioTemporalIndex + PredictionFrame` construction line, leaving the grid loop in the engine where it belongs. **Tier 3** — boundary/scope erosion, multi-repo. **Mitigation:** re-scope #113's DoD to "retire the index-construction *line* inside the baseline helper," and keep the helper in views-baseline. Resolved when #113's DoD is corrected.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -210,6 +255,17 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 | Source | expert-code-review (2026-06-24, exceedance-probability design) |
 | Perspectives | Beck / onset ("strict `>` only — `P(Y>0)` = 'any violence' requires it, and it matches the survival-function convention `1 − F(c) = P(X>c)` from the Book of Statistical Proofs / catastrophe-modeling EP curve"); Martin / Kleppmann ("integer-count consumers expecting `P(Y ≥ 25)` will pass `25` and silently receive `P(Y > 25)` — an off-by-one for counts; offer an `inclusive` flag or document the `≥k ⇒ pass k−1` workaround"). |
 | Resolution | **Settled by ADR-021** — strict `>` (the survival-function standard; makes onset well-defined), with the integer-count `≥k ⇒ pass k−1` note; an `inclusive`/`≥` flag deferred as a reversible MINOR. See C-50 (same reducer). |
+
+---
+
+### D-09: construction-factory shape — free function vs classmethod
+
+| Field | Value |
+|-------|-------|
+| ID | D-09 |
+| Source | expert-code-review (2026-06-24, GH #113) + pipeline-core owner exchange |
+| Perspectives | **#113-as-filed / pipeline-core:** add a `build_prediction_frame(...)` **free function** to the leaf. **views-frames owner + all eight expert lenses:** a `@classmethod PredictionFrame.from_arrays(y_pred, *, time, unit, level, metadata=None)` — it matches the leaf's only construction-helper convention (`from_2d` / `load`), single-homes construction (SRP/CCP), is the smaller frozen surface (Ousterhout), resists accretion (Nygard), and is the canonical Python Factory Method (GoF); a free-function alias is **strictly dominated** because every consumer already imports `PredictionFrame`. |
+| Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it is not a blocker. See C-52, C-53, C-54, ADR-011, ADR-018, GH #113. |
 
 ---
 
