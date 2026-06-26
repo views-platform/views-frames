@@ -57,6 +57,9 @@ def _oracle_leaf() -> bool:
     """Re-run reconcile_proportional against the frozen leaf-parity oracle."""
     data = np.load(_FIX / "reconciliation_parity.npz")
     n = int(data["n_cases"])
+    if n == 0:
+        print("  leaf parity fixture is EMPTY — regenerate it; nothing verified.")
+        return False
     worst_abs = worst_rel = cons = 0.0
     all_ok = zero_ok = True
     for i in range(n):
@@ -83,6 +86,9 @@ def _oracle_e2e() -> bool:
     """Re-run ReconciliationModule.reconcile against the frozen end-to-end oracle."""
     data = np.load(_FIX / "reconciliation_e2e_parity.npz")
     targets = [str(t) for t in data["targets"]]
+    if not targets:
+        print("  e2e parity fixture has NO targets — regenerate it; nothing verified.")
+        return False
     module = ReconciliationModule(
         np.stack([data["pg_time"], data["pg_unit"]], axis=1), data["pg_country"]
     )
@@ -146,6 +152,13 @@ def run_compare(old_path: str, new_path: str, keys: list[str]) -> int:
         and f"{c[:-4]}_new" in merged.columns
         and np.issubdtype(merged[c].dtype, np.number)
     )
+    # An empty overlap is a verification *failure*, not a pass: the two outputs share no
+    # comparable rows/columns, so nothing was checked. Reporting PASS here would defeat the
+    # tool's purpose (catching drift the consumer would otherwise serve silently).
+    if len(merged) == 0 or not cols:
+        why = "no rows matched on the keys" if len(merged) == 0 else "no shared numeric columns"
+        print(f"\n  VERDICT: FAIL — nothing to compare ({why}); check --keys and the inputs.")
+        return 1
     all_ok = True
     for col in cols:
         a, r, ok = _stats(merged[f"{col}_new"].to_numpy(), merged[f"{col}_old"].to_numpy())

@@ -100,8 +100,12 @@ import change plus its tests.
 Only after Phase 3 is merged + green + observed: delete the stranded copy.
 
 - views-postprocessing: remove `views_postprocessing/reconciliation/`, drop its CIC entry,
-  and confirm **no live imports remain** (`grep -r "views_postprocessing.reconciliation"` is
-  empty across the platform). _Epic 11: ✅ views-postprocessing #62, PR #63 (commit `6af2020`)._
+  and confirm **no live `import` of the old module remains** — grep for `import.*<old_module>`
+  (or run the consumers' suites). Note that *transitional* `pytest.importorskip("<old_module>")`
+  calls and docstring/ADR/test-name mentions are **not** live imports and may linger; sweep that
+  prose in a follow-up, but it does not block the delete. _Epic 11: ✅ views-postprocessing #62,
+  PR #63 (commit `6af2020`); residual stale prose references remain in views-models, tracked as a
+  doc-hygiene follow-up._
 
 ## Phase 5 — (Optional) collapse the cycle-dodging injection
 
@@ -129,7 +133,7 @@ port can collapse to a direct import — but it is its **own** deploy, sequenced
 | New == old bit-identity | `pytest tests/test_reconcile_head_to_head.py` | all `np.array_equal` |
 | Production slice | `verify_reconcile_parity.py --compare` | within `rtol=1e-5/atol=1e-6` |
 | Consumer repoint | the consumer's reconciliation tests | green in the consumer's CI |
-| No stranded imports | `grep -r "<old_module>"` | empty after Phase 4 |
+| No stranded imports | `grep -rn "import.*<old_module>"` | no live `import` after Phase 4 (transitional `importorskip`/prose may linger) |
 | Re-baseline audit | methodology-version field | bumped + visible in served output |
 
 ## Provenance
