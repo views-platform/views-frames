@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-26                           |
+| Last Updated      | 2026-06-27                           |
 | Total Concerns    | 58                                   |
-| Open Concerns     | 13                                   |
-| Resolved Concerns | 45                                   |
+| Open Concerns     | 10                                   |
+| Resolved Concerns | 48                                   |
 | Disagreements     | 11                                   |
 
 ---
@@ -209,7 +209,7 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 | Location | `notebooks/02_summaries.ipynb` (planned — §4 HDI tower / §5 quantiles). |
 | Cross-refs | C-60, C-61 (the notebook-completeness cluster); the views-evaluation boundary (scoring lives there — but coverage-on-synthetic-truth is a property demo, not scoring). |
 
-A notebook whose purpose is to build trust in these summaries that shows a "90% HDI" but never that it covers ~90% asserts the very claim it should prove. On synthetic draws the latent truth is known, so empirical coverage of each band + a PIT histogram are free to compute and are the highest-value addition (Gneiting2014; Kuleshov2018). **Highest-priority of the three notebook gaps.** **Mitigation:** roadmap item 1 (a coverage/PIT section) folded into the `02` plan. **Open** until that section is built.
+A notebook whose purpose is to build trust in these summaries that shows a "90% HDI" but never that it covers ~90% asserts the very claim it should prove. On synthetic draws the latent truth is known, so empirical coverage of each band + a PIT histogram are free to compute and are the highest-value addition (Gneiting2014; Kuleshov2018). **Highest-priority of the three notebook gaps.** **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `02_summaries.ipynb` ships a calibration/coverage panel — empirical coverage of the 50/90/95/99 HDIs against the known synthetic truth, a PIT histogram (calibrated vs over-confident), and a recovery-vs-`S` view (Gneiting2014/Kuleshov2018), all on the ground-truth-carrying `notebooks/_synthetic.py`. No scoring API was added (scoring stays in views-evaluation).
 
 ---
 
@@ -225,7 +225,7 @@ A notebook whose purpose is to build trust in these summaries that shows a "90% 
 | Cross-refs | C-59, C-61; views-postprocessing C-37 (probabilistic-reconciliation upgrade); C-58 (the analogous "don't over-read bit-identity" caution at the cutover). |
 | | Lit: Wickramasuriya2019 (MinT), Hyndman2011, Panagiotelis2023 (probabilistic reconciliation). |
 
-Bit-identity proves the *port* is faithful; it says nothing about whether proportional reconciliation is *good*. A reader infers methodological endorsement of a method the forecasting literature considers superseded. **Mitigation:** roadmap item 5 (literature context + bit-identity-≠-method-quality + a "does it help" panel) folded into the `03` plan. **Open** until built.
+Bit-identity proves the *port* is faithful; it says nothing about whether proportional reconciliation is *good*. A reader infers methodological endorsement of a method the forecasting literature considers superseded. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `03_reconciliation.ipynb` panel §A situates proportional top-down against MinT (Wickramasuriya2019) / probabilistic reconciliation (Panagiotelis2023), states explicitly that **bit-identity proves faithful relocation, not method quality**, and frames the principled upgrade as deferred (views-postprocessing C-37); panel §B adds a does-it-help check against the known truth (it improves the country total but *worsens* per-cell — coherence, not accuracy).
 
 ---
 
@@ -240,7 +240,7 @@ Bit-identity proves the *port* is faithful; it says nothing about whether propor
 | Location | `notebooks/02_summaries.ipynb` / `notebooks/03_reconciliation.ipynb` (planned). |
 | Cross-refs | C-59, C-60. Constraint: views-frames is geography-blind (ADR-014) — the map view must use a **toy synthetic lattice**, embedding no domain geography. |
 
-A spatial-forecasting showcase with no spatial display under-serves the audience. Achievable on a synthetic square lattice with zero domain knowledge. **Mitigation:** roadmap item 3 (a toy-lattice map view) folded into the `02`/`03` plans. **Open** until built.
+A spatial-forecasting showcase with no spatial display under-serves the audience. Achievable on a synthetic square lattice with zero domain knowledge. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): both `02_summaries.ipynb` and `03_reconciliation.ipynb` render toy-lattice map views on a synthetic square lattice (no domain geography — ADR-014): 02 maps the point estimate, the 90% HDI width, and decision-relevant exceedance; 03 maps raw-vs-reconciled point estimates and the change map.
 
 ---
 
