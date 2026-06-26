@@ -69,4 +69,4 @@ def reconcile_proportional(
     scaling = country_arr.reshape(-1, 1) / (sum_nonzero + _EPS)  # (S, 1)
     adjusted = np.clip(nonzero * scaling, 0.0, None).astype(np.float32)
 
-    return adjusted[0] if is_point else adjusted
+    return np.asarray(adjusted[0] if is_point else adjusted, dtype=np.float32)

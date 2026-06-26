@@ -17,7 +17,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from views_frames import PredictionFrame, SpatialLevel
-
 from views_frames_reconcile.proportional import reconcile_proportional
 
 
@@ -54,7 +53,9 @@ def reconcile_pgm_to_cm(
     pg_time = pgm_frame.index.time
 
     # 2. (time, country) -> row position in the country frame.
-    cm_time, cm_unit, cm_vals = cm_frame.index.time, cm_frame.index.unit, cm_frame.values
+    cm_time = cm_frame.index.time
+    cm_unit = cm_frame.index.unit
+    cm_vals = cm_frame.values
     cm_pos = {(int(cm_time[j]), int(cm_unit[j])): j for j in range(cm_frame.n_rows)}
 
     # 3. Group grid rows by (time, country) and reconcile each group with the leaf.
@@ -70,13 +71,15 @@ def reconcile_pgm_to_cm(
     )
     inverse = np.asarray(inverse).reshape(-1)
     order = np.argsort(inverse, kind="stable")  # rows grouped contiguously by group
-    bounds = np.concatenate(([0], np.cumsum(counts)))  # group gi -> order[bounds[gi]:bounds[gi+1]]
+    # group gi -> order[bounds[gi]:bounds[gi + 1]]
+    bounds = np.concatenate(([0], np.cumsum(counts)))
 
     for gi in range(unique_groups.shape[0]):
         t, c = int(unique_groups[gi, 0]), int(unique_groups[gi, 1])
         if (t, c) not in cm_pos:
             raise ValueError(
-                f"grid group (time={t}, country={c}) has no country forecast in cm_frame"
+                f"grid group (time={t}, country={c}) has no country forecast "
+                "in cm_frame"
             )
         rows = order[bounds[gi]:bounds[gi + 1]]
         country_total = cm_vals[cm_pos[(t, c)]]  # (S,)

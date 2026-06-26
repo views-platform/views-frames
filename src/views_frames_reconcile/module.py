@@ -20,7 +20,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from views_frames import PredictionFrame
-
 from views_frames_reconcile.grouping import reconcile_pgm_to_cm
 from views_frames_reconcile.validation import validate_reconciliation_inputs
 

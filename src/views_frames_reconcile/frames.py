@@ -17,7 +17,12 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from views_frames import FrameMetadata, PredictionFrame, SpatialLevel, SpatioTemporalIndex
+from views_frames import (
+    FrameMetadata,
+    PredictionFrame,
+    SpatialLevel,
+    SpatioTemporalIndex,
+)
 
 
 def prediction_frame_from_arrays(

@@ -87,6 +87,11 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
 # The falsification stubs assert against the README via long, literal regexes
 # whose lines cannot wrap without changing their semantics.
 "tests/test_falsification_*.py" = ["E501"]
+# The reconciliation parity tests + their oracle-regeneration scripts are
+# faithfully relocated from views-postprocessing (Epic 11 / ADR-023); their dense
+# numpy/dict-comprehension assertions are kept verbatim rather than re-wrapped.
+"tests/test_reconciliation_*.py" = ["E501"]
+"scripts/gen_reconciliation_*.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
