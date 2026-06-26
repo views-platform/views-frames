@@ -19,6 +19,8 @@ No torch, no pandas — numpy only.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -26,8 +28,8 @@ _EPS = np.float32(1e-8)
 
 
 def reconcile_proportional(
-    grid: NDArray[np.floating] | object,
-    country: NDArray[np.floating] | float | object,
+    grid: NDArray[np.floating[Any]] | object,
+    country: NDArray[np.floating[Any]] | float | object,
 ) -> NDArray[np.float32]:
     """Rescale grid forecasts so each draw sums to its country total.
 

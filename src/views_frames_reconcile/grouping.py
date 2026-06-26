@@ -13,6 +13,8 @@ number), not over rows; each group call is fully vectorised over cells × sample
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -23,8 +25,8 @@ from views_frames_reconcile.proportional import reconcile_proportional
 def reconcile_pgm_to_cm(
     pgm_frame: PredictionFrame,
     cm_frame: PredictionFrame,
-    map_keys: NDArray[np.integer] | object,
-    map_vals: NDArray[np.integer] | object,
+    map_keys: NDArray[np.integer[Any]] | object,
+    map_vals: NDArray[np.integer[Any]] | object,
 ) -> PredictionFrame:
     """Return a new pgm `PredictionFrame` reconciled to ``cm_frame``'s totals.
 

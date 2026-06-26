@@ -14,6 +14,8 @@ views-frames only; no torch, no pandas.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -26,9 +28,9 @@ from views_frames import (
 
 
 def prediction_frame_from_arrays(
-    time: NDArray[np.integer] | object,
-    unit: NDArray[np.integer] | object,
-    values: NDArray[np.floating] | object,
+    time: NDArray[np.integer[Any]] | object,
+    unit: NDArray[np.integer[Any]] | object,
+    values: NDArray[np.floating[Any]] | object,
     *,
     level: SpatialLevel,
     metadata: FrameMetadata | None = None,

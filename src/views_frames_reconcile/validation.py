@@ -17,6 +17,8 @@ orchestrator, since frames here are single-target.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -26,8 +28,8 @@ from views_frames import PredictionFrame, SpatialLevel
 def validate_reconciliation_inputs(
     cm_frame: PredictionFrame,
     pgm_frame: PredictionFrame,
-    map_keys: NDArray[np.integer] | object,
-    map_vals: NDArray[np.integer] | object,
+    map_keys: NDArray[np.integer[Any]] | object,
+    map_vals: NDArray[np.integer[Any]] | object,
 ) -> None:
     """Raise ``ValueError`` if the reconciliation inputs are inconsistent.
 

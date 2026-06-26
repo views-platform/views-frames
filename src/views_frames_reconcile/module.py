@@ -16,6 +16,8 @@ reconciled by calling `reconcile` once per target.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -29,8 +31,8 @@ class ReconciliationModule:
 
     def __init__(
         self,
-        map_keys: NDArray[np.integer] | object,
-        map_vals: NDArray[np.integer] | object,
+        map_keys: NDArray[np.integer[Any]] | object,
+        map_vals: NDArray[np.integer[Any]] | object,
     ) -> None:
         """Inject the `(time, priogrid_gid) -> country_id` mapping.
 

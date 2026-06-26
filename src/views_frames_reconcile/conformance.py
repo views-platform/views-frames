@@ -11,6 +11,8 @@ Mirrors ``views_frames_summarize/conformance.py:assert_summarizer_contract``.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -21,8 +23,8 @@ from views_frames_reconcile.module import ReconciliationModule
 def assert_reconcile_contract(
     cm_frame: PredictionFrame,
     pgm_frame: PredictionFrame,
-    map_keys: NDArray[np.integer] | object,
-    map_vals: NDArray[np.integer] | object,
+    map_keys: NDArray[np.integer[Any]] | object,
+    map_vals: NDArray[np.integer[Any]] | object,
 ) -> None:
     """Assert the reconciler obeys its contract on ``(cm_frame, pgm_frame, mapping)``.
 
