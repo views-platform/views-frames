@@ -5,18 +5,19 @@ Runnable, synthetic-data showcases of the three packages in this repo — what t
 **reconciliation** works. They double as living, public-API-only demos for consumer-repo
 authors migrating from pandas DataFrames onto frames.
 
-> **🚧 Status: roadmaps only — not built yet.** Each notebook currently holds a *plan*
-> (markdown cells: section outline, reusable assets, open questions). We align on those
-> roadmaps **before** the first content pass; code cells get filled in afterwards. Edit the
-> markdown freely — those cells are the working design document for each notebook.
+> **Status: all three built.** `01_frames`, `02_summaries` and `03_reconciliation` are
+> built and runnable — public frozen API only, synthetic data, *Run All* < 1 min each.
+> Built via the notebook epics [#148](../../../issues/148) / [#156](../../../issues/156) /
+> [#166](../../../issues/166). The optional non-blocking `nbmake` CI check is the one
+> remaining item ([#151](../../../issues/151)).
 
 ## The three notebooks
 
 | Notebook | Package | Shows |
 |---|---|---|
-| [`01_frames.ipynb`](01_frames.ipynb) | `views_frames` | The frames as a typed storage contract — `SpatioTemporalIndex`, the three sibling frames, immutability/zero-copy, cross-level alignment, `save`/`load` (npz + arrow), fail-loud construction. |
-| [`02_summaries.ipynb`](02_summaries.ipynb) | `views_frames_summarize` | Posterior summaries over the sample axis — MAP, the HDI tower, quantiles, exceedance, expected-shortfall, the bimodality flag — swept over a **zoo of distribution shapes**, with **calibration/coverage checks**, ET-vs-HDI, **failure modes**, a **toy-lattice map view**, and a decision-relevance framing (panel additions, register C-59/C-61). |
-| [`03_reconciliation.ipynb`](03_reconciliation.ipynb) | `views_frames_reconcile` | Reconciling grid forecasts to country totals — `reconcile_proportional` + `ReconciliationModule`, with conservation / zero-preservation / joint-sampling, plots/animation, the **reconciliation-literature context** (proportional vs MinT/probabilistic; bit-identity ≠ method-quality) and a **does-it-help** check (panel additions, register C-60). |
+| [`01_frames.ipynb`](01_frames.ipynb) ✅ | `views_frames` | The frames as a typed storage contract — `SpatioTemporalIndex`, the three sibling frames, immutability/zero-copy, cross-level alignment, `save`/`load` (npz + arrow), fail-loud construction. |
+| [`02_summaries.ipynb`](02_summaries.ipynb) ✅ | `views_frames_summarize` | Posterior summaries over the sample axis — MAP, the HDI tower, quantiles, exceedance, expected-shortfall, the bimodality flag — swept over a **zoo of distribution shapes**, with **calibration/coverage checks**, ET-vs-HDI, **failure modes**, a **toy-lattice map view**, and a decision-relevance framing (panel additions, register C-59/C-61). |
+| [`03_reconciliation.ipynb`](03_reconciliation.ipynb) ✅ | `views_frames_reconcile` | Reconciling grid forecasts to country totals — `reconcile_proportional` + `ReconciliationModule`, with conservation / zero-preservation / joint-sampling, plots/animation, the **reconciliation-literature context** (proportional vs MinT/probabilistic; bit-identity ≠ method-quality) and a **does-it-help** check (panel additions, register C-60). |
 
 ## Conventions
 
@@ -30,24 +31,29 @@ authors migrating from pandas DataFrames onto frames.
 - **Light & reproducible** — small sample sizes that render fast; *Run All* should finish in well
   under a minute.
 
-## Running them (planned)
+## Running them
 
-The notebooks need plotting/jupyter deps the package itself does not. These will live in an
-**optional extra**, never the runtime dependencies:
+The notebooks need plotting/jupyter deps the package itself does not. These live in the
+**optional `[docs]` extra**, never the runtime dependencies (the core stays numpy-only):
 
 ```bash
-# (to be added in the build pass — not yet in pyproject)
 uv sync --extra docs          # matplotlib, scipy, jupyterlab, + the [arrow] extra for parquet
 uv run jupyter lab notebooks/
 ```
 
-## Setup still to decide (in the roadmap discussion, before the first content pass)
+The `[docs]` extra self-references `[arrow]`, so a single `--extra docs` also enables the
+parquet round-trip demo in `01_frames.ipynb`. The `notebooks/` tree is excluded from the
+lint/coverage gate (`[tool.ruff] extend-exclude`), so it never touches the frozen core or the
+import-DAG.
 
-- [ ] Add the optional `[docs]` dependency group to `pyproject.toml` (matplotlib, scipy, jupyter, …).
-- [ ] Exclude `notebooks/` from the lint/coverage gate (as `research/` is) — they are not gated src.
-- [ ] Decide whether to add a light **`nbmake`/papermill CI job** that just checks the notebooks
-      still *run* end-to-end (catches API drift) — or leave them un-gated like `research/`.
-- [ ] Confirm the per-notebook roadmaps (the open-questions cell in each).
+## Setup decisions (resolved during the build)
+
+- [x] Add the optional `[docs]` dependency group to `pyproject.toml` (matplotlib, scipy, jupyter, …). — #149
+- [x] Exclude `notebooks/` from the lint/coverage gate (as `research/` is) — they are not gated src. — #149
+- [x] **`nbmake` CI check** — adopted and **wired** as a **non-blocking** job
+      (`.github/workflows/notebooks.yml`: `pytest --nbmake notebooks/`, `continue-on-error: true`) so it
+      catches frozen-API drift without ever blocking the core gate. `nbmake` rides in the `[docs]` extra. — #151
+- [x] Confirm the per-notebook roadmaps — all three built and runnable.
 
 ## Source material
 
