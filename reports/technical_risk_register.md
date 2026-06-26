@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-25                           |
-| Total Concerns    | 54                                   |
-| Open Concerns     | 9                                    |
+| Last Updated      | 2026-06-26                           |
+| Total Concerns    | 55                                   |
+| Open Concerns     | 10                                   |
 | Resolved Concerns | 45                                   |
 | Disagreements     | 10                                   |
 
@@ -180,6 +180,21 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 | Cross-refs | ADR-018 (frozen v1 surface — behavior is locked), C-50/C-56 (the new estimators now fail loud cleanly on non-finite via `np.isfinite`; `map_estimate` is the frozen sibling that does **not**), ADR-008 (fail-loud posture). |
 
 The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` propagates `inf` (visible), the new `exceedance`/`expected_shortfall` now **fail loud** on it (C-50/C-56), but `map_estimate` **crashes with an obscure `IndexError`** rather than a clean, actionable error. This is **not** silent corruption (it is loud, and `inf` draws are out-of-contract upstream bugs), so it is **not** a publish blocker for v1.6.0 — and `map_estimate`'s behavior is **locked by the ADR-018 freeze**, so it cannot change without an additive hardening pass. **Tier 3** — ungraceful failure on a leaf-permitted input; a future cross-estimator non-finite hardening (a reserved additive MINOR) should give `map_estimate` the same clean `np.isfinite` guard. **Open** — watch-item, no fix shipped in v1.6.0.
+
+---
+
+### C-58: a reconciler cutover verified against the oracle but not a live production slice
+
+| Field | Value |
+|-------|-------|
+| ID | C-58 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-26, #138 cutover review) + the Epic 11 cutover closeout |
+| Trigger | When a future reconciliation cutover repoints a consumer to a new reconciler relying only on the in-repo evidence — the frozen torch-oracle fixtures + the synthetic new-vs-old head-to-head — and **skips a comparison against an actual served production slice** at the repoint. If the in-repo oracle and the live served path have drifted (e.g. an upstream input or mapping change not reflected in the fixtures), the re-baseline of served numbers goes unverified. |
+| Location | The cutover gates (runbook `docs/guides/reconciliation_migration_and_cutover_runbook.md`, Phase 2); mitigation tool `scripts/verify_reconcile_parity.py` (`--compare`). |
+| Cross-refs | ADR-023, Epic 11 `#138`, the cutover postmortem (`reports/postmortems/2026-06_reconciliation_cutover_epic11.md`), views-models #191, views-postprocessing #62. |
+
+The Epic 11 cutover was validated by a sound transitive chain — `new == old vpp copy` (136-case bit-identity) and `old vpp == views-reporting torch oracle` (frozen `.npz`), so `new == torch oracle` — but **no comparison was run against an actual served production parquet** (old path vs new path) at the repoint. The residual risk is low (the oracle *is* the torch path's captured output), so this is **not** silent corruption — it is a missing belt on a sound buckle. **Mitigation shipped:** `verify_reconcile_parity.py --compare OLD.parquet NEW.parquet` makes the production-slice check a one-command gate, and the cutover runbook (Phase 2) now requires it for future cutovers. **Tier 3** — a verification-completeness gap, not a known defect. **Open** — watch-item for the next reconciler change. (The expert review's companion "batched-deploy blast radius" concern did **not** materialize: the Epic 11 cutover landed as phased PRs — repoint #202, then delete #63 — so no separate entry is warranted.)
 
 ---
 
