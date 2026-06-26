@@ -45,10 +45,10 @@ __all__ = [
     "distribution_zoo",
     "zoo_frames",
     "cm_pgm_scenario",
+    "frame_from_samples",
 ]
 
 _REF_SIZE = 40_000  # oracle-sample size behind each Truth (tight MC error on the truth)
-_MODE_BINS = 200
 _BASE_MONTH = 500
 _BASE_PRIOGRID = 1000
 _BASE_COUNTRY = 70
@@ -91,14 +91,27 @@ def _sample(
     return np.asarray(x, dtype=np.float64)
 
 
-def _hist_mode(ref: NDArray[np.float64]) -> float:
-    """The most likely value: centre of the densest bin (0 if the zero spike wins)."""
-    hi = float(ref.max())
-    if hi <= 1e-9:
-        return 0.0
-    counts, edges = np.histogram(ref, bins=_MODE_BINS, range=(0.0, hi))
-    j = int(np.argmax(counts))
-    return float((edges[j] + edges[j + 1]) * 0.5)
+def _analytic_mode(family: str, params: dict[str, float]) -> float:
+    """The **true** mode of the DGP, in closed form.
+
+    The notebooks rely on this being the genuine density peak. A histogram mode over the
+    reference sample is a binning artifact for heavy tails (it can land ~10x off) and
+    never returns exactly 0 for a zero-inflated atom — both would mislabel the "known
+    truth" the teaching tables compare estimators against.
+    """
+    if family == "gamma":
+        k, theta = params["shape"], params["scale"]
+        return (k - 1.0) * theta if k >= 1.0 else 0.0  # gamma mode (k-1)θ, else at 0
+    if family == "lognormal":
+        return float(np.exp(params["mu"] - params["sigma"] ** 2))  # lognormal mode
+    if family == "zi_gamma":
+        return 0.0  # the zero atom is the mode of a zero-inflated distribution
+    if family == "bimodal":
+        # the taller component peak (density ∝ weight / sigma) is the mode
+        d1 = params["w"] / params["s1"]
+        d2 = (1.0 - params["w"]) / params["s2"]
+        return params["mu1"] if d1 >= d2 else params["mu2"]
+    raise ValueError(f"unknown family: {family}")  # pragma: no cover
 
 
 @dataclass(frozen=True)
@@ -130,7 +143,8 @@ def _make_truth(
     name: str, family: str, params: dict[str, float], rng: np.random.Generator
 ) -> Truth:
     ref = np.sort(_sample(family, params, _REF_SIZE, rng))
-    return Truth(name, family, dict(params), ref, float(ref.mean()), _hist_mode(ref))
+    mode = _analytic_mode(family, params)
+    return Truth(name, family, dict(params), ref, float(ref.mean()), mode)
 
 
 # ---- the distribution zoo ----------------------------------------------------
@@ -152,6 +166,26 @@ def distribution_zoo(
         samples = _sample(family, params, n_samples, cell_rng).astype(np.float32)
         out[name] = (samples, truth)
     return out
+
+
+def frame_from_samples(
+    samples: NDArray[np.float64], *, level: SpatialLevel = SpatialLevel.PGM
+) -> PredictionFrame:
+    """Wrap a raw ``(R, S)`` array of posteriors as a ``PredictionFrame``.
+
+    A convenience for the notebooks' coverage / recovery / Monte-Carlo replica loops,
+    which build many one-shot frames from arrays of draws; it owns the synthetic index
+    (one synthetic ``unit`` per row at ``_BASE_MONTH``) so those cells don't each
+    re-hardcode it.
+    """
+    arr = np.asarray(samples, dtype=np.float32)
+    r = arr.shape[0]
+    index = SpatioTemporalIndex(
+        time=np.full(r, _BASE_MONTH, dtype=np.int64),
+        unit=np.arange(r, dtype=np.int64),
+        level=level,
+    )
+    return PredictionFrame(arr, index)
 
 
 @dataclass(frozen=True)

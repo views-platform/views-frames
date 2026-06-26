@@ -19,7 +19,9 @@ jobs:
       - uses: astral-sh/setup-uv@v4
       - run: uv python install 3.12
       - run: uv sync --python 3.12 --extra docs
-      # cwd = notebooks/ so each notebook's `import _synthetic` resolves to the in-repo
-      # helper next to it; the notebooks ship with cleared outputs and re-execute here.
-      - run: uv run --python 3.12 pytest --nbmake notebooks/
+      # cwd = notebooks/ (working-directory) so each notebook's `import _synthetic`
+      # resolves to the in-repo helper next to it; the path arg is therefore `.` (the
+      # notebooks live directly in this dir — `notebooks/` here would mean notebooks/notebooks/
+      # and collect nothing). The notebooks ship with cleared outputs and re-execute here.
+      - run: uv run --python 3.12 pytest --nbmake .
         working-directory: notebooks
