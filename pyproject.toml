@@ -52,7 +52,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/views_frames", "src/views_frames_summarize"]
+packages = ["src/views_frames", "src/views_frames_summarize", "src/views_frames_reconcile"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src"]
