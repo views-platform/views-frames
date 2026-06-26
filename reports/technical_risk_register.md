@@ -5,10 +5,10 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-26                           |
-| Total Concerns    | 55                                   |
-| Open Concerns     | 10                                   |
+| Total Concerns    | 58                                   |
+| Open Concerns     | 13                                   |
 | Resolved Concerns | 45                                   |
-| Disagreements     | 10                                   |
+| Disagreements     | 11                                   |
 
 ---
 
@@ -130,9 +130,9 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 | ID | C-52 |
 | Tier | 3 |
 | Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
-| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
-| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py`. |
-| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, C-53, C-54, GH #113. |
+| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — **or adds frame-level serialization/adapter conveniences (`to_parquet`/`from_parquet`, and especially `to_pddf`/`from_pddf`) to the frame classes** — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
+| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py` and against `to_parquet`/`to_pddf`/`from_pddf` accreting onto `src/views_frames/*_frame.py`. |
+| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, **D-11** (serialization-convenience placement — settled off-leaf), C-53, C-54, GH #113. |
 
 ADR-001 (line 17) names accretion as the leaf's existential failure mode — "someone adds an adapter, then grid knowledge … becomes pipeline-core-lite." A construction convenience is the most innocuous possible first step onto that slope. **Tier 3** (recalibrated down from an initial Tier 2 with the pipeline-core owner): under the ratified mitigations the residual risk is boundary-erosion a code-review gate catches, not inherent structural fragility. **Mitigations:** ship the **classmethod** form (a class resists becoming a dumping ground far better than an open `factory.py`); keep it **zero-own-logic**; add a CIC "Construction" **non-goal** that explicitly fences out grid / `value_fn` / inference / adapters. Resolved when `from_arrays` lands with those guards, or closed if #113 is declined.
 
@@ -195,6 +195,52 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 | Cross-refs | ADR-023, Epic 11 `#138`, the cutover postmortem (`reports/postmortems/2026-06_reconciliation_cutover_epic11.md`), views-models #191, views-postprocessing #62. |
 
 The Epic 11 cutover was validated by a sound transitive chain — `new == old vpp copy` (136-case bit-identity) and `old vpp == views-reporting torch oracle` (frozen `.npz`), so `new == torch oracle` — but **no comparison was run against an actual served production parquet** (old path vs new path) at the repoint. The residual risk is low (the oracle *is* the torch path's captured output), so this is **not** silent corruption — it is a missing belt on a sound buckle. **Mitigation shipped:** `verify_reconcile_parity.py --compare OLD.parquet NEW.parquet` makes the production-slice check a one-command gate, and the cutover runbook (Phase 2) now requires it for future cutovers. **Tier 3** — a verification-completeness gap, not a known defect. **Open** — watch-item for the next reconciler change. (The expert review's companion "batched-deploy blast radius" concern did **not** materialize: the Epic 11 cutover landed as phased PRs — repoint #202, then delete #63 — so no separate entry is warranted.)
+
+---
+
+### C-59: the summaries notebook teaches named intervals with no calibration / coverage demonstration
+
+| Field | Value |
+|-------|-------|
+| ID | C-59 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Gneiting/Gelman seats) |
+| Trigger | When `notebooks/02_summaries.ipynb` is built and shipped **without** a calibration/coverage section — displaying named X% HDI/quantile intervals (and the MAP) whose nominal coverage is never demonstrated on synthetic data with a known latent truth. |
+| Location | `notebooks/02_summaries.ipynb` (planned — §4 HDI tower / §5 quantiles). |
+| Cross-refs | C-60, C-61 (the notebook-completeness cluster); the views-evaluation boundary (scoring lives there — but coverage-on-synthetic-truth is a property demo, not scoring). |
+
+A notebook whose purpose is to build trust in these summaries that shows a "90% HDI" but never that it covers ~90% asserts the very claim it should prove. On synthetic draws the latent truth is known, so empirical coverage of each band + a PIT histogram are free to compute and are the highest-value addition (Gneiting2014; Kuleshov2018). **Highest-priority of the three notebook gaps.** **Mitigation:** roadmap item 1 (a coverage/PIT section) folded into the `02` plan. **Open** until that section is built.
+
+---
+
+### C-60: the reconciliation notebook risks presenting bit-identity as method validation
+
+| Field | Value |
+|-------|-------|
+| ID | C-60 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Hyndman seat) |
+| Trigger | When `notebooks/03_reconciliation.ipynb` headlines the oracle / bit-identity parity story **without** (a) situating per-draw *proportional* reconciliation in its literature (MinT / bottom-up / probabilistic reconciliation; proportional = the pragmatic, information-losing baseline; the principled upgrade is deferred as views-postprocessing C-37) and (b) separating *implementation fidelity* (bit-identical to the torch oracle) from *method quality*. |
+| Location | `notebooks/03_reconciliation.ipynb` (planned — §7 provenance). |
+| Cross-refs | C-59, C-61; views-postprocessing C-37 (probabilistic-reconciliation upgrade); C-58 (the analogous "don't over-read bit-identity" caution at the cutover). |
+| | Lit: Wickramasuriya2019 (MinT), Hyndman2011, Panagiotelis2023 (probabilistic reconciliation). |
+
+Bit-identity proves the *port* is faithful; it says nothing about whether proportional reconciliation is *good*. A reader infers methodological endorsement of a method the forecasting literature considers superseded. **Mitigation:** roadmap item 5 (literature context + bit-identity-≠-method-quality + a "does it help" panel) folded into the `03` plan. **Open** until built.
+
+---
+
+### C-61: the notebooks have no spatial / map view despite showcasing spatial forecasts
+
+| Field | Value |
+|-------|-------|
+| ID | C-61 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Wilke/Kay + VIEWS/FAO domain seats) |
+| Trigger | When the notebooks are shipped with only per-cell / histogram displays and **no map/lattice view** — the most operationally-expected visualization for PRIO-GRID forecasts is absent, so adopters can't connect the summaries to the spatial product they consume. |
+| Location | `notebooks/02_summaries.ipynb` / `notebooks/03_reconciliation.ipynb` (planned). |
+| Cross-refs | C-59, C-60. Constraint: views-frames is geography-blind (ADR-014) — the map view must use a **toy synthetic lattice**, embedding no domain geography. |
+
+A spatial-forecasting showcase with no spatial display under-serves the audience. Achievable on a synthetic square lattice with zero domain knowledge. **Mitigation:** roadmap item 3 (a toy-lattice map view) folded into the `02`/`03` plans. **Open** until built.
 
 ---
 
@@ -307,6 +353,19 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 | Source | design discussion (2026-06-25, views-frames owner + maintainer) |
 | Perspectives | **min/max** (intuitive "best/worst", but `max` is a single extreme order statistic — the **highest sampling variance** of any summary, not reproducible across re-samples, worst for the heavy-tailed multi-source-uncertainty posteriors here: MC-dropout × distributional head × ensemble all feed one sample axis); **high quantile (e.g. 99.5th) via the existing `quantiles`** (robust, zero new code — but the level is arbitrary and a point quantile is **not** a coherent risk measure); **expected shortfall / tail mean (CVaR)** (the mean of the worst `t` fraction — most stable under re-sampling, a **coherent/subadditive** risk measure, and the conditional-expectation companion to `exceedance` / the catastrophe-modeling OEP-AEP framing). |
 | Resolution | **Settled — `expected_shortfall` is the worst-case** (principled), with the high-quantile path documented as the lighter alternative; **`max` is never offered.** **Best-case ships no function** — a low quantile (via `quantiles`) plus `exceedance(frame, [0])` cover it (CRP — don't force a best-case symbol no one reuses). See C-55, C-56, ADR-022. |
+
+---
+
+### D-11: frame serialization-convenience placement — `to_parquet`/`to_pddf` on the leaf vs off it
+
+| Field | Value |
+|-------|-------|
+| ID | D-11 |
+| Source | expert-code-review (2026-06-26) — the DataFrame→views-frames transition question (consumer sites that load/distribute parquet) |
+| Perspectives | **Add frame-level conveniences to the leaf** (`frame.to_parquet`/`from_parquet` via pyarrow, and/or `frame.to_pddf`/`from_pddf` via pandas) — migration ergonomics at the many parquet load/distribute sites; conceived as **transitional**, possibly removed once the migration completes. **Keep them off the frozen leaf** (all eight lenses + the constitution): the leaf is **frozen** (ADR-018 — additions are permanent, removal = platform-wide MAJOR), so "transitional/removable" + "frozen leaf" is **self-contradictory** (Beck/reversibility); **pandas is ratified out** (ADR-001 line 120 non-entities, README §11, import-DAG `FORBIDDEN`) and a `to_pddf` emitting the object-dtype **list-in-cell** encoding would re-arm the ~33× #181 OOM the frame exists to kill (README §7); serialization formats change for **different reasons** than the data contract (CCP) and concrete format/pandas sugar on the most-stable-most-abstract leaf breaks **SAP/SDP**; it is the C-52 camel's nose (`to_parquet` → `to_pddf` → `from_grid` → store knowledge). |
+| Resolution | **Settled — keep them off the frozen leaf.** (1) **pandas (`to_pddf`/`from_pddf`): never on the leaf** — place in a **consumer adapter** (pipeline-core, beside `PredictionFrameConverter`), or, only if ≥2 repos need the identical adapter (REP/CRP), an explicitly-transitional **unfrozen sibling** (e.g. `views_frames_compat`, pandas an optional extra) so it stays removable post-transition (the ADR-017/ADR-023 sibling precedent). (2) **parquet:** the codec already exists (`io.arrow`) — **reject new frozen frame symbols** (`to_parquet`/`from_parquet`); if frame-level ergonomics are wanted, do **Option B'** — make the existing `Frame.save/load` **format-selectable** (`save(path, format="parquet"\|"npz")`, pyarrow imported lazily; additive, floor stays 1.0.0), and only **if/when a consumer actually reaches for it** (no demand yet → **defer**). (3) **Governing rule:** anything that might be removed post-transition must **not** touch the frozen leaf surface. **No work required in views-frames now**; B' is the only candidate leaf change and it is deferred. |
+
+Cross-refs: ADR-018 (freeze — additive-only, removal = MAJOR), ADR-001 (adapters/pandas = consumer edges; accretion = the leaf's #1 failure mode), ADR-017 + ADR-023 (unfrozen sibling-package precedent), README §7 (the #181 list-in-cell foot-gun) / §11 (scope — pandas/parquet-store → consumer repos), `tests/test_import_enforcement.py` (`FORBIDDEN` pandas), C-52 (the accretion this extends).
 
 ---
 
