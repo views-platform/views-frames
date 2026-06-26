@@ -7,6 +7,8 @@ The executable form of the package dependency DAG:
   imports ``views_frames_summarize``). ``pyarrow`` is allowed **only** under ``io/``.
 - ``views_frames_summarize`` may import only ``views_frames`` (+ numpy / stdlib);
   never the reverse, never a foreign ``views_*``, never pandas et al.
+- ``views_frames_reconcile`` (ADR-023) may import only ``views_frames`` (+ numpy /
+  stdlib); same boundary as summarize — never the reverse, never a foreign ``views_*``.
 - One concept per file: at most one public class per module.
 """
 
@@ -23,6 +25,7 @@ FORBIDDEN = {"pandas", "polars", "geopandas", "wandb", "viewser", "torch"}
 ALLOWED_INTERNAL: dict[str, set[str]] = {
     "views_frames": set(),
     "views_frames_summarize": {"views_frames"},
+    "views_frames_reconcile": {"views_frames"},
 }
 
 

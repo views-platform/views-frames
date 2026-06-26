@@ -4,6 +4,37 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.7.0] — 2026-06-26
+
+**Forecast reconciliation is a third sibling package (ADR-023, Epic 11).** A new importable
+package `views_frames_reconcile` joins `views_frames` + `views_frames_summarize` in the mono-wheel.
+Additive surface — the leaf and summarize are unchanged; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`views_frames_reconcile`** — numpy + `views_frames` only — makes grid (`pgm`) predictions sum,
+  per posterior draw, to their country (`cm`) totals:
+  - **`ReconciliationModule(map_keys, map_vals)`** — orchestrator holding the **injected**
+    `(time, priogrid_gid) → country_id` mapping (never fetched here; ADR-014/ADR-023);
+    `.reconcile(cm_frame, pgm_frame)` returns a new pgm `PredictionFrame`.
+  - **`reconcile_proportional(grid, country)`** — the per-draw top-down proportional method
+    (zeros preserved, country totals authoritative, non-negative).
+  - **`assert_reconcile_contract(...)`** — the conformance suite (sum-to-country per draw,
+    zero-preservation, non-negativity, level correctness, injected mapping).
+- A faithful **WET relocation** of the parity-proven reconciler from views-postprocessing — the
+  ported modules differ from the originals by import lines only (no algorithmic change).
+
+### Notes
+- **Charter (ADR-023):** frame-reconciliation algorithms only; **never fetch the mapping** (injected
+  as arrays, like `cross_level_align`); no IO, scoring, plotting, or foreign `views_*`. Import-DAG
+  `views_frames_reconcile → {views_frames}`.
+- **Parity is the gate:** green against the frozen views-reporting torch oracle, **and** a
+  new-vs-old bit-identity head-to-head (`np.array_equal`, 136 cases) vs the old
+  `views_postprocessing.reconciliation` — proven bit-identical at relocation.
+- **WET before DRY:** `grouping.py` overlaps the leaf's `cross_level_align`; folding them is a
+  deferred later story. The principled probabilistic upgrade (C-37) will be a future sibling module.
+- Consumer repoint (views-models) + views-postprocessing deletion are the cross-repo cutover, gated
+  on this release.
+
 ## [1.6.0] — 2026-06-25
 
 **Worst-case scenario estimator (ADR-022, register C-55/C-56 Resolved).** Additive surface — the
