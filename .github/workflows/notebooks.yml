@@ -1,0 +1,27 @@
+name: notebooks
+
+# A LIGHT, NON-BLOCKING drift check (issue #151): it only runs the showcase notebooks
+# end-to-end to catch breakage in the frozen `views_frames` surface. It is deliberately
+# separate from the core `CI` gate and `continue-on-error`, so a slow or flaky notebook
+# never blocks a merge — the notebooks are un-gated dev artifacts (like research/).
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+
+jobs:
+  nbmake:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.12
+      - run: uv sync --python 3.12 --extra docs
+      # cwd = notebooks/ (working-directory) so each notebook's `import _synthetic`
+      # resolves to the in-repo helper next to it; the path arg is therefore `.` (the
+      # notebooks live directly in this dir — `notebooks/` here would mean notebooks/notebooks/
+      # and collect nothing). The notebooks ship with cleared outputs and re-execute here.
+      - run: uv run --python 3.12 pytest --nbmake .
+        working-directory: notebooks
