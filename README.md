@@ -4,19 +4,22 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.6.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
+> **Status:** **v1.7.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
 > zeroing by default, register C-45; v1.4.0 adds generic provenance to `FrameMetadata`
 > (`run_id`/`data_version`) and publishes the shared `assert_frame_envelope` checker,
 > ADR-020; v1.5.0 adds the threshold **exceedance** estimator `P(Y > c)`, ADR-021; v1.6.0
-> adds the worst-case **expected_shortfall** estimator, ADR-022). This
+> adds the worst-case **expected_shortfall** estimator, ADR-022; v1.7.0 adds a third
+> sibling package **`views_frames_reconcile`** — forecast reconciliation, ADR-023). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
 > (sample-axis summarization — `collapse`/MAP/HDI/quantiles, the coherent-tower estimators
 > `hdi_tower`/`tower_point`/`bimodality`/`summarize_tower`, + cross-level
-> aggregation; ADR-017, ADR-019). The blocking design decisions are resolved (§13a) and
+> aggregation; ADR-017, ADR-019) and the `src/views_frames_reconcile/` sibling package
+> (forecast reconciliation — make grid forecasts sum to country totals per draw; ADR-023).
+> The blocking design decisions are resolved (§13a) and
 > ratified as ADRs 011–018; two rounds of consumer review validated
 > the design. Consumer adoption (re-export shims, pandas migration) is the owner's
 > migration, not this repo's.
@@ -395,6 +398,14 @@ views-frames/
 │   ├── point.py                   # map_estimate (histogram MAP)
 │   ├── interval.py                # hdi, quantiles  → arrays aligned to the frame index
 │   └── aggregate.py               # conservation-correct cross-level aggregation
+├── src/views_frames_reconcile/    # forecast reconciliation OVER frames (ADR-023)
+│   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
+│   ├── proportional.py            # reconcile_proportional — per-draw top-down scaling
+│   ├── grouping.py                # reconcile_pgm_to_cm — group by (time, country)
+│   ├── frames.py                  # prediction_frame_from_arrays adapter
+│   ├── validation.py              # fail-loud input guards
+│   ├── module.py                  # ReconciliationModule (holds the injected mapping)
+│   └── conformance.py             # assert_reconcile_contract
 └── tests/
     ├── conformance/               # the published contract suite consumers re-run (see §9)
     └── unit/
@@ -416,6 +427,38 @@ Layout rules (these *are* the screaming-architecture requirements):
   is statically analyzable.
 - A new developer should infer every responsibility from the file tree without
   reading bodies.
+
+### 6a. The `views_frames_reconcile` sibling (ADR-023)
+
+Forecast **reconciliation** — making grid (`pgm`) predictions sum to their country
+(`cm`) totals — is a numpy-only frame→frame operation, structurally the same kind of
+thing as `views_frames_summarize` (ADR-017). It is its own sibling package, **not** in
+the leaf and **not** in views-postprocessing (its old, mis-homed host).
+
+**Charter.** **May:** forecast-reconciliation algorithms on frames (the per-draw
+top-down proportional method; future methods as sibling modules — the principled
+probabilistic upgrade, C-37); per-sample reconciliation; fail-loud validation; a
+conformance suite. **Must not:** IO; **fetch the `(time, unit) → country` mapping** (it
+is *injected* by the caller as numpy arrays, exactly like `cross_level_align` — ADR-014);
+actuals/scoring (views-evaluation); plotting; or any `views_*` import except
+`views_frames`. Import-DAG: `views_frames_reconcile → {views_frames}`.
+
+```python
+import numpy as np
+from views_frames_reconcile import ReconciliationModule
+
+# mapping is INJECTED by the caller (sourced from the producer; never fetched here):
+#   map_keys: (M, 2) int (time, priogrid_gid)   map_vals: (M,) int country_id
+reconciler = ReconciliationModule(map_keys, map_vals)
+pgm_reconciled = reconciler.reconcile(cm_frame, pgm_frame)  # new pgm PredictionFrame
+# each (time, country) group's cells now sum, per draw, to the country total
+# (all-zero grid draws stay zero); zeros preserved; non-negative.
+```
+
+> **Future DRY pass (deferred).** `grouping.py` labels grid rows by country with the
+> leaf's `cross_level_align_arrays` and overlaps `cross_level_align` (index.py). Folding
+> the two is a separate later story — the v1.7.0 relocation is a faithful **WET** move,
+> proven bit-identical to the original before any refactor.
 
 ---
 

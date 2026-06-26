@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "views-frames"
-version = "1.6.0"
+version = "1.7.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
 authors = [
     { name = "Simon Polichinel von der Maase", email = "simmaa@prio.org" },
@@ -52,7 +52,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/views_frames", "src/views_frames_summarize"]
+packages = ["src/views_frames", "src/views_frames_summarize", "src/views_frames_reconcile"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src"]
@@ -87,6 +87,11 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
 # The falsification stubs assert against the README via long, literal regexes
 # whose lines cannot wrap without changing their semantics.
 "tests/test_falsification_*.py" = ["E501"]
+# The reconciliation parity tests + their oracle-regeneration scripts are
+# faithfully relocated from views-postprocessing (Epic 11 / ADR-023); their dense
+# numpy/dict-comprehension assertions are kept verbatim rather than re-wrapped.
+"tests/test_reconciliation_*.py" = ["E501"]
+"scripts/gen_reconciliation_*.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
