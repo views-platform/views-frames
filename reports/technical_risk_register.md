@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-27                           |
-| Total Concerns    | 59                                   |
-| Open Concerns     | 11                                   |
+| Total Concerns    | 60                                   |
+| Open Concerns     | 12                                   |
 | Resolved Concerns | 48                                   |
 | Disagreements     | 12                                   |
 
@@ -198,52 +198,6 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 
 ---
 
-### C-59: the summaries notebook teaches named intervals with no calibration / coverage demonstration
-
-| Field | Value |
-|-------|-------|
-| ID | C-59 |
-| Tier | 3 |
-| Source | expert-method-review (2026-06-26 — Gneiting/Gelman seats) |
-| Trigger | When `notebooks/02_summaries.ipynb` is built and shipped **without** a calibration/coverage section — displaying named X% HDI/quantile intervals (and the MAP) whose nominal coverage is never demonstrated on synthetic data with a known latent truth. |
-| Location | `notebooks/02_summaries.ipynb` (planned — §4 HDI tower / §5 quantiles). |
-| Cross-refs | C-60, C-61 (the notebook-completeness cluster); the views-evaluation boundary (scoring lives there — but coverage-on-synthetic-truth is a property demo, not scoring). |
-
-A notebook whose purpose is to build trust in these summaries that shows a "90% HDI" but never that it covers ~90% asserts the very claim it should prove. On synthetic draws the latent truth is known, so empirical coverage of each band + a PIT histogram are free to compute and are the highest-value addition (Gneiting2014; Kuleshov2018). **Highest-priority of the three notebook gaps.** **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `02_summaries.ipynb` ships a calibration/coverage panel — empirical coverage of the 50/90/95/99 HDIs against the known synthetic truth, a PIT histogram (calibrated vs over-confident), and a recovery-vs-`S` view (Gneiting2014/Kuleshov2018), all on the ground-truth-carrying `notebooks/_synthetic.py`. No scoring API was added (scoring stays in views-evaluation).
-
----
-
-### C-60: the reconciliation notebook risks presenting bit-identity as method validation
-
-| Field | Value |
-|-------|-------|
-| ID | C-60 |
-| Tier | 3 |
-| Source | expert-method-review (2026-06-26 — Hyndman seat) |
-| Trigger | When `notebooks/03_reconciliation.ipynb` headlines the oracle / bit-identity parity story **without** (a) situating per-draw *proportional* reconciliation in its literature (MinT / bottom-up / probabilistic reconciliation; proportional = the pragmatic, information-losing baseline; the principled upgrade is deferred as views-postprocessing C-37) and (b) separating *implementation fidelity* (bit-identical to the torch oracle) from *method quality*. |
-| Location | `notebooks/03_reconciliation.ipynb` (planned — §7 provenance). |
-| Cross-refs | C-59, C-61; views-postprocessing C-37 (probabilistic-reconciliation upgrade); C-58 (the analogous "don't over-read bit-identity" caution at the cutover). |
-| | Lit: Wickramasuriya2019 (MinT), Hyndman2011, Panagiotelis2023 (probabilistic reconciliation). |
-
-Bit-identity proves the *port* is faithful; it says nothing about whether proportional reconciliation is *good*. A reader infers methodological endorsement of a method the forecasting literature considers superseded. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `03_reconciliation.ipynb` panel §A situates proportional top-down against MinT (Wickramasuriya2019) / probabilistic reconciliation (Panagiotelis2023), states explicitly that **bit-identity proves faithful relocation, not method quality**, and frames the principled upgrade as deferred (views-postprocessing C-37); panel §B adds a does-it-help check against the known truth (it improves the country total but *worsens* per-cell — coherence, not accuracy).
-
----
-
-### C-61: the notebooks have no spatial / map view despite showcasing spatial forecasts
-
-| Field | Value |
-|-------|-------|
-| ID | C-61 |
-| Tier | 3 |
-| Source | expert-method-review (2026-06-26 — Wilke/Kay + VIEWS/FAO domain seats) |
-| Trigger | When the notebooks are shipped with only per-cell / histogram displays and **no map/lattice view** — the most operationally-expected visualization for PRIO-GRID forecasts is absent, so adopters can't connect the summaries to the spatial product they consume. |
-| Location | `notebooks/02_summaries.ipynb` / `notebooks/03_reconciliation.ipynb` (planned). |
-| Cross-refs | C-59, C-60. Constraint: views-frames is geography-blind (ADR-014) — the map view must use a **toy synthetic lattice**, embedding no domain geography. |
-
-A spatial-forecasting showcase with no spatial display under-serves the audience. Achievable on a synthetic square lattice with zero domain knowledge. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): both `02_summaries.ipynb` and `03_reconciliation.ipynb` render toy-lattice map views on a synthetic square lattice (no domain geography — ADR-014): 02 maps the point estimate, the 90% HDI width, and decision-relevant exceedance; 03 maps raw-vs-reconciled point estimates and the change map.
-
----
-
 ### C-62: `reconcile_proportional` is an information-losing per-draw approximation (no joint-calibration guarantee)
 
 | Field | Value |
@@ -256,6 +210,21 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 | Cross-refs | ADR-024 (the design + deferral), ADR-023 (sibling charter; future-sibling-module open question), views-postprocessing C-37 (the cross-repo principled-reconciliation lineage), views-pipeline-core C-198 / C-200b (consumer-side), C-60 (the notebook presentation of this — resolved), D-12 (mode reporting). GH #145 / #142. |
 
 `reconcile_proportional` rescales grid cells to sum, **per draw**, to the country total — pairing grid-draw `s` with country-draw `s`. When the grid and country models are trained **independently** (the current platform reality), draw index `s` has **no shared identity** across them, so the pairing is arbitrary and the reconciled **joint** distribution (the joint country tails an FAO-style worst-case keys on) is not guaranteed calibrated — even though conservation (sum-to-country per draw, zeros preserved, non-negative) holds **exactly**. This is **not silent** (hence **Tier 3**, not Tier 1): it is documented at every layer — the `proportional.py` docstring, ADR-024, the `03_reconciliation.ipynb` bit-identity-≠-method-quality panel (C-60), and surfaced at runtime as the `reconcile_result` mode `aligned-draws` (D-12). It is a **known method-quality limitation with a designed upgrade path** (ADR-024), deliberately deferred until its preconditions hold. **Open** — the limitation persists until the principled sibling module is built.
+
+---
+
+### C-63: the frame `values` buffer is not write-protected, so the immutability guarantee is unenforced
+
+| Field | Value |
+|-------|-------|
+| ID | C-63 |
+| Tier | 2 |
+| Source | repo-assimilation (2026-06-27), empirically verified |
+| Trigger | When a consumer applies an in-place numpy mutation to `frame.values` (a natural idiom — e.g. `frame.values[mask] = 0`, `frame.values *= scale`, a clamp/normalise in place) on a frame obtained from `with_metadata`/`select`'s buffer-sharing path. |
+| Location | `src/views_frames/_validation.py:64` (`coerce_values` returns a float32 input **without copy** and without `setflags(write=False)`); contrast `src/views_frames/index.py:55-56` (the index arrays **are** write-protected); `with_metadata` (`prediction_frame.py`/`target_frame.py`/`feature_frame.py`) shares the buffer; `tests/test_properties.py:38` pins only the *sharing*, not read-only-ness. |
+| Cross-refs | C-07 (copy-vs-view / structural-sharing semantics — RESOLVED; this is the **distinct, unresolved** write-protection gap on the same buffer), ADR-013 (immutable value objects), README design principle 2 (immutable value objects). |
+
+The leaf advertises **immutable value objects**, but the guarantee is enforced only for the *index* (`time`/`unit` are stored `setflags(write=False)`), not for the *value block*. Verified empirically: `frame.values.flags.writeable` is **True**; `with_metadata` returns a new frame **sharing** the same buffer; an in-place mutation of `frame.values` therefore **silently corrupts every frame sharing that buffer** (a mutation to `f.values[0,0]` was observed to change `g.values[0,0]` for `g = f.with_metadata(...)`), with **no error signal**. **Tier 2** (silent-corruption evidence + structural fragility with a realistic trigger): the system itself never mutates `.values`, so this is not a current defect (not Tier 1), but the immutability *contract* is unenforced for the value buffer and the violating idiom (in-place numpy ops) is routine — the codebase already knows how to write-protect (it does so for the index), so the value buffer is the asymmetric gap. **Open.**
 
 ---
 
@@ -398,6 +367,52 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-59: the summaries notebook teaches named intervals with no calibration / coverage demonstration — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-59 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Gneiting/Gelman seats) |
+| Trigger | When `notebooks/02_summaries.ipynb` is built and shipped **without** a calibration/coverage section — displaying named X% HDI/quantile intervals (and the MAP) whose nominal coverage is never demonstrated on synthetic data with a known latent truth. |
+| Location | `notebooks/02_summaries.ipynb` (planned — §4 HDI tower / §5 quantiles). |
+| Cross-refs | C-60, C-61 (the notebook-completeness cluster); the views-evaluation boundary (scoring lives there — but coverage-on-synthetic-truth is a property demo, not scoring). |
+
+A notebook whose purpose is to build trust in these summaries that shows a "90% HDI" but never that it covers ~90% asserts the very claim it should prove. On synthetic draws the latent truth is known, so empirical coverage of each band + a PIT histogram are free to compute and are the highest-value addition (Gneiting2014; Kuleshov2018). **Highest-priority of the three notebook gaps.** **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `02_summaries.ipynb` ships a calibration/coverage panel — empirical coverage of the 50/90/95/99 HDIs against the known synthetic truth, a PIT histogram (calibrated vs over-confident), and a recovery-vs-`S` view (Gneiting2014/Kuleshov2018), all on the ground-truth-carrying `notebooks/_synthetic.py`. No scoring API was added (scoring stays in views-evaluation).
+
+---
+
+### C-60: the reconciliation notebook risks presenting bit-identity as method validation — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-60 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Hyndman seat) |
+| Trigger | When `notebooks/03_reconciliation.ipynb` headlines the oracle / bit-identity parity story **without** (a) situating per-draw *proportional* reconciliation in its literature (MinT / bottom-up / probabilistic reconciliation; proportional = the pragmatic, information-losing baseline; the principled upgrade is deferred as views-postprocessing C-37) and (b) separating *implementation fidelity* (bit-identical to the torch oracle) from *method quality*. |
+| Location | `notebooks/03_reconciliation.ipynb` (planned — §7 provenance). |
+| Cross-refs | C-59, C-61; views-postprocessing C-37 (probabilistic-reconciliation upgrade); C-58 (the analogous "don't over-read bit-identity" caution at the cutover). |
+| | Lit: Wickramasuriya2019 (MinT), Hyndman2011, Panagiotelis2023 (probabilistic reconciliation). |
+
+Bit-identity proves the *port* is faithful; it says nothing about whether proportional reconciliation is *good*. A reader infers methodological endorsement of a method the forecasting literature considers superseded. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `03_reconciliation.ipynb` panel §A situates proportional top-down against MinT (Wickramasuriya2019) / probabilistic reconciliation (Panagiotelis2023), states explicitly that **bit-identity proves faithful relocation, not method quality**, and frames the principled upgrade as deferred (views-postprocessing C-37); panel §B adds a does-it-help check against the known truth (it improves the country total but *worsens* per-cell — coherence, not accuracy).
+
+---
+
+### C-61: the notebooks have no spatial / map view despite showcasing spatial forecasts — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-61 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Wilke/Kay + VIEWS/FAO domain seats) |
+| Trigger | When the notebooks are shipped with only per-cell / histogram displays and **no map/lattice view** — the most operationally-expected visualization for PRIO-GRID forecasts is absent, so adopters can't connect the summaries to the spatial product they consume. |
+| Location | `notebooks/02_summaries.ipynb` / `notebooks/03_reconciliation.ipynb` (planned). |
+| Cross-refs | C-59, C-60. Constraint: views-frames is geography-blind (ADR-014) — the map view must use a **toy synthetic lattice**, embedding no domain geography. |
+
+A spatial-forecasting showcase with no spatial display under-serves the audience. Achievable on a synthetic square lattice with zero domain knowledge. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): both `02_summaries.ipynb` and `03_reconciliation.ipynb` render toy-lattice map views on a synthetic square lattice (no domain geography — ADR-014): 02 maps the point estimate, the 90% HDI width, and decision-relevant exceedance; 03 maps raw-vs-reconciled point estimates and the change map.
+
+---
 
 ### C-55: aggregate `expected_shortfall` worst-case is silently wrong when summed samples are not a true joint posterior — RESOLVED
 
