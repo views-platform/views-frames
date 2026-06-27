@@ -4,6 +4,32 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.8.0] — 2026-06-27
+
+**Native point-country broadcast in `views_frames_reconcile` (ADR-023 amendment, #143 / Epic #142).**
+Additive input-contract relaxation — the frozen leaf and summarize are unchanged; `CONFORMANCE_FLOOR`
+stays `1.0.0`.
+
+### Added
+- **`ReconciliationModule.reconcile` accepts a point country** (`cm.sample_count == 1`) against a draws
+  grid (`pgm.sample_count == S`): the point is broadcast across the `S` draws inside the orchestrator
+  (`np.tile`), so callers no longer tile it themselves (the DRY home of pipeline-core's WET
+  `align_country_to_grid`, #143). The **aligned-draws** path (`cm.sample_count == S`) is byte-for-byte
+  unchanged; any other count still fails loud.
+- **`ReconciliationModule.reconcile_result(cm, pgm) -> ReconciliationResult`** (#144) — reconciles and
+  **reports the mode** (`POINT_BROADCAST` | `ALIGNED_DRAWS`) + method (`proportional`) on a returned
+  `ReconciliationResult`. The mode is *returned*, never stamped on the leaf's generic `FrameMetadata`
+  (ADR-020 / register C-47 — the numpy leaf carries no reconciliation vocabulary). `reconcile` is
+  unchanged (it returns `reconcile_result(...).frame`). New public names: `ReconciliationResult`,
+  `POINT_BROADCAST`, `ALIGNED_DRAWS`, `METHOD_PROPORTIONAL`.
+
+### Notes
+- The broadcast lives entirely in `views_frames_reconcile/module.py`; the leaf `proportional` and the
+  parity-frozen `grouping` hot loop are untouched, so the torch-oracle parity is exact (0.000e+00).
+- The aligned-draws mode remains the documented per-draw approximation. **ADR-024** (#145) records the
+  design direction + deferral for the principled joint upgrade (and corrects `proportional.py`'s
+  ambiguous "C-37" reference; register C-62). Design-only — no code.
+
 ## [1.7.0] — 2026-06-26
 
 **Forecast reconciliation is a third sibling package (ADR-023, Epic 11).** A new importable

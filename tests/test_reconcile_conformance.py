@@ -19,17 +19,22 @@ from views_frames_reconcile.frames import prediction_frame_from_arrays
 _FIX = Path(__file__).resolve().parent / "fixtures" / "reconciliation_e2e_parity.npz"
 
 
-def _synthetic(seed, *, samples, all_zero_country=False):
-    """Build a (cm, pgm, map_keys, map_vals) scenario: 2 countries, 1 month."""
+def _synthetic(seed, *, samples, all_zero_country=False, cm_samples=None):
+    """Build a (cm, pgm, map_keys, map_vals) scenario: 2 countries, 1 month.
+
+    ``cm_samples`` (default = ``samples``) lets the country frame carry a different
+    sample count than the grid — set ``cm_samples=1`` for the point-broadcast case.
+    """
     rng = np.random.default_rng(seed)
     month = 500
+    n_cm = samples if cm_samples is None else cm_samples
     # country 1 owns gids 1000-1002, country 2 owns gids 2000-2001
     layout = {1: [1000, 1001, 1002], 2: [2000, 2001]}
     cm_t, cm_u, cm_v, pg_t, pg_u, pg_v, mk, mv = [], [], [], [], [], [], [], []
     for c, gids in layout.items():
         cm_t.append(month)
         cm_u.append(c)
-        cm_v.append(rng.gamma(2.0, 50.0, size=samples).astype(np.float32))
+        cm_v.append(rng.gamma(2.0, 50.0, size=n_cm).astype(np.float32))
         for g in gids:
             pg_t.append(month)
             pg_u.append(g)
@@ -70,6 +75,13 @@ def test_contract_on_synthetic(samples):
 def test_contract_with_all_zero_country():
     # a country whose grid cells are all zero stays zero (documented edge), not summed.
     assert_reconcile_contract(*_synthetic(7, samples=32, all_zero_country=True))
+
+
+def test_contract_on_point_country():
+    # S1 (#143): a point country (sample_count == 1) vs a draws grid is broadcast inside
+    # reconcile; the full contract must still hold (sum-to-country, zeros, non-negative,
+    # draws kept).
+    assert_reconcile_contract(*_synthetic(11, samples=64, cm_samples=1))
 
 
 def test_injected_mapping_is_honored():

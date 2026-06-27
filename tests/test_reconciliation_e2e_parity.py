@@ -11,7 +11,12 @@ import numpy as np
 import pytest
 
 from views_frames import SpatialLevel
-from views_frames_reconcile import ReconciliationModule
+from views_frames_reconcile import (
+    ALIGNED_DRAWS,
+    POINT_BROADCAST,
+    ReconciliationModule,
+    ReconciliationResult,
+)
 from views_frames_reconcile.frames import prediction_frame_from_arrays
 
 _FIX = Path(__file__).resolve().parent / "fixtures" / "reconciliation_e2e_parity.npz"
@@ -81,6 +86,23 @@ class TestModuleProperties:
                 )
                 assert (grid_sum[allzero] == 0).all()  # all-zero draws stay zero
 
+    def test_point_country_broadcast_equals_manual_tile(self, fix, module):
+        # S1 (#143): native point-broadcast must be bit-identical to manually tiling the
+        # point country to S draws and running the (oracle-proven) aligned path.
+        _, pgm = _frames(fix, "pred_ged_sb")
+        s = pgm.sample_count
+        point_vals = fix["cm__pred_ged_sb"][:, :1]  # a point country (sample_count == 1)
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], point_vals, level=SpatialLevel.CM
+        )
+        tiled_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], np.tile(point_vals, (1, s)),
+            level=SpatialLevel.CM,
+        )
+        out_point = module.reconcile(point_cm, pgm)
+        out_tiled = module.reconcile(tiled_cm, pgm)
+        np.testing.assert_array_equal(out_point.values, out_tiled.values)
+
     def test_bad_mapping_shape_raises(self, fix):
         with pytest.raises(ValueError, match="map_keys must be"):
             ReconciliationModule(fix["pg_time"], fix["pg_country"])  # 1-D keys
@@ -90,3 +112,28 @@ class TestModuleProperties:
         cm_wrong, pgm = _frames(fix, "pred_ged_sb")
         with pytest.raises(ValueError, match="SpatialLevel.CM"):
             module.reconcile(pgm, pgm)  # pass pgm where cm expected
+
+
+class TestReconciliationResult:
+    """S2 (#144): the mode is *returned* on a result, not stamped on the leaf frame."""
+
+    def test_aligned_draws_mode(self, fix, module):
+        cm, pgm = _frames(fix, "pred_ged_sb")  # cm carries S draws
+        result = module.reconcile_result(cm, pgm)
+        assert isinstance(result, ReconciliationResult)
+        assert result.mode == ALIGNED_DRAWS
+        assert result.method == "proportional"
+        # the result frame is exactly what reconcile() returns
+        np.testing.assert_array_equal(
+            result.frame.values, module.reconcile(cm, pgm).values
+        )
+
+    def test_point_broadcast_mode(self, fix, module):
+        _, pgm = _frames(fix, "pred_ged_sb")
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], fix["cm__pred_ged_sb"][:, :1],
+            level=SpatialLevel.CM,
+        )
+        result = module.reconcile_result(point_cm, pgm)
+        assert result.mode == POINT_BROADCAST
+        assert result.frame.sample_count == pgm.sample_count

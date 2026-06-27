@@ -5,10 +5,10 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-27                           |
-| Total Concerns    | 58                                   |
-| Open Concerns     | 10                                   |
+| Total Concerns    | 59                                   |
+| Open Concerns     | 11                                   |
 | Resolved Concerns | 48                                   |
-| Disagreements     | 11                                   |
+| Disagreements     | 12                                   |
 
 ---
 
@@ -244,6 +244,21 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 
 ---
 
+### C-62: `reconcile_proportional` is an information-losing per-draw approximation (no joint-calibration guarantee)
+
+| Field | Value |
+|-------|-------|
+| ID | C-62 |
+| Tier | 3 |
+| Source | expert-method-review lineage + S3 design (#145), 2026-06-27 |
+| Trigger | When a consumer's decision provably needs **calibrated joint** country tails that proportional's per-draw marginal rescale cannot provide, **or** when the country model (views-models) gains a shared draw-identity / coupling that makes principled joint reconciliation buildable — i.e. when ADR-024's two deferral preconditions are met, build the principled sibling module (never by modifying `proportional`). |
+| Location | `src/views_frames_reconcile/proportional.py` (the per-draw method); designed in `docs/ADRs/024_principled_joint_reconciliation_design.md`. |
+| Cross-refs | ADR-024 (the design + deferral), ADR-023 (sibling charter; future-sibling-module open question), views-postprocessing C-37 (the cross-repo principled-reconciliation lineage), views-pipeline-core C-198 / C-200b (consumer-side), C-60 (the notebook presentation of this — resolved), D-12 (mode reporting). GH #145 / #142. |
+
+`reconcile_proportional` rescales grid cells to sum, **per draw**, to the country total — pairing grid-draw `s` with country-draw `s`. When the grid and country models are trained **independently** (the current platform reality), draw index `s` has **no shared identity** across them, so the pairing is arbitrary and the reconciled **joint** distribution (the joint country tails an FAO-style worst-case keys on) is not guaranteed calibrated — even though conservation (sum-to-country per draw, zeros preserved, non-negative) holds **exactly**. This is **not silent** (hence **Tier 3**, not Tier 1): it is documented at every layer — the `proportional.py` docstring, ADR-024, the `03_reconciliation.ipynb` bit-identity-≠-method-quality panel (C-60), and surfaced at runtime as the `reconcile_result` mode `aligned-draws` (D-12). It is a **known method-quality limitation with a designed upgrade path** (ADR-024), deliberately deferred until its preconditions hold. **Open** — the limitation persists until the principled sibling module is built.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -366,6 +381,19 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 | Resolution | **Settled — keep them off the frozen leaf.** (1) **pandas (`to_pddf`/`from_pddf`): never on the leaf** — place in a **consumer adapter** (pipeline-core, beside `PredictionFrameConverter`), or, only if ≥2 repos need the identical adapter (REP/CRP), an explicitly-transitional **unfrozen sibling** (e.g. `views_frames_compat`, pandas an optional extra) so it stays removable post-transition (the ADR-017/ADR-023 sibling precedent). (2) **parquet:** the codec already exists (`io.arrow`) — **reject new frozen frame symbols** (`to_parquet`/`from_parquet`); if frame-level ergonomics are wanted, do **Option B'** — make the existing `Frame.save/load` **format-selectable** (`save(path, format="parquet"\|"npz")`, pyarrow imported lazily; additive, floor stays 1.0.0), and only **if/when a consumer actually reaches for it** (no demand yet → **defer**). (3) **Governing rule:** anything that might be removed post-transition must **not** touch the frozen leaf surface. **No work required in views-frames now**; B' is the only candidate leaf change and it is deferred. |
 
 Cross-refs: ADR-018 (freeze — additive-only, removal = MAJOR), ADR-001 (adapters/pandas = consumer edges; accretion = the leaf's #1 failure mode), ADR-017 + ADR-023 (unfrozen sibling-package precedent), README §7 (the #181 list-in-cell foot-gun) / §11 (scope — pandas/parquet-store → consumer repos), `tests/test_import_enforcement.py` (`FORBIDDEN` pandas), C-52 (the accretion this extends).
+
+---
+
+### D-12: reconciliation-mode provenance placement — stamp the leaf frame vs report it from the sibling
+
+| Field | Value |
+|-------|-------|
+| ID | D-12 |
+| Source | implementation + review-diff (2026-06-27) — S2 of the reconciliation right-home epic (#144) |
+| Perspectives | **Stamp the mode on the frame** (#144 as originally written): write the reconciliation mode (`point-broadcast` / `aligned-draws`) into the reconciled frame's `FrameMetadata`, so an auditor reads it off the frame in isolation (a "self-describing" frame). **Keep reconciliation vocabulary off the leaf**: the leaf's `FrameMetadata` is governed **generic-only** (ADR-020 / register C-47) — it carries provenance meaningful for *any* frame (`run_id`, `data_version`) and deliberately excludes domain/operation-specific fields (the precedent: eval's `scoring_code_version` lives in views-evaluation's `MetricFrame`, never the leaf). Stamping `reconciliation_mode` would push sibling-only vocabulary into the numpy leaf that must not know reconciliation exists (ADR-001 accretion guard), and `FrameMetadata` lives in `views_frames` while reconciliation lives in the sibling — a layering inversion. |
+| Resolution | **Settled — report the mode from the sibling; do not stamp the leaf.** `ReconciliationModule.reconcile_result(cm, pgm)` returns a `ReconciliationResult` (`frame`, `mode`, `method`) carrying the mode; `reconcile()` still returns just the frame (bit-unchanged). The mode lives in `views_frames_reconcile` (`result.py`), off the leaf's generic header, so the C-47 / ADR-020 generic-only guard holds and the leaf stays free of reconciliation vocabulary. The mode literals (`point-broadcast`/`aligned-draws`) match pipeline-core's `reconcile_frames` constants verbatim for cross-repo consistency. A caller needing in-isolation auditability records the returned mode in its own (consumer-side) metadata. |
+
+Cross-refs: C-47 (eval provenance kept out of the generic header — the precedent), ADR-020 (provenance split by concern), ADR-013 (`FrameMetadata` optional-extensible but generic), ADR-001 (leaf accretion guard), ADR-023 (the reconciliation sibling; its Open-Questions records this), D-11 (the analogous "keep removable/edge conveniences off the frozen leaf" decision); GH #144; pipeline-core C-200b (the silent-mode risk this addresses consumer-side).
 
 ---
 

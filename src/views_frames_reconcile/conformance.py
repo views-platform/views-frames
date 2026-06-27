@@ -66,7 +66,10 @@ def assert_reconcile_contract(
         rows = (pg_time == t) & (cm_units == c)
         in_sum = pgm_frame.values[rows].sum(axis=0)  # (S,)
         out_sum = out.values[rows].sum(axis=0)  # (S,)
-        total = cm_frame.values[cm_pos[(int(t), int(c))]]  # (S,)
+        # cm may be a point (sample_count == 1, broadcast inside reconcile) or aligned
+        # draws — broadcast its per-(time, country) total to the draw axis either way.
+        cm_total = cm_frame.values[cm_pos[(int(t), int(c))]]
+        total = np.broadcast_to(cm_total, out_sum.shape)
         active = in_sum != 0
         np.testing.assert_allclose(
             out_sum[active], total[active], rtol=1e-4, atol=1e-3
