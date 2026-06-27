@@ -26,8 +26,9 @@ stays `1.0.0`.
 ### Notes
 - The broadcast lives entirely in `views_frames_reconcile/module.py`; the leaf `proportional` and the
   parity-frozen `grouping` hot loop are untouched, so the torch-oracle parity is exact (0.000e+00).
-- The aligned-draws mode remains the documented per-draw approximation (the principled joint upgrade is
-  a separate design, #145).
+- The aligned-draws mode remains the documented per-draw approximation. **ADR-024** (#145) records the
+  design direction + deferral for the principled joint upgrade (and corrects `proportional.py`'s
+  ambiguous "C-37" reference; register C-62). Design-only — no code.
 
 ## [1.7.0] — 2026-06-26
 
