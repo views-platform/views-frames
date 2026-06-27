@@ -81,6 +81,23 @@ class TestModuleProperties:
                 )
                 assert (grid_sum[allzero] == 0).all()  # all-zero draws stay zero
 
+    def test_point_country_broadcast_equals_manual_tile(self, fix, module):
+        # S1 (#143): native point-broadcast must be bit-identical to manually tiling the
+        # point country to S draws and running the (oracle-proven) aligned path.
+        _, pgm = _frames(fix, "pred_ged_sb")
+        s = pgm.sample_count
+        point_vals = fix["cm__pred_ged_sb"][:, :1]  # a point country (sample_count == 1)
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], point_vals, level=SpatialLevel.CM
+        )
+        tiled_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], np.tile(point_vals, (1, s)),
+            level=SpatialLevel.CM,
+        )
+        out_point = module.reconcile(point_cm, pgm)
+        out_tiled = module.reconcile(tiled_cm, pgm)
+        np.testing.assert_array_equal(out_point.values, out_tiled.values)
+
     def test_bad_mapping_shape_raises(self, fix):
         with pytest.raises(ValueError, match="map_keys must be"):
             ReconciliationModule(fix["pg_time"], fix["pg_country"])  # 1-D keys

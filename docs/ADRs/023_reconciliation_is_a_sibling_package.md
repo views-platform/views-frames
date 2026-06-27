@@ -3,6 +3,7 @@
 
 **Status:** Accepted
 **Date:** 2026-06-26
+**Amended:** 2026-06-27 — sample-count contract (point-broadcast vs aligned-draws), v1.8.0, #143
 **Deciders:** VIEWS platform maintainers
 **Consulted:** views-postprocessing (the current, mis-homed host), views-reporting (the frozen torch oracle)
 **Informed:** views-pipeline-core, views-models, views-evaluation
@@ -68,6 +69,19 @@ any `views_*` except `views_frames` (and `views_frames_summarize` only if a real
 > map_vals)` arrays. `views_frames_reconcile` owns the *operation*; it never embeds or fetches geography. This
 > is asserted in the conformance suite, not just documented.
 
+### Sample-count contract: point-broadcast vs aligned-draws (amended 2026-06-27, #143)
+
+`ReconciliationModule.reconcile` accepts a country (`cm`) frame whose `sample_count` is either **`1`**
+(a *point* forecast) or **`S`** (the grid's draw count); any other count fails loud in validation. A point
+`cm` is **broadcast** to `S` draws by tiling its single column (`np.tile`) inside the orchestrator
+(`module.py`), *before* the unchanged aligned-draws reconcile path runs — so the equal-count path stays
+**bit-for-bit identical** (the broadcast triggers only for `sample_count == 1`; the leaf `proportional` and the
+parity-frozen `grouping` hot loop are untouched). This is the DRY home of pipeline-core's WET
+`align_country_to_grid` (the consumer explicitly earmarked it for here, #143). The **aligned-draws** case
+remains the documented *per-draw approximation*: pairing grid-draw `s` with country-draw `s` across
+independently-trained models has no shared draw identity — the principled joint upgrade is a separate design
+(#145; the pragmatic-vs-principled boundary the `proportional` docstring names).
+
 ### Import-DAG
 
 `views_frames_reconcile → {views_frames}` (+ numpy / stdlib). Added to `ALLOWED_INTERNAL` in
@@ -77,6 +91,11 @@ unchanged.
 ### SemVer
 
 A new sibling package is **additive ⇒ MINOR**: **1.6.0 → 1.7.0**. `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+The 2026-06-27 amendment (the point-broadcast sample-count contract, #143) is an **additive input-contract
+relaxation** — `reconcile` accepts a new input shape (`cm.sample_count == 1`) it previously rejected, and no
+existing call changes ⇒ **MINOR: 1.7.0 → 1.8.0**. `CONFORMANCE_FLOOR` stays `1.0.0` (the frozen leaf surface
+is untouched; the broadcast lives entirely in `views_frames_reconcile`).
 
 ---
 

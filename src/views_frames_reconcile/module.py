@@ -26,6 +26,21 @@ from views_frames_reconcile.grouping import reconcile_pgm_to_cm
 from views_frames_reconcile.validation import validate_reconciliation_inputs
 
 
+def _broadcast_point_country(
+    cm_frame: PredictionFrame, n_samples: int
+) -> PredictionFrame:
+    """Tile a point country forecast (``sample_count == 1``) across ``n_samples`` draws.
+
+    Bit-identical to the WET broadcast pipeline-core's ``align_country_to_grid`` does
+    (views-frames#143): the single column is repeated, so every draw is rescaled to the
+    same total. It lives in the orchestrator so the leaf ``proportional`` and the
+    parity-frozen ``grouping`` hot loop stay **untouched** — the equal-count path is
+    byte-for-byte identical and only ``sample_count == 1`` takes this new path.
+    """
+    tiled = np.tile(np.asarray(cm_frame.values, dtype=np.float32), (1, n_samples))
+    return PredictionFrame(tiled, cm_frame.index, cm_frame.metadata)
+
+
 class ReconciliationModule:
     """Reconcile pgm forecasts to cm country totals (one target per call)."""
 
@@ -58,11 +73,19 @@ class ReconciliationModule:
     ) -> PredictionFrame:
         """Validate the inputs, then return a new pgm frame reconciled to cm totals.
 
+        A **point** country (``cm.sample_count == 1``) is broadcast across the grid's
+        draws before reconciling (the common case: a point country vs a draws grid); an
+        **aligned** country (``cm.sample_count == S``) scales draw-for-draw. Any other
+        count fails loud.
+
         Raises:
-            ValueError: the inputs fail validation (level / sample-count / time
-                coverage / missing country forecast).
+            ValueError: the inputs fail validation (level / sample-count — cm must be 1
+                or pgm's ``S`` / time coverage / missing country forecast).
         """
         validate_reconciliation_inputs(
             cm_frame, pgm_frame, self._map_keys, self._map_vals
         )
-        return reconcile_pgm_to_cm(pgm_frame, cm_frame, self._map_keys, self._map_vals)
+        cm = cm_frame
+        if cm_frame.sample_count != pgm_frame.sample_count:
+            cm = _broadcast_point_country(cm_frame, pgm_frame.sample_count)
+        return reconcile_pgm_to_cm(pgm_frame, cm, self._map_keys, self._map_vals)

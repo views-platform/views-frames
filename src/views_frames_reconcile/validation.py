@@ -6,7 +6,8 @@ buried in the orchestrator. The original's intents map as:
 
   - dataset type checks            -> spatial-level guard (cm@CM, pgm@PGM)
   - same time steps + exact overlap -> identical set of time values
-  - (per-draw scaling needs it)     -> equal `sample_count`
+  - (per-draw scaling needs it)     -> equal `sample_count`, or a point cm
+                                       (`sample_count == 1`) broadcast across the draws
   - valid countries                 -> every (time, country) the grid maps to has
                                        a country forecast in the cm frame
 
@@ -44,10 +45,11 @@ def validate_reconciliation_inputs(
         raise ValueError(
             f"grid frame must be at SpatialLevel.PGM, got {pgm_frame.index.level}"
         )
-    if cm_frame.sample_count != pgm_frame.sample_count:
+    if cm_frame.sample_count not in (1, pgm_frame.sample_count):
         raise ValueError(
-            f"sample-count mismatch: cm has {cm_frame.sample_count}, "
-            f"pgm has {pgm_frame.sample_count}"
+            f"sample-count mismatch: cm has {cm_frame.sample_count}, pgm has "
+            f"{pgm_frame.sample_count}; cm must be 1 (point, broadcast across draws) "
+            f"or {pgm_frame.sample_count} (aligned draws)"
         )
 
     cm_times = {int(t) for t in np.unique(cm_frame.index.time)}
