@@ -7,5 +7,18 @@ should be added as sibling modules, not by modifying ``proportional``.
 
 from views_frames_reconcile.module import ReconciliationModule
 from views_frames_reconcile.proportional import reconcile_proportional
+from views_frames_reconcile.result import (
+    ALIGNED_DRAWS,
+    METHOD_PROPORTIONAL,
+    POINT_BROADCAST,
+    ReconciliationResult,
+)
 
-__all__ = ["ReconciliationModule", "reconcile_proportional"]
+__all__ = [
+    "ALIGNED_DRAWS",
+    "METHOD_PROPORTIONAL",
+    "POINT_BROADCAST",
+    "ReconciliationModule",
+    "ReconciliationResult",
+    "reconcile_proportional",
+]

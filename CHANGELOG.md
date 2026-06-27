@@ -16,6 +16,12 @@ stays `1.0.0`.
   (`np.tile`), so callers no longer tile it themselves (the DRY home of pipeline-core's WET
   `align_country_to_grid`, #143). The **aligned-draws** path (`cm.sample_count == S`) is byte-for-byte
   unchanged; any other count still fails loud.
+- **`ReconciliationModule.reconcile_result(cm, pgm) -> ReconciliationResult`** (#144) — reconciles and
+  **reports the mode** (`POINT_BROADCAST` | `ALIGNED_DRAWS`) + method (`proportional`) on a returned
+  `ReconciliationResult`. The mode is *returned*, never stamped on the leaf's generic `FrameMetadata`
+  (ADR-020 / register C-47 — the numpy leaf carries no reconciliation vocabulary). `reconcile` is
+  unchanged (it returns `reconcile_result(...).frame`). New public names: `ReconciliationResult`,
+  `POINT_BROADCAST`, `ALIGNED_DRAWS`, `METHOD_PROPORTIONAL`.
 
 ### Notes
 - The broadcast lives entirely in `views_frames_reconcile/module.py`; the leaf `proportional` and the

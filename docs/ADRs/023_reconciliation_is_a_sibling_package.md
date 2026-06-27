@@ -196,6 +196,10 @@ module*, never a modification of the proportional method.
   story, only after parity is locked.
 - The principled probabilistic-reconciliation method (views-postprocessing C-37) — a future *sibling module*,
   never a modification of `proportional`.
+- **Reconciliation-mode provenance (#144):** the mode (`point-broadcast` vs `aligned-draws`) is **returned**
+  on a `ReconciliationResult` from `reconcile_result`, **not** stamped on the leaf's generic `FrameMetadata`
+  — that header is governed *generic-only* (ADR-020 / register C-47), so reconciliation vocabulary stays in
+  the sibling package, off the numpy leaf (decision recorded as register D-12).
 
 ---
 

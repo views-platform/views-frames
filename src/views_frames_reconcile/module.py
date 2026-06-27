@@ -23,6 +23,12 @@ from numpy.typing import NDArray
 
 from views_frames import PredictionFrame
 from views_frames_reconcile.grouping import reconcile_pgm_to_cm
+from views_frames_reconcile.result import (
+    ALIGNED_DRAWS,
+    METHOD_PROPORTIONAL,
+    POINT_BROADCAST,
+    ReconciliationResult,
+)
 from views_frames_reconcile.validation import validate_reconciliation_inputs
 
 
@@ -68,15 +74,19 @@ class ReconciliationModule:
         self._map_keys = keys
         self._map_vals = vals
 
-    def reconcile(
+    def reconcile_result(
         self, cm_frame: PredictionFrame, pgm_frame: PredictionFrame
-    ) -> PredictionFrame:
-        """Validate the inputs, then return a new pgm frame reconciled to cm totals.
+    ) -> ReconciliationResult:
+        """Reconcile, also reporting the mode — a ``ReconciliationResult``.
 
         A **point** country (``cm.sample_count == 1``) is broadcast across the grid's
-        draws before reconciling (the common case: a point country vs a draws grid); an
-        **aligned** country (``cm.sample_count == S``) scales draw-for-draw. Any other
-        count fails loud.
+        draws before reconciling (mode ``point-broadcast``); an **aligned** country
+        (``cm.sample_count == S``) scales draw-for-draw (mode ``aligned-draws``, the
+        documented per-draw approximation). Any other count fails loud.
+
+        The mode is **returned**, never stamped on the leaf's generic ``FrameMetadata``
+        (ADR-020 / register C-47 — the leaf carries no reconciliation vocabulary; see
+        ``result.py``).
 
         Raises:
             ValueError: the inputs fail validation (level / sample-count — cm must be 1
@@ -85,7 +95,26 @@ class ReconciliationModule:
         validate_reconciliation_inputs(
             cm_frame, pgm_frame, self._map_keys, self._map_vals
         )
-        cm = cm_frame
         if cm_frame.sample_count != pgm_frame.sample_count:
             cm = _broadcast_point_country(cm_frame, pgm_frame.sample_count)
-        return reconcile_pgm_to_cm(pgm_frame, cm, self._map_keys, self._map_vals)
+            mode = POINT_BROADCAST
+        else:
+            cm = cm_frame
+            mode = ALIGNED_DRAWS
+        frame = reconcile_pgm_to_cm(pgm_frame, cm, self._map_keys, self._map_vals)
+        return ReconciliationResult(frame=frame, mode=mode, method=METHOD_PROPORTIONAL)
+
+    def reconcile(
+        self, cm_frame: PredictionFrame, pgm_frame: PredictionFrame
+    ) -> PredictionFrame:
+        """Validate the inputs, then return a new pgm frame reconciled to cm totals.
+
+        Point/aligned handling and fail-loud are as :meth:`reconcile_result`; this
+        returns only the reconciled frame. Call :meth:`reconcile_result` when you also
+        need the reconciliation *mode* (point-broadcast vs aligned-draws).
+
+        Raises:
+            ValueError: the inputs fail validation (level / sample-count — cm must be 1
+                or pgm's ``S`` / time coverage / missing country forecast).
+        """
+        return self.reconcile_result(cm_frame, pgm_frame).frame

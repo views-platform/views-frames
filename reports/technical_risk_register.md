@@ -8,7 +8,7 @@
 | Total Concerns    | 58                                   |
 | Open Concerns     | 10                                   |
 | Resolved Concerns | 48                                   |
-| Disagreements     | 11                                   |
+| Disagreements     | 12                                   |
 
 ---
 
@@ -366,6 +366,19 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 | Resolution | **Settled — keep them off the frozen leaf.** (1) **pandas (`to_pddf`/`from_pddf`): never on the leaf** — place in a **consumer adapter** (pipeline-core, beside `PredictionFrameConverter`), or, only if ≥2 repos need the identical adapter (REP/CRP), an explicitly-transitional **unfrozen sibling** (e.g. `views_frames_compat`, pandas an optional extra) so it stays removable post-transition (the ADR-017/ADR-023 sibling precedent). (2) **parquet:** the codec already exists (`io.arrow`) — **reject new frozen frame symbols** (`to_parquet`/`from_parquet`); if frame-level ergonomics are wanted, do **Option B'** — make the existing `Frame.save/load` **format-selectable** (`save(path, format="parquet"\|"npz")`, pyarrow imported lazily; additive, floor stays 1.0.0), and only **if/when a consumer actually reaches for it** (no demand yet → **defer**). (3) **Governing rule:** anything that might be removed post-transition must **not** touch the frozen leaf surface. **No work required in views-frames now**; B' is the only candidate leaf change and it is deferred. |
 
 Cross-refs: ADR-018 (freeze — additive-only, removal = MAJOR), ADR-001 (adapters/pandas = consumer edges; accretion = the leaf's #1 failure mode), ADR-017 + ADR-023 (unfrozen sibling-package precedent), README §7 (the #181 list-in-cell foot-gun) / §11 (scope — pandas/parquet-store → consumer repos), `tests/test_import_enforcement.py` (`FORBIDDEN` pandas), C-52 (the accretion this extends).
+
+---
+
+### D-12: reconciliation-mode provenance placement — stamp the leaf frame vs report it from the sibling
+
+| Field | Value |
+|-------|-------|
+| ID | D-12 |
+| Source | implementation + review-diff (2026-06-27) — S2 of the reconciliation right-home epic (#144) |
+| Perspectives | **Stamp the mode on the frame** (#144 as originally written): write the reconciliation mode (`point-broadcast` / `aligned-draws`) into the reconciled frame's `FrameMetadata`, so an auditor reads it off the frame in isolation (a "self-describing" frame). **Keep reconciliation vocabulary off the leaf**: the leaf's `FrameMetadata` is governed **generic-only** (ADR-020 / register C-47) — it carries provenance meaningful for *any* frame (`run_id`, `data_version`) and deliberately excludes domain/operation-specific fields (the precedent: eval's `scoring_code_version` lives in views-evaluation's `MetricFrame`, never the leaf). Stamping `reconciliation_mode` would push sibling-only vocabulary into the numpy leaf that must not know reconciliation exists (ADR-001 accretion guard), and `FrameMetadata` lives in `views_frames` while reconciliation lives in the sibling — a layering inversion. |
+| Resolution | **Settled — report the mode from the sibling; do not stamp the leaf.** `ReconciliationModule.reconcile_result(cm, pgm)` returns a `ReconciliationResult` (`frame`, `mode`, `method`) carrying the mode; `reconcile()` still returns just the frame (bit-unchanged). The mode lives in `views_frames_reconcile` (`result.py`), off the leaf's generic header, so the C-47 / ADR-020 generic-only guard holds and the leaf stays free of reconciliation vocabulary. The mode literals (`point-broadcast`/`aligned-draws`) match pipeline-core's `reconcile_frames` constants verbatim for cross-repo consistency. A caller needing in-isolation auditability records the returned mode in its own (consumer-side) metadata. |
+
+Cross-refs: C-47 (eval provenance kept out of the generic header — the precedent), ADR-020 (provenance split by concern), ADR-013 (`FrameMetadata` optional-extensible but generic), ADR-001 (leaf accretion guard), ADR-023 (the reconciliation sibling; its Open-Questions records this), D-11 (the analogous "keep removable/edge conveniences off the frozen leaf" decision); GH #144; pipeline-core C-200b (the silent-mode risk this addresses consumer-side).
 
 ---
 
