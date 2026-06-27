@@ -12,8 +12,11 @@ A caller that needs the mode reads it off :class:`ReconciliationResult`
 (``ReconciliationModule.reconcile_result``); a caller that only needs the frame uses
 ``ReconciliationModule.reconcile``, which returns the frame directly.
 
-The string values match pipeline-core's ``reconcile_frames`` constants verbatim, so the
-mode is consistent across the repos that produce and consume it.
+The mode reflects **what this reconcile call did** (broadcast a point, or scaled aligned
+draws) — not upstream provenance: a caller that pre-tiles a point country to ``S`` draws
+before calling reconciles in ``aligned-draws`` mode. The string values match
+pipeline-core's ``reconcile_frames`` constants verbatim, so the *vocabulary* is shared
+across the repos that produce and consume the mode.
 """
 
 from __future__ import annotations
@@ -22,10 +25,15 @@ from dataclasses import dataclass
 
 from views_frames import PredictionFrame
 
-#: A point country forecast (``sample_count == 1``) broadcast across the grid's draws.
+#: Mode — the call **broadcast a point**: the country arrived as a point
+#: (``cm.sample_count == 1``) against a multi-draw grid and was tiled across the grid's
+#: ``S`` draws (every draw rescaled to the same total).
 POINT_BROADCAST = "point-broadcast"
-#: A draws country forecast (``sample_count == S``) scaled draw-for-draw — the per-draw
-#: approximation (the principled joint upgrade is a separate design, #145).
+#: Mode — the call **scaled aligned draws**: the country already carried the grid's draw
+#: count (``cm.sample_count == S``) and was scaled draw-for-draw — the per-draw
+#: approximation (the principled joint upgrade is a separate design, #145). The mode
+#: describes *what this call did*: a point against a single-draw grid, or a point the
+#: caller pre-tiled to ``S``, also reads as aligned-draws (nothing was broadcast).
 ALIGNED_DRAWS = "aligned-draws"
 #: The reconciliation algorithm — top-down proportional, per draw.
 METHOD_PROPORTIONAL = "proportional"
