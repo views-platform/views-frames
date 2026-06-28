@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-27                           |
-| Total Concerns    | 62                                   |
-| Open Concerns     | 11                                   |
+| Last Updated      | 2026-06-28                           |
+| Total Concerns    | 63                                   |
+| Open Concerns     | 12                                   |
 | Resolved Concerns | 51                                   |
 | Disagreements     | 12                                   |
 
@@ -35,17 +35,17 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **12 currently open** concerns fall into four clusters plus a cross-cutting theme
+> The **12 currently open** concerns fall into five clusters plus a cross-cutting theme
 > (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
 > coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
 > estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
 > per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
 > was closed by `Reconcile.md` (epic #179 / S1); **(3)
 > construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
-> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06). The
-> former **immutability-enforcement** cluster (C-63) is resolved: the contract was corrected
-> to the by-convention reality and the `setflags`-enforce deferred to a future MAJOR (ADR-025,
-> epic #179 / S2). The cross-cutting
+> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06); **(5)
+> immutability enforcement** — C-66 (+ resolved C-63): the C-63 contract-correction is done
+> (ADR-025, epic #179 / S2), but the actual `setflags`-enforce on `.values` is a MAJOR and is
+> deferred — **C-66** tracks that enforce-rider so it stays visible in Open. The cross-cutting
 > **verification-completeness** theme now narrows to C-58 (the reconciler's production-slice
 > check); its sibling C-65 (non-finite fail-loud on the blocked path) was pinned with a red
 > test (epic #179 / S3). Earlier clusters are closed:
@@ -219,6 +219,21 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 | Cross-refs | ADR-024 (the design + deferral), ADR-023 (sibling charter; future-sibling-module open question), views-postprocessing C-37 (the cross-repo principled-reconciliation lineage), views-pipeline-core C-198 / C-200b (consumer-side), C-60 (the notebook presentation of this — resolved), D-12 (mode reporting). GH #145 / #142. |
 
 `reconcile_proportional` rescales grid cells to sum, **per draw**, to the country total — pairing grid-draw `s` with country-draw `s`. When the grid and country models are trained **independently** (the current platform reality), draw index `s` has **no shared identity** across them, so the pairing is arbitrary and the reconciled **joint** distribution (the joint country tails an FAO-style worst-case keys on) is not guaranteed calibrated — even though conservation (sum-to-country per draw, zeros preserved, non-negative) holds **exactly**. This is **not silent** (hence **Tier 3**, not Tier 1): it is documented at every layer — the `proportional.py` docstring, ADR-024, the `03_reconciliation.ipynb` bit-identity-≠-method-quality panel (C-60), and surfaced at runtime as the `reconcile_result` mode `aligned-draws` (D-12). It is a **known method-quality limitation with a designed upgrade path** (ADR-024), deliberately deferred until its preconditions hold. **Open** — the limitation persists until the principled sibling module is built.
+
+---
+
+### C-66: value-buffer write-protection is deferred to the next MAJOR (the C-63 enforce-rider)
+
+| Field | Value |
+|-------|-------|
+| ID | C-66 |
+| Tier | 3 |
+| Source | review-diff + register-risk (2026-06-28, epic #179 / S2) — the residual of the C-63 resolution-by-decision (ADR-025). |
+| Trigger | When a MAJOR bump is opened for **any** reason — add `self._values.setflags(write=False)` after the `self._values = ...` assignment in the three frame constructors (`prediction_frame.py:44`, `target_frame.py:43`, `feature_frame.py:52`) **and** a red test (`frame.values.flags.writeable is False`; mirror `tests/test_properties.py:38`), riding that MAJOR for free. **Or** sooner, if a consumer is found applying an in-place `.values` mutation (`frame.values[mask] = 0`, `*=`, a clamp) on a `with_metadata`/`select` buffer-sharing frame — promote/expedite the enforce then. |
+| Location | `src/views_frames/{prediction_frame.py:44, target_frame.py:43, feature_frame.py:52}` (bare `self._values = values`, no `setflags`); `src/views_frames/_validation.py:64` (`coerce_values` returns float32 without copy); contrast `src/views_frames/index.py:55-56` (the index **is** write-protected). Decision in `docs/ADRs/025_value_buffer_immutability_by_convention.md`. |
+| Cross-refs | **C-63** (RESOLVED by contract correction — this entry tracks the *deferred enforce* it left open), **ADR-025** (the decision + the exact one-line-per-constructor change), ADR-018 (`values` is frozen-surface, so the enforce is a MAJOR), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), C-07 (the zero-copy reason the buffer is left writeable). |
+
+C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is documented as immutable *by convention* and the docs no longer claim an unenforced guarantee. But the **code** is unchanged — `frame.values.flags.writeable` is still `True`, and `with_metadata` shares the buffer — so the underlying mechanism (an in-place `.values` mutation **silently corrupts every frame sharing the buffer**, the Tier-2 basis of C-63) is **mitigated, not removed**. The mitigation is documentation (three frame CICs §9 + README design principle 3 say it is unsupported) + the empirical fact that **nothing in `src/` or `tests/` mutates `.values`**. The actual write-protection (`setflags(write=False)`) is deliberately deferred because, on the frozen-surface `values`, it is a **MAJOR** (GOVERNANCE/ADR-018) and does not justify a standalone cross-repo coordinated bump. **Tier 3** — this entry tracks the *accepted deferral* of a documented-and-unexercised exposure (the acute silent-corruption path requires a consumer to ignore the published contract); it is a governance/safety-tracking item, not a current defect, and exists so the deferred enforce stays visible in the **Open** section rather than buried in a resolved entry. **Open** — until the enforce rides the next MAJOR.
 
 ---
 
@@ -961,7 +976,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
   - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
-  - **immutability enforcement** = {resolved C-63, C-07} — **resolved by ADR-025 (2026-06-28, epic #179 / S2).** Immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` in place is unsupported). The contract was corrected to this reality across the three frame CICs + README design principle 3; the `setflags`-enforce on `.values` would be a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is recorded as a deferred MAJOR-rider.
+  - **immutability enforcement** = {C-66, + resolved C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
   - cross-cutting **verification-completeness** = {C-58, resolved C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58, still open). Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
