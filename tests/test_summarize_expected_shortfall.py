@@ -177,3 +177,24 @@ def test_aggregate_composition_is_joint_worst_case():
     per_cell = expected_shortfall(grid, [0.5])
     assert np.allclose(per_cell[:, 0], [51.5, 51.5])
     assert not np.isclose(float(per_cell[:, 0].sum()), 101.0)  # 103 ≠ 101 (subadditive)
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+def test_nonfinite_in_a_non_first_block_raises(bad):
+    # register C-65: the np.isfinite guard lives INSIDE the per-block reducer, called
+    # once per row-block by block_apply — but every other non-finite test uses a 1-row
+    # frame (single-shot path, n <= ROW_BLOCK), leaving the multi-block path untested.
+    # numpy sorts NaN/+inf LAST, so without the per-block guard a top-k mean would
+    # silently select the garbage. Force >1 block (block_rows=2) with the bad draw ONLY
+    # in a LATER block (block 0 all-finite): a guard that saw only the first block would
+    # pass silently — this must fail loud.
+    rows = [
+        [0.0, 1.0, 2.0, 3.0],  # block 0, row 0 — finite
+        [1.0, 2.0, 3.0, 4.0],  # block 0, row 1 — finite
+        [0.0, 1.0, 2.0, 3.0],  # block 1, row 2 — finite
+        [0.0, bad, 2.0, 3.0],  # block 1, row 3 — the non-finite draw (later block)
+    ]
+    pf = _pf(rows)
+    assert np.isfinite(np.array(rows[:2], dtype=np.float32)).all()  # block 0 is clean
+    with pytest.raises(ValueError, match="non-finite"):
+        expected_shortfall(pf, [0.5], block_rows=2)

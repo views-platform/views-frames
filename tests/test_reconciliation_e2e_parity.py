@@ -5,13 +5,19 @@ frames-native module reproduces the frozen views-reporting pipeline on the S0
 fixture. Offline — numpy + views-frames + the committed fixture only.
 """
 
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from views_frames import SpatialLevel
-from views_frames_reconcile import ReconciliationModule
+from views_frames_reconcile import (
+    ALIGNED_DRAWS,
+    POINT_BROADCAST,
+    ReconciliationModule,
+    ReconciliationResult,
+)
 from views_frames_reconcile.frames import prediction_frame_from_arrays
 
 _FIX = Path(__file__).resolve().parent / "fixtures" / "reconciliation_e2e_parity.npz"
@@ -81,6 +87,23 @@ class TestModuleProperties:
                 )
                 assert (grid_sum[allzero] == 0).all()  # all-zero draws stay zero
 
+    def test_point_country_broadcast_equals_manual_tile(self, fix, module):
+        # S1 (#143): native point-broadcast must be bit-identical to manually tiling the
+        # point country to S draws and running the (oracle-proven) aligned path.
+        _, pgm = _frames(fix, "pred_ged_sb")
+        s = pgm.sample_count
+        point_vals = fix["cm__pred_ged_sb"][:, :1]  # a point country (sample_count == 1)
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], point_vals, level=SpatialLevel.CM
+        )
+        tiled_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], np.tile(point_vals, (1, s)),
+            level=SpatialLevel.CM,
+        )
+        out_point = module.reconcile(point_cm, pgm)
+        out_tiled = module.reconcile(tiled_cm, pgm)
+        np.testing.assert_array_equal(out_point.values, out_tiled.values)
+
     def test_bad_mapping_shape_raises(self, fix):
         with pytest.raises(ValueError, match="map_keys must be"):
             ReconciliationModule(fix["pg_time"], fix["pg_country"])  # 1-D keys
@@ -90,3 +113,69 @@ class TestModuleProperties:
         cm_wrong, pgm = _frames(fix, "pred_ged_sb")
         with pytest.raises(ValueError, match="SpatialLevel.CM"):
             module.reconcile(pgm, pgm)  # pass pgm where cm expected
+
+
+class TestReconciliationResult:
+    """S2 (#144): the mode is *returned* on a result, not stamped on the leaf frame."""
+
+    def test_aligned_draws_mode(self, fix, module):
+        cm, pgm = _frames(fix, "pred_ged_sb")  # cm carries S draws
+        result = module.reconcile_result(cm, pgm)
+        assert isinstance(result, ReconciliationResult)
+        assert result.mode == ALIGNED_DRAWS
+        assert result.method == "proportional"
+        # the result frame is exactly what reconcile() returns
+        np.testing.assert_array_equal(
+            result.frame.values, module.reconcile(cm, pgm).values
+        )
+
+    def test_point_broadcast_mode(self, fix, module):
+        _, pgm = _frames(fix, "pred_ged_sb")
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], fix["cm__pred_ged_sb"][:, :1],
+            level=SpatialLevel.CM,
+        )
+        result = module.reconcile_result(point_cm, pgm)
+        assert result.mode == POINT_BROADCAST
+        assert result.frame.sample_count == pgm.sample_count
+
+    def test_both_points_is_aligned_draws(self, fix, module):
+        # mode-corner (S3): cm and pgm both points (sample_count == 1). Nothing is
+        # broadcast (counts already match), so the mode is ALIGNED_DRAWS — not
+        # POINT_BROADCAST — and the result stays a single-draw frame.
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], fix["cm__pred_ged_sb"][:, :1],
+            level=SpatialLevel.CM,
+        )
+        point_pgm = prediction_frame_from_arrays(
+            fix["pg_time"], fix["pg_unit"], fix["pg__pred_ged_sb"][:, :1],
+            level=SpatialLevel.PGM,
+        )
+        result = module.reconcile_result(point_cm, point_pgm)
+        assert result.mode == ALIGNED_DRAWS
+        assert result.frame.sample_count == 1
+
+    def test_pre_tiled_point_cm_is_aligned_draws(self, fix, module):
+        # mode-corner (S3): a caller who pre-tiles a point country to S draws BEFORE
+        # calling reads as ALIGNED_DRAWS (nothing was broadcast inside this call) — the
+        # mode describes what THIS call did, per result.py. Contrast test_point_broadcast_mode
+        # (a genuine sample_count==1 cm), which reads POINT_BROADCAST.
+        _, pgm = _frames(fix, "pred_ged_sb")
+        s = pgm.sample_count
+        tiled_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"],
+            np.tile(fix["cm__pred_ged_sb"][:, :1], (1, s)),
+            level=SpatialLevel.CM,
+        )
+        result = module.reconcile_result(tiled_cm, pgm)
+        assert result.mode == ALIGNED_DRAWS
+        assert result.frame.sample_count == s
+
+    def test_result_is_frozen(self, fix, module):
+        # ReconciliationResult is a @dataclass(frozen=True) — its mode/method/frame must
+        # be immutable so a reported mode can't be retro-edited (mirrors
+        # test_frames.py::test_metadata_is_frozen).
+        cm, pgm = _frames(fix, "pred_ged_sb")
+        result = module.reconcile_result(cm, pgm)
+        with pytest.raises(FrozenInstanceError):
+            result.mode = POINT_BROADCAST  # type: ignore[misc]

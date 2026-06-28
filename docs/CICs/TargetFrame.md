@@ -34,7 +34,9 @@ boundary array-native, replacing the pandas actuals the eval adapter takes today
 - Validates at construction: `values` contiguous `float32` of shape `(N, 1)` — the
   trailing sample axis is explicit with `S == 1` (ADR-012); no object dtype;
   identifiers integer, length-`N`, complete.
-- Immutable with the same copy-vs-view semantics as the other frames (register C-07).
+- Immutable with the same copy-vs-view semantics as the other frames (register C-07):
+  the **index is enforced** read-only; the **value buffer is immutable by convention**
+  (writeable for zero-copy — in-place `.values` mutation is unsupported; ADR-025 / C-63).
 - Carries a typed `metadata` header (ADR-013) and the same row/metadata surface as the
   sibling frames: `with_metadata`, `select(positions | mask)`, `reindex(other)` (raises
   unless this index is a superset of `other`); `sample_count == 1`, `is_sample == False`.
@@ -90,6 +92,10 @@ assert tf.is_sample is False        # S == 1
 TargetFrame(y_true=actuals_1d, index=idx)        # raises
 
 # WRONG: treating it as a sampled frame and asking for many quantiles
+
+# WRONG: mutating the value buffer in place — immutable *by convention*, not
+# write-protected, so it does NOT raise; build a new frame (ADR-025 / register C-63).
+tf.values[:] = 0          # unsupported: silent shared-buffer corruption, no error
 ```
 
 ---

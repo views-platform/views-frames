@@ -44,6 +44,12 @@ class TestValidInputsPass:
         mk, mv = _mk(fix)
         validate_reconciliation_inputs(_cm(fix), _pgm(fix), mk, mv)  # must not raise
 
+    def test_point_country_passes(self, fix):
+        # S1 (#143): a point cm (sample_count == 1) is the broadcast case — must not raise.
+        mk, mv = _mk(fix)
+        cm = _cm(fix, vals=fix["cm__pred_ged_sb"][:, :1])
+        validate_reconciliation_inputs(cm, _pgm(fix), mk, mv)  # must not raise
+
 
 class TestGuards:
     def test_wrong_level_raises(self, fix):

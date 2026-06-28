@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "views-frames"
-version = "1.7.0"
+version = "1.8.0"
 description = "The VIEWS platform data-contract layer: immutable array+identifier frames (numpy only, root of the dependency DAG)."
 authors = [
     { name = "Simon Polichinel von der Maase", email = "simmaa@prio.org" },
@@ -39,6 +39,22 @@ Changelog = "https://github.com/views-platform/views-frames/blob/main/CHANGELOG.
 # Optional serialization extra — pyarrow is allowed ONLY behind io/ (README §3.1).
 [project.optional-dependencies]
 arrow = ["pyarrow>=14,<20"]
+# Optional docs/notebooks extra — plotting + jupyter for the showcase notebooks
+# (notebooks/, an un-gated dev artifact outside src/). NEVER runtime dependencies;
+# self-references [arrow] so `uv sync --extra docs` also enables the parquet round-trip
+# demo in notebooks/01_frames.ipynb. matplotlib/scipy are notebook-only (the core is
+# numpy-only); these are imported by notebooks, never by the package.
+docs = [
+    "views-frames[arrow]",
+    "matplotlib>=3.8,<4",
+    "scipy>=1.11,<2",
+    "jupyterlab>=4,<5",
+    # nbmake drives the non-blocking notebook-execution CI check (issue #151): it just
+    # runs the notebooks end-to-end to catch frozen-API drift. A test tool, but it rides
+    # in [docs] so the single `uv sync --extra docs` provisions everything the notebooks
+    # job needs (kernel + plotting + the checker).
+    "nbmake>=1.5,<2",
+]
 
 [dependency-groups]
 dev = [
@@ -76,9 +92,10 @@ show_missing = true
 [tool.ruff]
 line-length = 88
 target-version = "py310"
-# research/ is the volatile estimator lab (outside the frozen, gated src/); it is
-# not held to the leaf's lint/format bar.
-extend-exclude = ["research"]
+# research/ is the volatile estimator lab and notebooks/ holds the un-gated showcase
+# notebooks + their helper (notebooks/_synthetic.py) — both sit outside the frozen,
+# gated src/ and are not held to the leaf's lint/format bar.
+extend-exclude = ["research", "notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
@@ -87,11 +104,13 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
 # The falsification stubs assert against the README via long, literal regexes
 # whose lines cannot wrap without changing their semantics.
 "tests/test_falsification_*.py" = ["E501"]
-# The reconciliation parity tests + their oracle-regeneration scripts are
-# faithfully relocated from views-postprocessing (Epic 11 / ADR-023); their dense
-# numpy/dict-comprehension assertions are kept verbatim rather than re-wrapped.
+# The reconciliation parity tests are faithfully relocated from views-postprocessing
+# (Epic 11 / ADR-023); their dense numpy/dict-comprehension assertions are kept verbatim
+# rather than re-wrapped.
 "tests/test_reconciliation_*.py" = ["E501"]
-"scripts/gen_reconciliation_*.py" = ["E501"]
+# The dev/ops scripts (oracle regeneration; the reconciliation parity verifier) are not
+# CI-run and carry dense numpy one-liners + report f-strings; not held to the wrap bar.
+"scripts/*.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"

@@ -11,25 +11,31 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from views_frames import SpatialLevel
+from views_frames import PredictionFrame, SpatialLevel
 from views_frames_reconcile import ReconciliationModule
+from views_frames_reconcile import conformance as _conformance
 from views_frames_reconcile.conformance import assert_reconcile_contract
 from views_frames_reconcile.frames import prediction_frame_from_arrays
 
 _FIX = Path(__file__).resolve().parent / "fixtures" / "reconciliation_e2e_parity.npz"
 
 
-def _synthetic(seed, *, samples, all_zero_country=False):
-    """Build a (cm, pgm, map_keys, map_vals) scenario: 2 countries, 1 month."""
+def _synthetic(seed, *, samples, all_zero_country=False, cm_samples=None):
+    """Build a (cm, pgm, map_keys, map_vals) scenario: 2 countries, 1 month.
+
+    ``cm_samples`` (default = ``samples``) lets the country frame carry a different
+    sample count than the grid — set ``cm_samples=1`` for the point-broadcast case.
+    """
     rng = np.random.default_rng(seed)
     month = 500
+    n_cm = samples if cm_samples is None else cm_samples
     # country 1 owns gids 1000-1002, country 2 owns gids 2000-2001
     layout = {1: [1000, 1001, 1002], 2: [2000, 2001]}
     cm_t, cm_u, cm_v, pg_t, pg_u, pg_v, mk, mv = [], [], [], [], [], [], [], []
     for c, gids in layout.items():
         cm_t.append(month)
         cm_u.append(c)
-        cm_v.append(rng.gamma(2.0, 50.0, size=samples).astype(np.float32))
+        cm_v.append(rng.gamma(2.0, 50.0, size=n_cm).astype(np.float32))
         for g in gids:
             pg_t.append(month)
             pg_u.append(g)
@@ -72,6 +78,13 @@ def test_contract_with_all_zero_country():
     assert_reconcile_contract(*_synthetic(7, samples=32, all_zero_country=True))
 
 
+def test_contract_on_point_country():
+    # S1 (#143): a point country (sample_count == 1) vs a draws grid is broadcast inside
+    # reconcile; the full contract must still hold (sum-to-country, zeros, non-negative,
+    # draws kept).
+    assert_reconcile_contract(*_synthetic(11, samples=64, cm_samples=1))
+
+
 def test_injected_mapping_is_honored():
     # Reconciling with a mapping that reassigns cells to the other country must change
     # the result — proof the mapping is the injected one, used not fetched/ignored.
@@ -80,3 +93,24 @@ def test_injected_mapping_is_honored():
     swapped_vals = np.where(mv == 1, 2, 1)  # flip every cell's country
     swapped = ReconciliationModule(mk, swapped_vals).reconcile(cm, pgm)
     assert not np.array_equal(correct.values, swapped.values)
+
+
+def test_conformance_rejects_a_non_conforming_reconciler(monkeypatch):
+    # The conformance suite must have TEETH: every positive test above runs the REAL
+    # (conforming) ReconciliationModule, so none exercises an assertion's raise-path
+    # (100% branch coverage does not — cf. the leaf's register C-51 envelope negatives).
+    # Substitute a deliberately broken reconciler (returns all -1.0 → violates the
+    # non-negativity law) and prove assert_reconcile_contract fails loud on it.
+    cm, pgm, mk, mv = _synthetic(5, samples=16)
+
+    class _BadModule:
+        def __init__(self, _mk, _mv):
+            pass
+
+        def reconcile(self, _cm, pgm_frame):
+            bad = np.full_like(pgm_frame.values, -1.0)  # non-negativity-violating
+            return PredictionFrame(bad, pgm_frame.index, pgm_frame.metadata)
+
+    monkeypatch.setattr(_conformance, "ReconciliationModule", _BadModule)
+    with pytest.raises(AssertionError, match="non-negative"):
+        assert_reconcile_contract(cm, pgm, mk, mv)

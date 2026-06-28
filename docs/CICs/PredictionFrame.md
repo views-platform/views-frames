@@ -36,7 +36,10 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
   identifiers integer, length-`N`, complete; the sample axis is the **trailing** axis
   and always explicit (`S >= 1`; ADR-012).
 - Immutable: `with_metadata` returns a **new** frame sharing the `values` buffer
-  (zero-copy); `mmap` propagates (register C-07).
+  (zero-copy); `mmap` propagates (register C-07). **Immutability is enforced for the
+  index** (`time`/`unit` are `setflags(write=False)`) and held **by convention for the
+  value buffer** (left writeable to preserve zero-copy — mutating `.values` in place is
+  unsupported and may corrupt buffer-sharing frames; ADR-025 / register C-63).
 - Row ops return new frames: `select(positions | mask)` and `reindex(other)` — the
   latter raises unless this frame's index is a superset of `other`. Selection **copies**
   the selected `values` (only structural/metadata ops share the buffer).
@@ -95,8 +98,11 @@ point = collapse(pf, np.mean)                                       # (N, 1) fra
 # WRONG: list-in-cell / object dtype (the measured non-scaler) — raises
 PredictionFrame(y_pred=np.array(list_of_lists, dtype=object), index=idx)
 
-# WRONG: mutating in place
-pf.values[:] = 0          # frames are immutable; build a new frame instead
+# WRONG: mutating the value buffer in place. Immutable *by convention* — NOT
+# write-protected (the buffer stays writeable for zero-copy), so this does NOT raise;
+# it silently corrupts every frame sharing the buffer (e.g. via with_metadata).
+# Build a new frame instead. (ADR-025 / register C-63; the index IS write-protected.)
+pf.values[:] = 0          # unsupported: silent shared-buffer corruption, no error
 ```
 
 ---

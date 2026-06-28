@@ -4,6 +4,62 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.8.0] — 2026-06-28
+
+**Native point-country broadcast in `views_frames_reconcile` (ADR-023 amendment, #143 / Epic #142),
+the three showcase notebooks (Epic #166), and a governance/test hardening pass (Epic #179).** All
+additive — the frozen leaf and summarize public surface are unchanged, and the hardening work makes
+**no `src/` behaviour change**; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`ReconciliationModule.reconcile` accepts a point country** (`cm.sample_count == 1`) against a draws
+  grid (`pgm.sample_count == S`): the point is broadcast across the `S` draws inside the orchestrator
+  (`np.tile`), so callers no longer tile it themselves (the DRY home of pipeline-core's WET
+  `align_country_to_grid`, #143). The **aligned-draws** path (`cm.sample_count == S`) is byte-for-byte
+  unchanged; any other count still fails loud.
+- **`ReconciliationModule.reconcile_result(cm, pgm) -> ReconciliationResult`** (#144) — reconciles and
+  **reports the mode** (`POINT_BROADCAST` | `ALIGNED_DRAWS`) + method (`proportional`) on a returned
+  `ReconciliationResult`. The mode is *returned*, never stamped on the leaf's generic `FrameMetadata`
+  (ADR-020 / register C-47 — the numpy leaf carries no reconciliation vocabulary). `reconcile` is
+  unchanged (it returns `reconcile_result(...).frame`). New public names: `ReconciliationResult`,
+  `POINT_BROADCAST`, `ALIGNED_DRAWS`, `METHOD_PROPORTIONAL`.
+
+### Notes
+- The broadcast lives entirely in `views_frames_reconcile/module.py`; the leaf `proportional` and the
+  parity-frozen `grouping` hot loop are untouched, so the torch-oracle parity is exact (0.000e+00).
+- The aligned-draws mode remains the documented per-draw approximation. **ADR-024** (#145) records the
+  design direction + deferral for the principled joint upgrade (and corrects `proportional.py`'s
+  ambiguous "C-37" reference; register C-62). Design-only — no code.
+
+### Documentation
+- **Three showcase notebooks** (`notebooks/01_frames`, `02_summaries`, `03_reconciliation`; Epic #166):
+  public-frozen-API-only, synthetic-data teaching notebooks for the frames contract, the posterior
+  summaries (with a calibration/coverage + PIT panel), and reconciliation — including a
+  bit-identity-≠-method-quality panel and a toy-lattice spatial view (register C-59/C-60/C-61).
+- **`docs/CICs/Reconcile.md`** (Epic #179) — the package-level Class Intent Contract for
+  `views_frames_reconcile` (§1–§11): the sum-to-country / zero-preservation / non-negativity /
+  de-mutation guarantees, the point/aligned **mode** contract, the five fail-loud validation guards
+  + the per-draw-approximation caveat, and the green/beige/red test alignment. The reconcile package
+  was the last non-trivial surface without a CIC (ADR-006); **register C-64 resolved**.
+- **ADR-025 — value-buffer immutability is by convention; only the index is enforced** (Epic #179).
+  Corrects the "immutable value objects" contract (the three frame CICs §9/§3 + README design
+  principle 2) to match the code: the index (`time`/`unit`) is `setflags(write=False)`-enforced; the
+  value buffer is immutable *by convention* (left writeable to preserve zero-copy / `mmap` — mutating
+  `.values` in place is unsupported). The `setflags`-enforce on `.values` would be a MAJOR
+  ("tightening an invariant" on a frozen-surface member, GOVERNANCE/ADR-018), so it is recorded as a
+  **deferred MAJOR-rider**, not done now; **register C-63 resolved** (contract corrected).
+
+### Tests
+- **Adversarial (red) test hardening** (Epic #179), no `src/` change, 100% line+branch coverage held:
+  - the non-finite (NaN / ±inf) fail-loud guard in `exceedance`/`expected_shortfall` is now pinned on
+    the **blocked (multi-block) path** — the bad draw placed in a non-first block via the `block_rows`
+    kwarg with block 0 all-finite (**register C-65 resolved**);
+  - **conformance-suite negatives** — `assert_reconcile_contract` and `assert_summarizer_contract` are
+    shown to reject a deliberately non-conforming implementation (the leaf's C-51 envelope-negative
+    pattern, extended to the sibling packages);
+  - **reconcile mode-corners** — `reconcile_result.mode` for both-points and pre-tiled-cm inputs (both
+    `ALIGNED_DRAWS`); and **`ReconciliationResult` frozen-ness** (`FrozenInstanceError`).
+
 ## [1.7.0] — 2026-06-26
 
 **Forecast reconciliation is a third sibling package (ADR-023, Epic 11).** A new importable

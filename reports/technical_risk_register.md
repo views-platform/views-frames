@@ -4,11 +4,11 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-25                           |
-| Total Concerns    | 54                                   |
-| Open Concerns     | 9                                    |
-| Resolved Concerns | 45                                   |
-| Disagreements     | 10                                   |
+| Last Updated      | 2026-06-27                           |
+| Total Concerns    | 62                                   |
+| Open Concerns     | 11                                   |
+| Resolved Concerns | 51                                   |
+| Disagreements     | 12                                   |
 
 ---
 
@@ -35,14 +35,23 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **3 currently open** items fall into two live clusters (detailed under *Causal
-> clusters* in Register Conventions): **(1) summarize-estimator coherence (#89)** — **C-32**
-> (`map_estimate` mode bias) and **C-34** (`bimodality` recall); their tower-nesting sibling
-> **C-33** was **resolved** by ADR-019 (2026-06-23). **(2) cross-repo coordination** — the
-> inherent **concentration risk** **C-13** (accepted / monitored), with disagreements
-> D-04/D-05/D-06. The **post-1.1.0 polish** cluster {C-35, C-36, C-37, C-38} was **closed by
-> Epic 7** (2026-06-24, now in Resolved Concerns), as were the 2026-06-22 test-review gaps
-> {C-29, C-31} by **Epic 6**.
+> The **12 currently open** concerns fall into four clusters plus a cross-cutting theme
+> (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
+> coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
+> estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
+> per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
+> was closed by `Reconcile.md` (epic #179 / S1); **(3)
+> construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
+> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06). The
+> former **immutability-enforcement** cluster (C-63) is resolved: the contract was corrected
+> to the by-convention reality and the `setflags`-enforce deferred to a future MAJOR (ADR-025,
+> epic #179 / S2). The cross-cutting
+> **verification-completeness** theme now narrows to C-58 (the reconciler's production-slice
+> check); its sibling C-65 (non-finite fail-loud on the blocked path) was pinned with a red
+> test (epic #179 / S3). Earlier clusters are closed:
+> **post-1.1.0 polish** {C-35, C-36, C-37, C-38} by **Epic 7** (2026-06-24) and the 2026-06-22
+> test-review gaps {C-29, C-31} by **Epic 6** — both now in Resolved Concerns. (`map_estimate`'s
+> tower-nesting sibling **C-33** was resolved by ADR-019, 2026-06-23.)
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
@@ -130,9 +139,9 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 | ID | C-52 |
 | Tier | 3 |
 | Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
-| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
-| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py`. |
-| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, C-53, C-54, GH #113. |
+| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — **or adds frame-level serialization/adapter conveniences (`to_parquet`/`from_parquet`, and especially `to_pddf`/`from_pddf`) to the frame classes** — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
+| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py` and against `to_parquet`/`to_pddf`/`from_pddf` accreting onto `src/views_frames/*_frame.py`. |
+| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, **D-11** (serialization-convenience placement — settled off-leaf), C-53, C-54, GH #113. |
 
 ADR-001 (line 17) names accretion as the leaf's existential failure mode — "someone adds an adapter, then grid knowledge … becomes pipeline-core-lite." A construction convenience is the most innocuous possible first step onto that slope. **Tier 3** (recalibrated down from an initial Tier 2 with the pipeline-core owner): under the ratified mitigations the residual risk is boundary-erosion a code-review gate catches, not inherent structural fragility. **Mitigations:** ship the **classmethod** form (a class resists becoming a dumping ground far better than an open `factory.py`); keep it **zero-own-logic**; add a CIC "Construction" **non-goal** that explicitly fences out grid / `value_fn` / inference / adapters. Resolved when `from_arrays` lands with those guards, or closed if #113 is declined.
 
@@ -183,6 +192,36 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 
 ---
 
+### C-58: a reconciler cutover verified against the oracle but not a live production slice
+
+| Field | Value |
+|-------|-------|
+| ID | C-58 |
+| Tier | 3 |
+| Source | expert-code-review (2026-06-26, #138 cutover review) + the Epic 11 cutover closeout |
+| Trigger | When a future reconciliation cutover repoints a consumer to a new reconciler relying only on the in-repo evidence — the frozen torch-oracle fixtures + the synthetic new-vs-old head-to-head — and **skips a comparison against an actual served production slice** at the repoint. If the in-repo oracle and the live served path have drifted (e.g. an upstream input or mapping change not reflected in the fixtures), the re-baseline of served numbers goes unverified. |
+| Location | The cutover gates (runbook `docs/guides/reconciliation_migration_and_cutover_runbook.md`, Phase 2); mitigation tool `scripts/verify_reconcile_parity.py` (`--compare`). |
+| Cross-refs | ADR-023, Epic 11 `#138`, the cutover postmortem (`reports/postmortems/2026-06_reconciliation_cutover_epic11.md`), views-models #191, views-postprocessing #62. |
+
+The Epic 11 cutover was validated by a sound transitive chain — `new == old vpp copy` (136-case bit-identity) and `old vpp == views-reporting torch oracle` (frozen `.npz`), so `new == torch oracle` — but **no comparison was run against an actual served production parquet** (old path vs new path) at the repoint. The residual risk is low (the oracle *is* the torch path's captured output), so this is **not** silent corruption — it is a missing belt on a sound buckle. **Mitigation shipped:** `verify_reconcile_parity.py --compare OLD.parquet NEW.parquet` makes the production-slice check a one-command gate, and the cutover runbook (Phase 2) now requires it for future cutovers. **Tier 3** — a verification-completeness gap, not a known defect. **Open** — watch-item for the next reconciler change. (The expert review's companion "batched-deploy blast radius" concern did **not** materialize: the Epic 11 cutover landed as phased PRs — repoint #202, then delete #63 — so no separate entry is warranted.)
+
+---
+
+### C-62: `reconcile_proportional` is an information-losing per-draw approximation (no joint-calibration guarantee)
+
+| Field | Value |
+|-------|-------|
+| ID | C-62 |
+| Tier | 3 |
+| Source | expert-method-review lineage + S3 design (#145), 2026-06-27 |
+| Trigger | When a consumer's decision provably needs **calibrated joint** country tails that proportional's per-draw marginal rescale cannot provide, **or** when the country model (views-models) gains a shared draw-identity / coupling that makes principled joint reconciliation buildable — i.e. when ADR-024's two deferral preconditions are met, build the principled sibling module (never by modifying `proportional`). |
+| Location | `src/views_frames_reconcile/proportional.py` (the per-draw method); designed in `docs/ADRs/024_principled_joint_reconciliation_design.md`. |
+| Cross-refs | ADR-024 (the design + deferral), ADR-023 (sibling charter; future-sibling-module open question), views-postprocessing C-37 (the cross-repo principled-reconciliation lineage), views-pipeline-core C-198 / C-200b (consumer-side), C-60 (the notebook presentation of this — resolved), D-12 (mode reporting). GH #145 / #142. |
+
+`reconcile_proportional` rescales grid cells to sum, **per draw**, to the country total — pairing grid-draw `s` with country-draw `s`. When the grid and country models are trained **independently** (the current platform reality), draw index `s` has **no shared identity** across them, so the pairing is arbitrary and the reconciled **joint** distribution (the joint country tails an FAO-style worst-case keys on) is not guaranteed calibrated — even though conservation (sum-to-country per draw, zeros preserved, non-negative) holds **exactly**. This is **not silent** (hence **Tier 3**, not Tier 1): it is documented at every layer — the `proportional.py` docstring, ADR-024, the `03_reconciliation.ipynb` bit-identity-≠-method-quality panel (C-60), and surfaced at runtime as the `reconcile_result` mode `aligned-draws` (D-12). It is a **known method-quality limitation with a designed upgrade path** (ADR-024), deliberately deferred until its preconditions hold. **Open** — the limitation persists until the principled sibling module is built.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -225,7 +264,7 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 | ID | D-04 |
 | Source | expert-review (2026-06-20) |
 | Perspectives | Critique_01 §5 ("uniform structure/idioms suggest one author wrote all three — they are the proposer's hypotheses, not stakeholder buy-in"), Author ("they pressure-test the design from multiple angles") |
-| Resolution | Unresolved — **and now load-bearing.** The simulated perspectives have been *acted upon*: five consumer-adoption issue sets were filed in real repos (datafactory #219–221, pipeline-core #186–190, reporting #137–140, postprocessing #27–29, faoapi #87–91). Those issues are **proposals derived from the simulated perspectives, not consumer buy-in** — treat each repo's adoption as unconfirmed until that team responds. Only `from_views-datafactory` is ratified. Add a "Ratified by: <name/date>" header to each perspective; do not count unratified perspectives (or the issues filed from them) as agreement. See D-05. |
+| Resolution | **Resolved-by-events (2026-06-27).** The simulated perspectives were acted on and then *ratified by real adoption*: the Epic 11 reconciliation cutover shipped through pipeline-core (#233) and views-models (#191/#202), with adoption work progressing in datafactory/reporting/faoapi — demonstrated buy-in, not assumed. The original caveat (five filed issue-sets — datafactory #219–221, pipeline-core #186–190, reporting #137–140, postprocessing #27–29, faoapi #87–91 — "unconfirmed until the team responds"; only `from_views-datafactory` ratified at filing) is now overtaken. See D-05, C-13. |
 
 ---
 
@@ -236,7 +275,7 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 | ID | D-05 |
 | Source | expert-review (2026-06-20) |
 | Perspectives | Critique_01 §5b ("views-evaluation owns `EvaluationFrame`/would produce `MetricFrame`; a model repo produces `PredictionFrame` — both absent, and they would stress the riskiest claims"), Scope ("write them before promoting `MetricFrame` from exploratory") |
-| Resolution | Unresolved — write the views-evaluation + a model-repo perspective before any `MetricFrame` work. See C-01. |
+| Resolution | **Resolved-by-events (2026-06-27).** The substance — the views-evaluation boundary — was settled by **ADR-020** (`MetricFrame` lives in views-evaluation on the views-frames substrate; only generic provenance on the leaf header; C-47 resolved), decided with views-evaluation Informed/Consulted. The formal "write the perspectives before `MetricFrame`" step was overtaken by that ADR decision. See C-01, C-47, ADR-020. |
 
 ---
 
@@ -247,7 +286,7 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 | ID | D-06 |
 | Source | expert-review (2026-06-20) |
 | Perspectives | Critique_01 §6 ("viewser→datafactory migration, views-appwrite extraction, and views-frames relocation compete for the same coordination budget and destroy change attribution if run concurrently"), Leverage ("views-frames is highest-leverage but also the largest coordination load") |
-| Resolution | Unresolved — WIP limit: do not run views-frames relocation and views-appwrite extraction in the same repo concurrently; queue consumer adoption behind the data-migration baseline. See C-13. |
+| Resolution | **Resolved-by-events (2026-06-27).** The sequencing played out as advised: views-frames relocation ran as the highest-leverage track through Epics 2–11 without being run concurrently with the views-appwrite extraction in the same repo, and consumer adoption queued behind the data-migration baseline. The concurrent-WIP / change-attribution concern is now historical. See C-13. |
 
 ---
 
@@ -295,7 +334,124 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 
 ---
 
+### D-11: frame serialization-convenience placement — `to_parquet`/`to_pddf` on the leaf vs off it
+
+| Field | Value |
+|-------|-------|
+| ID | D-11 |
+| Source | expert-code-review (2026-06-26) — the DataFrame→views-frames transition question (consumer sites that load/distribute parquet) |
+| Perspectives | **Add frame-level conveniences to the leaf** (`frame.to_parquet`/`from_parquet` via pyarrow, and/or `frame.to_pddf`/`from_pddf` via pandas) — migration ergonomics at the many parquet load/distribute sites; conceived as **transitional**, possibly removed once the migration completes. **Keep them off the frozen leaf** (all eight lenses + the constitution): the leaf is **frozen** (ADR-018 — additions are permanent, removal = platform-wide MAJOR), so "transitional/removable" + "frozen leaf" is **self-contradictory** (Beck/reversibility); **pandas is ratified out** (ADR-001 line 120 non-entities, README §11, import-DAG `FORBIDDEN`) and a `to_pddf` emitting the object-dtype **list-in-cell** encoding would re-arm the ~33× #181 OOM the frame exists to kill (README §7); serialization formats change for **different reasons** than the data contract (CCP) and concrete format/pandas sugar on the most-stable-most-abstract leaf breaks **SAP/SDP**; it is the C-52 camel's nose (`to_parquet` → `to_pddf` → `from_grid` → store knowledge). |
+| Resolution | **Settled — keep them off the frozen leaf.** (1) **pandas (`to_pddf`/`from_pddf`): never on the leaf** — place in a **consumer adapter** (pipeline-core, beside `PredictionFrameConverter`), or, only if ≥2 repos need the identical adapter (REP/CRP), an explicitly-transitional **unfrozen sibling** (e.g. `views_frames_compat`, pandas an optional extra) so it stays removable post-transition (the ADR-017/ADR-023 sibling precedent). (2) **parquet:** the codec already exists (`io.arrow`) — **reject new frozen frame symbols** (`to_parquet`/`from_parquet`); if frame-level ergonomics are wanted, do **Option B'** — make the existing `Frame.save/load` **format-selectable** (`save(path, format="parquet"\|"npz")`, pyarrow imported lazily; additive, floor stays 1.0.0), and only **if/when a consumer actually reaches for it** (no demand yet → **defer**). (3) **Governing rule:** anything that might be removed post-transition must **not** touch the frozen leaf surface. **No work required in views-frames now**; B' is the only candidate leaf change and it is deferred. |
+
+Cross-refs: ADR-018 (freeze — additive-only, removal = MAJOR), ADR-001 (adapters/pandas = consumer edges; accretion = the leaf's #1 failure mode), ADR-017 + ADR-023 (unfrozen sibling-package precedent), README §7 (the #181 list-in-cell foot-gun) / §11 (scope — pandas/parquet-store → consumer repos), `tests/test_import_enforcement.py` (`FORBIDDEN` pandas), C-52 (the accretion this extends).
+
+---
+
+### D-12: reconciliation-mode provenance placement — stamp the leaf frame vs report it from the sibling
+
+| Field | Value |
+|-------|-------|
+| ID | D-12 |
+| Source | implementation + review-diff (2026-06-27) — S2 of the reconciliation right-home epic (#144) |
+| Perspectives | **Stamp the mode on the frame** (#144 as originally written): write the reconciliation mode (`point-broadcast` / `aligned-draws`) into the reconciled frame's `FrameMetadata`, so an auditor reads it off the frame in isolation (a "self-describing" frame). **Keep reconciliation vocabulary off the leaf**: the leaf's `FrameMetadata` is governed **generic-only** (ADR-020 / register C-47) — it carries provenance meaningful for *any* frame (`run_id`, `data_version`) and deliberately excludes domain/operation-specific fields (the precedent: eval's `scoring_code_version` lives in views-evaluation's `MetricFrame`, never the leaf). Stamping `reconciliation_mode` would push sibling-only vocabulary into the numpy leaf that must not know reconciliation exists (ADR-001 accretion guard), and `FrameMetadata` lives in `views_frames` while reconciliation lives in the sibling — a layering inversion. |
+| Resolution | **Settled — report the mode from the sibling; do not stamp the leaf.** `ReconciliationModule.reconcile_result(cm, pgm)` returns a `ReconciliationResult` (`frame`, `mode`, `method`) carrying the mode; `reconcile()` still returns just the frame (bit-unchanged). The mode lives in `views_frames_reconcile` (`result.py`), off the leaf's generic header, so the C-47 / ADR-020 generic-only guard holds and the leaf stays free of reconciliation vocabulary. The mode literals (`point-broadcast`/`aligned-draws`) match pipeline-core's `reconcile_frames` constants verbatim for cross-repo consistency. A caller needing in-isolation auditability records the returned mode in its own (consumer-side) metadata. |
+
+Cross-refs: C-47 (eval provenance kept out of the generic header — the precedent), ADR-020 (provenance split by concern), ADR-013 (`FrameMetadata` optional-extensible but generic), ADR-001 (leaf accretion guard), ADR-023 (the reconciliation sibling; its Open-Questions records this), D-11 (the analogous "keep removable/edge conveniences off the frozen leaf" decision); GH #144; pipeline-core C-200b (the silent-mode risk this addresses consumer-side).
+
+---
+
 ## Resolved Concerns
+
+### C-65: non-finite fail-loud proven only on the single-shot path, not the blocked (multi-block) path — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-65 |
+| Tier | 3 |
+| Source | test-review (2026-06-27) |
+| Trigger | When the per-block `np.isfinite(...)` guard in `exceedance`/`expected_shortfall` is hoisted, vectorized, or otherwise moved out of the per-block reducer — a refactor the existing single-row tests would not catch. |
+| Location | `src/views_frames_summarize/exceedance.py` + `expected_shortfall.py` (the `np.isfinite` guard, called per block by `_common.block_apply`); pinned by `tests/test_summarize_exceedance.py::test_nonfinite_in_a_non_first_block_raises` + the matching test in `tests/test_summarize_expected_shortfall.py`. |
+| Cross-refs | C-50 (exceedance fail-loud on NaN — RESOLVED), C-56 (expected_shortfall fail-loud on NaN/±inf — RESOLVED; the guard *exists*, this was the **verification-completeness gap** on its blocked path), C-25 (the block_apply memory-bounding that introduces the path). |
+
+The non-finite guard (reject NaN/±inf draws) lives **inside** `_exceed`/`_expected_shortfall`, which `block_apply` calls **per row-block** — but every committed adversarial test placed the non-finite draw in a **1–2 row** frame (the single-shot path, `n ≤ ROW_BLOCK`), so the blocked path had **no red test** and a future hoist of the guard above the per-block loop would have silently regressed. **Tier 3** — verification completeness, not a current defect. **Resolved** (2026-06-28, epic #179 / S3 #182): a parametrized red test (NaN, +inf, −inf) now forces `>1` block via the `block_rows` kwarg with the non-finite draw in a **non-first** block and **block 0 all-finite** — so a guard that inspected only the first block would pass silently, and the test fails loud as required. 100% line+branch coverage held; no `src/` change.
+
+---
+
+### C-63: the frame `values` buffer is not write-protected, so the immutability guarantee is unenforced — RESOLVED (contract corrected; enforce deferred)
+
+| Field | Value |
+|-------|-------|
+| ID | C-63 |
+| Tier | 2 |
+| Source | repo-assimilation (2026-06-27), empirically verified; confirmed + extended by test-review (2026-06-27) |
+| Trigger | When a consumer applies an in-place numpy mutation to `frame.values` (a natural idiom — e.g. `frame.values[mask] = 0`, `frame.values *= scale`, a clamp/normalise in place) on a frame obtained from `with_metadata`/`select`'s buffer-sharing path. |
+| Location | `src/views_frames/_validation.py:64` (`coerce_values` returns a float32 input **without copy** and without `setflags(write=False)`); contrast `src/views_frames/index.py:55-56` (the index arrays **are** write-protected); `with_metadata` (`prediction_frame.py`/`target_frame.py`/`feature_frame.py`) shares the buffer; `tests/test_properties.py:38` pins only the *sharing*, not read-only-ness. **Contract side:** the three frame CICs §9 + README design principle 3 (now corrected). |
+| Cross-refs | ADR-025 (the resolving decision + the deferred-enforce MAJOR-rider), C-07 (copy-vs-view / structural-sharing semantics — RESOLVED), ADR-013 + README design principle 3 (immutable value objects), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), ADR-018 (`values` is frozen-surface). |
+
+The leaf advertised **immutable value objects**, but the guarantee was enforced only for the *index* (`time`/`unit` are stored `setflags(write=False)`), not for the *value block*: `frame.values.flags.writeable` is **True**, `with_metadata` shares the buffer, so an in-place mutation of `frame.values` would **silently corrupt every frame sharing it**, with no error signal. **Tier 2** (silent-corruption potential + structural fragility with a realistic trigger), not Tier 1 — the system itself never mutates `.values` (the audit found **zero** in-place `.values`/`_values` mutations in `src/` or `tests/`). **Resolved** (2026-06-28, epic #179 / S2 #181, **ADR-025**): the enforce — `setflags(write=False)` on `.values` — is a **MAJOR** under `GOVERNANCE.md` ("tightening an invariant" on the frozen-surface `values`, ADR-018), triggering the cross-repo coordinated-bump process; disproportionate for an unexercised hole. So the contract was **corrected to match the code** instead: the value buffer is immutable **by convention** (writeable on purpose, to preserve zero-copy / `mmap`; mutating it in place is unsupported and may corrupt shares), the **index** is the enforced one. Corrected in the three frame CICs §9/§3 + README design principle 3; ADR-025 records the decision **and** the `setflags`-enforce as a **deferred MAJOR-rider** (added free on the next MAJOR — the exact one-line-per-constructor change + a red test). **Resolution carries a residual:** the value buffer is still writeable, so a careless in-place mutation is still *possible* until the deferred enforce lands — mitigated by the documented unsupported-status and the absence of any such mutation in the ecosystem.
+
+---
+
+### C-64: `views_frames_reconcile` ships without a CIC — the package is contract-less — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-64 |
+| Tier | 3 |
+| Source | test-review (2026-06-27) |
+| Trigger | When a behavior change to the reconcile package needs a written contract to test against and amend — e.g. adding a third reconciliation mode, the ADR-024 principled-reconciliation **sibling module**, or a new public symbol on `ReconciliationModule`/`ReconciliationResult` — and there is no §3-guarantee / §6-failure-mode CIC to extend. |
+| Location | `docs/CICs/Reconcile.md` (now authored); governs `src/views_frames_reconcile/{module,result,proportional,grouping,validation,conformance,frames}.py` incl. `reconcile_result`/`ReconciliationResult`/`POINT_BROADCAST`/`ALIGNED_DRAWS`/`METHOD_PROPORTIONAL`. |
+| Cross-refs | ADR-006 (intent contracts for non-trivial classes — the governing requirement), ADR-023 (the reconcile sibling), ADR-024 (the principled-reconciliation design the CIC §11 points to), C-62 (the per-draw-approximation limitation, documented in §2/§6), D-12 (the mode-reporting decision, §2/§3). |
+
+The leaf and summarize surfaces are CIC-governed, but the **entire `views_frames_reconcile` package** (shipped Epic 11, v1.7.0; extended v1.8.0) had **none**, and `Summarize.md §2` explicitly fences reconciliation out — so the package's red/beige/green completeness had nothing authoritative to be measured against. **Tier 3** — governance/maintainability (contract↔test alignment), not silent corruption. **Resolved** (2026-06-28, epic #179 / S1 #180): `docs/CICs/Reconcile.md` authored as a package-level CIC (§1–§11) modeled on `Summarize.md` — documenting the sum-to-country / zero-preservation / non-negativity / de-mutation guarantees (§3), the point/aligned **mode** contract (§3), the five fail-loud validation guards + the per-draw-approximation caveat (§6), and the green/beige/red test alignment (§10); listed under Active Contracts in `docs/CICs/README.md`; `validate_docs` green.
+
+---
+
+### C-59: the summaries notebook teaches named intervals with no calibration / coverage demonstration — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-59 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Gneiting/Gelman seats) |
+| Trigger | When `notebooks/02_summaries.ipynb` is built and shipped **without** a calibration/coverage section — displaying named X% HDI/quantile intervals (and the MAP) whose nominal coverage is never demonstrated on synthetic data with a known latent truth. |
+| Location | `notebooks/02_summaries.ipynb` (planned — §4 HDI tower / §5 quantiles). |
+| Cross-refs | C-60, C-61 (the notebook-completeness cluster); the views-evaluation boundary (scoring lives there — but coverage-on-synthetic-truth is a property demo, not scoring). |
+
+A notebook whose purpose is to build trust in these summaries that shows a "90% HDI" but never that it covers ~90% asserts the very claim it should prove. On synthetic draws the latent truth is known, so empirical coverage of each band + a PIT histogram are free to compute and are the highest-value addition (Gneiting2014; Kuleshov2018). **Highest-priority of the three notebook gaps.** **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `02_summaries.ipynb` ships a calibration/coverage panel — empirical coverage of the 50/90/95/99 HDIs against the known synthetic truth, a PIT histogram (calibrated vs over-confident), and a recovery-vs-`S` view (Gneiting2014/Kuleshov2018), all on the ground-truth-carrying `notebooks/_synthetic.py`. No scoring API was added (scoring stays in views-evaluation).
+
+---
+
+### C-60: the reconciliation notebook risks presenting bit-identity as method validation — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-60 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Hyndman seat) |
+| Trigger | When `notebooks/03_reconciliation.ipynb` headlines the oracle / bit-identity parity story **without** (a) situating per-draw *proportional* reconciliation in its literature (MinT / bottom-up / probabilistic reconciliation; proportional = the pragmatic, information-losing baseline; the principled upgrade is deferred as views-postprocessing C-37) and (b) separating *implementation fidelity* (bit-identical to the torch oracle) from *method quality*. |
+| Location | `notebooks/03_reconciliation.ipynb` (planned — §7 provenance). |
+| Cross-refs | C-59, C-61; views-postprocessing C-37 (probabilistic-reconciliation upgrade); C-58 (the analogous "don't over-read bit-identity" caution at the cutover). |
+| | Lit: Wickramasuriya2019 (MinT), Hyndman2011, Panagiotelis2023 (probabilistic reconciliation). |
+
+Bit-identity proves the *port* is faithful; it says nothing about whether proportional reconciliation is *good*. A reader infers methodological endorsement of a method the forecasting literature considers superseded. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): `03_reconciliation.ipynb` panel §A situates proportional top-down against MinT (Wickramasuriya2019) / probabilistic reconciliation (Panagiotelis2023), states explicitly that **bit-identity proves faithful relocation, not method quality**, and frames the principled upgrade as deferred (views-postprocessing C-37); panel §B adds a does-it-help check against the known truth (it improves the country total but *worsens* per-cell — coherence, not accuracy).
+
+---
+
+### C-61: the notebooks have no spatial / map view despite showcasing spatial forecasts — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-61 |
+| Tier | 3 |
+| Source | expert-method-review (2026-06-26 — Wilke/Kay + VIEWS/FAO domain seats) |
+| Trigger | When the notebooks are shipped with only per-cell / histogram displays and **no map/lattice view** — the most operationally-expected visualization for PRIO-GRID forecasts is absent, so adopters can't connect the summaries to the spatial product they consume. |
+| Location | `notebooks/02_summaries.ipynb` / `notebooks/03_reconciliation.ipynb` (planned). |
+| Cross-refs | C-59, C-60. Constraint: views-frames is geography-blind (ADR-014) — the map view must use a **toy synthetic lattice**, embedding no domain geography. |
+
+A spatial-forecasting showcase with no spatial display under-serves the audience. Achievable on a synthetic square lattice with zero domain knowledge. **Resolved** (2026-06-27, PR #174 / commit `ea39cc6`): both `02_summaries.ipynb` and `03_reconciliation.ipynb` render toy-lattice map views on a synthetic square lattice (no domain geography — ADR-014): 02 maps the point estimate, the 90% HDI width, and decision-relevant exceedance; 03 maps raw-vs-reconciled point estimates and the change map.
+
+---
 
 ### C-55: aggregate `expected_shortfall` worst-case is silently wrong when summed samples are not a true joint posterior — RESOLVED
 
@@ -800,9 +956,13 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
-- **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-24):
-  - **summarize-estimator coherence (#89)** = {C-32, C-34, + resolved C-33} — point/interval estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead. The register's live work; tracked in #89.
-  - **cross-repo coordination** = {C-13, D-04, D-05, D-06} — an N-consumer leaf whose consumer buy-in is *assumed, not elicited*; the concentration/fan-out risk plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
+- **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-27):
+  - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
+  - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
+  - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
+  - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
+  - **immutability enforcement** = {resolved C-63, C-07} — **resolved by ADR-025 (2026-06-28, epic #179 / S2).** Immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` in place is unsupported). The contract was corrected to this reality across the three frame CICs + README design principle 3; the `setflags`-enforce on `.values` would be a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is recorded as a deferred MAJOR-rider.
+  - cross-cutting **verification-completeness** = {C-58, resolved C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58, still open). Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
 - **Sources:** `repo-assimilation`, `expert-review`, `test-review`, `falsification-audit`, `persona-critique`, `clean-architecture-review`, `pr-review`, `tech-debt-audit`, `incident`, `manual`.

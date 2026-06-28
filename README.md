@@ -223,7 +223,13 @@ makes it safe to depend on from everywhere (SDP).
 3. **Immutable value objects.** A frame is validated at construction and then
    treated as read-only. Operations (`collapse`, `select`, `with_metadata`)
    **return new frames**; they never mutate in place. (Directly forbids the
-   C-184 cross-repo-mutation anti-pattern.) **Copy-vs-view:** structural and
+   C-184 cross-repo-mutation anti-pattern.) **Enforced for the index, by
+   convention for the value buffer:** the identifier arrays (`time`/`unit`) are
+   write-protected (`setflags(write=False)`); the `values` buffer is left
+   **writeable on purpose** — so structural ops can share it zero-copy — and is
+   immutable *by convention*: mutating `.values` in place is unsupported and may
+   silently corrupt buffer-sharing frames (ADR-025 / register C-63; enforcing it
+   is a deferred MAJOR-rider). **Copy-vs-view:** structural and
    metadata-only operations (`with_metadata`, contiguous `select`) return frames
    that **share** the underlying `values` buffer (numpy view / zero-copy), and a
    `mmap`-backed frame stays `mmap`-backed — a new frame must never copy a

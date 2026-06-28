@@ -10,9 +10,12 @@ This is a *faithful, numpy-only* port of views-reporting's
 ``ForecastReconciler.reconcile_forecast`` (torch), migrated here because the
 algorithm belongs in post-processing, not reporting (views-reporting issue #72).
 It is intentionally the **same** method — a pragmatic per-draw approximation, not
-principled joint probabilistic reconciliation. The upgrade to the latter is
-tracked as **C-37** and is deliberately deferred until this port's parity with
-the original is proven and the move is wired.
+principled joint probabilistic reconciliation. The upgrade to the latter is designed
+in **ADR-024** (register **C-62**; the cross-repo lineage is views-postprocessing
+C-37) and is deliberately **deferred**: per-draw pairing of independently-trained
+grid and country draws has no shared draw identity, so the principled method waits on
+a defined draw-identity/coupling contract and a consumer that needs calibrated joint
+tails.
 
 No torch, no pandas — numpy only.
 """
