@@ -38,7 +38,9 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
 - Carries `feature_names: list[str]` (length `F`) and a typed `metadata` header
   (ADR-013); both serialize **with** the frame (register C-09). `from_2d` lifts a
   legacy `(N, F)` array to `(N, F, 1)`.
-- Immutable with copy-vs-view semantics identical to `PredictionFrame` (C-07).
+- Immutable with copy-vs-view semantics identical to `PredictionFrame` (C-07): the
+  **index is enforced** read-only; the **value buffer is immutable by convention**
+  (writeable for zero-copy — in-place `.values` mutation is unsupported; ADR-025 / C-63).
 - Row ops return new frames preserving `feature_names`: `select(positions | mask)` and
   `reindex(other)` — the latter raises unless this index is a superset of `other`;
   selection **copies** the selected `values`.
@@ -98,6 +100,10 @@ FeatureFrame(y_features=x2d, index=idx, feature_names=names)   # raises
 
 # WRONG: calling a grid constructor on the frame — that adapter lives in datafactory
 FeatureFrame.from_grid(cube)          # no such method here
+
+# WRONG: mutating the value buffer in place — immutable *by convention*, not
+# write-protected, so it does NOT raise; build a new frame (ADR-025 / register C-63).
+ff.values[:] = 0          # unsupported: silent shared-buffer corruption, no error
 ```
 
 ---

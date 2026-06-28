@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-27                           |
 | Total Concerns    | 62                                   |
-| Open Concerns     | 13                                   |
-| Resolved Concerns | 49                                   |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 50                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -35,15 +35,17 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **13 currently open** concerns fall into five clusters plus a cross-cutting theme
+> The **12 currently open** concerns fall into four clusters plus a cross-cutting theme
 > (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
 > coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
 > estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
 > per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
 > was closed by `Reconcile.md` (epic #179 / S1); **(3)
 > construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
-> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06); **(5)
-> immutability enforcement** — C-63 (the value buffer is not write-protected). The cross-cutting
+> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06). The
+> former **immutability-enforcement** cluster (C-63) is resolved: the contract was corrected
+> to the by-convention reality and the `setflags`-enforce deferred to a future MAJOR (ADR-025,
+> epic #179 / S2). The cross-cutting
 > **verification-completeness** theme links C-58 and C-65. Earlier clusters are closed:
 > **post-1.1.0 polish** {C-35, C-36, C-37, C-38} by **Epic 7** (2026-06-24) and the 2026-06-22
 > test-review gaps {C-29, C-31} by **Epic 6** — both now in Resolved Concerns. (`map_estimate`'s
@@ -218,21 +220,6 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 
 ---
 
-### C-63: the frame `values` buffer is not write-protected, so the immutability guarantee is unenforced
-
-| Field | Value |
-|-------|-------|
-| ID | C-63 |
-| Tier | 2 |
-| Source | repo-assimilation (2026-06-27), empirically verified; confirmed + extended by test-review (2026-06-27) |
-| Trigger | When a consumer applies an in-place numpy mutation to `frame.values` (a natural idiom — e.g. `frame.values[mask] = 0`, `frame.values *= scale`, a clamp/normalise in place) on a frame obtained from `with_metadata`/`select`'s buffer-sharing path. |
-| Location | `src/views_frames/_validation.py:64` (`coerce_values` returns a float32 input **without copy** and without `setflags(write=False)`); contrast `src/views_frames/index.py:55-56` (the index arrays **are** write-protected); `with_metadata` (`prediction_frame.py`/`target_frame.py`/`feature_frame.py`) shares the buffer; `tests/test_properties.py:38` pins only the *sharing*, not read-only-ness. **Contract side:** PredictionFrame CIC §9 lists `pf.values[:] = 0` as a *forbidden* operation under the "Immutable" heading. |
-| Cross-refs | C-07 (copy-vs-view / structural-sharing semantics — RESOLVED; this is the **distinct, unresolved** write-protection gap on the same buffer), ADR-013 (immutable value objects), README design principle 2 (immutable value objects), PredictionFrame CIC §9 (the forbidden-mutation contract claim, neither enforced nor tested). |
-
-The leaf advertises **immutable value objects**, but the guarantee is enforced only for the *index* (`time`/`unit` are stored `setflags(write=False)`), not for the *value block*. Verified empirically: `frame.values.flags.writeable` is **True**; `with_metadata` returns a new frame **sharing** the same buffer; an in-place mutation of `frame.values` therefore **silently corrupts every frame sharing that buffer** (a mutation to `f.values[0,0]` was observed to change `g.values[0,0]` for `g = f.with_metadata(...)`), with **no error signal**. **Tier 2** (silent-corruption evidence + structural fragility with a realistic trigger): the system itself never mutates `.values`, so this is not a current defect (not Tier 1), but the immutability *contract* is unenforced for the value buffer and the violating idiom (in-place numpy ops) is routine — the codebase already knows how to write-protect (it does so for the index), so the value buffer is the asymmetric gap. **Test-review (2026-06-27) confirms the gap from both sides:** the **contract** forbids it (PredictionFrame CIC §9 lists `pf.values[:] = 0` as WRONG under the "Immutable" heading) and **no red/adversarial test** exists — only `test_properties.py:38` asserts the buffer is *shared*, not read-only — so a red test for value-immutability would **fail today**. **Open.**
-
----
-
 ### C-65: non-finite fail-loud proven only on the single-shot path, not the blocked (multi-block) path
 
 | Field | Value |
@@ -387,6 +374,21 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-63: the frame `values` buffer is not write-protected, so the immutability guarantee is unenforced — RESOLVED (contract corrected; enforce deferred)
+
+| Field | Value |
+|-------|-------|
+| ID | C-63 |
+| Tier | 2 |
+| Source | repo-assimilation (2026-06-27), empirically verified; confirmed + extended by test-review (2026-06-27) |
+| Trigger | When a consumer applies an in-place numpy mutation to `frame.values` (a natural idiom — e.g. `frame.values[mask] = 0`, `frame.values *= scale`, a clamp/normalise in place) on a frame obtained from `with_metadata`/`select`'s buffer-sharing path. |
+| Location | `src/views_frames/_validation.py:64` (`coerce_values` returns a float32 input **without copy** and without `setflags(write=False)`); contrast `src/views_frames/index.py:55-56` (the index arrays **are** write-protected); `with_metadata` (`prediction_frame.py`/`target_frame.py`/`feature_frame.py`) shares the buffer; `tests/test_properties.py:38` pins only the *sharing*, not read-only-ness. **Contract side:** the three frame CICs §9 + README design principle 3 (now corrected). |
+| Cross-refs | ADR-025 (the resolving decision + the deferred-enforce MAJOR-rider), C-07 (copy-vs-view / structural-sharing semantics — RESOLVED), ADR-013 + README design principle 3 (immutable value objects), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), ADR-018 (`values` is frozen-surface). |
+
+The leaf advertised **immutable value objects**, but the guarantee was enforced only for the *index* (`time`/`unit` are stored `setflags(write=False)`), not for the *value block*: `frame.values.flags.writeable` is **True**, `with_metadata` shares the buffer, so an in-place mutation of `frame.values` would **silently corrupt every frame sharing it**, with no error signal. **Tier 2** (silent-corruption potential + structural fragility with a realistic trigger), not Tier 1 — the system itself never mutates `.values` (the audit found **zero** in-place `.values`/`_values` mutations in `src/` or `tests/`). **Resolved** (2026-06-28, epic #179 / S2 #181, **ADR-025**): the enforce — `setflags(write=False)` on `.values` — is a **MAJOR** under `GOVERNANCE.md` ("tightening an invariant" on the frozen-surface `values`, ADR-018), triggering the cross-repo coordinated-bump process; disproportionate for an unexercised hole. So the contract was **corrected to match the code** instead: the value buffer is immutable **by convention** (writeable on purpose, to preserve zero-copy / `mmap`; mutating it in place is unsupported and may corrupt shares), the **index** is the enforced one. Corrected in the three frame CICs §9/§3 + README design principle 3; ADR-025 records the decision **and** the `setflags`-enforce as a **deferred MAJOR-rider** (added free on the next MAJOR — the exact one-line-per-constructor change + a red test). **Resolution carries a residual:** the value buffer is still writeable, so a careless in-place mutation is still *possible* until the deferred enforce lands — mitigated by the documented unsupported-status and the absence of any such mutation in the ecosystem.
+
+---
 
 ### C-64: `views_frames_reconcile` ships without a CIC — the package is contract-less — RESOLVED
 
@@ -957,7 +959,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
   - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
-  - **immutability enforcement** = {C-63, + resolved C-07} — immutability is enforced and tested for the *index* (`setflags(write=False)`) but not for the *value buffer* (writeable; the "immutable value objects" contract is unenforced there).
+  - **immutability enforcement** = {resolved C-63, C-07} — **resolved by ADR-025 (2026-06-28, epic #179 / S2).** Immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` in place is unsupported). The contract was corrected to this reality across the three frame CICs + README design principle 3; the `setflags`-enforce on `.values` would be a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is recorded as a deferred MAJOR-rider.
   - cross-cutting **verification-completeness** = {C-58, C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58) and the non-finite fail-loud on the blocked/multi-block path (C-65).
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
