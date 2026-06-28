@@ -197,3 +197,25 @@ def test_reducer_path_also_fails_loud_on_nonfinite():
     pf = _pf([[0.0, np.nan, 2.0, 3.0]])
     with pytest.raises(ValueError, match="non-finite"):
         collapse(pf, exceedance_reducer(1.0))
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+def test_nonfinite_in_a_non_first_block_raises(bad):
+    # register C-65: the np.isfinite guard lives INSIDE the per-block reducer, which
+    # block_apply calls once per row-block — but every other non-finite test uses a
+    # 1-row frame (the single-shot path, n <= ROW_BLOCK), so the multi-block path was
+    # never exercised. Force >1 block with a tiny block_rows and put the bad draw ONLY
+    # in a LATER block (block 0 is all-finite) — so a guard that checked only the first
+    # block would silently pass, and this fails loud as it must.
+    rows = [
+        [0.0, 1.0, 2.0, 3.0],  # block 0, row 0 — finite
+        [1.0, 2.0, 3.0, 4.0],  # block 0, row 1 — finite
+        [0.0, 1.0, 2.0, 3.0],  # block 1, row 2 — finite
+        [0.0, bad, 2.0, 3.0],  # block 1, row 3 — the non-finite draw (later block)
+    ]
+    pf = _pf(rows)
+    # sanity: block 0 alone is clean, so the regression target (guard sees only block 0)
+    # would NOT raise — only the per-block guard on block 1 catches this.
+    assert np.isfinite(np.array(rows[:2], dtype=np.float32)).all()
+    with pytest.raises(ValueError, match="non-finite"):
+        exceedance(pf, [1.0], block_rows=2)

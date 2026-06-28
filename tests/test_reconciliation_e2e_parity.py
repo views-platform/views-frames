@@ -5,6 +5,7 @@ frames-native module reproduces the frozen views-reporting pipeline on the S0
 fixture. Offline — numpy + views-frames + the committed fixture only.
 """
 
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import numpy as np
@@ -137,3 +138,44 @@ class TestReconciliationResult:
         result = module.reconcile_result(point_cm, pgm)
         assert result.mode == POINT_BROADCAST
         assert result.frame.sample_count == pgm.sample_count
+
+    def test_both_points_is_aligned_draws(self, fix, module):
+        # mode-corner (S3): cm and pgm both points (sample_count == 1). Nothing is
+        # broadcast (counts already match), so the mode is ALIGNED_DRAWS — not
+        # POINT_BROADCAST — and the result stays a single-draw frame.
+        point_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"], fix["cm__pred_ged_sb"][:, :1],
+            level=SpatialLevel.CM,
+        )
+        point_pgm = prediction_frame_from_arrays(
+            fix["pg_time"], fix["pg_unit"], fix["pg__pred_ged_sb"][:, :1],
+            level=SpatialLevel.PGM,
+        )
+        result = module.reconcile_result(point_cm, point_pgm)
+        assert result.mode == ALIGNED_DRAWS
+        assert result.frame.sample_count == 1
+
+    def test_pre_tiled_point_cm_is_aligned_draws(self, fix, module):
+        # mode-corner (S3): a caller who pre-tiles a point country to S draws BEFORE
+        # calling reads as ALIGNED_DRAWS (nothing was broadcast inside this call) — the
+        # mode describes what THIS call did, per result.py. Contrast test_point_broadcast_mode
+        # (a genuine sample_count==1 cm), which reads POINT_BROADCAST.
+        _, pgm = _frames(fix, "pred_ged_sb")
+        s = pgm.sample_count
+        tiled_cm = prediction_frame_from_arrays(
+            fix["cm_time"], fix["cm_unit"],
+            np.tile(fix["cm__pred_ged_sb"][:, :1], (1, s)),
+            level=SpatialLevel.CM,
+        )
+        result = module.reconcile_result(tiled_cm, pgm)
+        assert result.mode == ALIGNED_DRAWS
+        assert result.frame.sample_count == s
+
+    def test_result_is_frozen(self, fix, module):
+        # ReconciliationResult is a @dataclass(frozen=True) — its mode/method/frame must
+        # be immutable so a reported mode can't be retro-edited (mirrors
+        # test_frames.py::test_metadata_is_frozen).
+        cm, pgm = _frames(fix, "pred_ged_sb")
+        result = module.reconcile_result(cm, pgm)
+        with pytest.raises(FrozenInstanceError):
+            result.mode = POINT_BROADCAST  # type: ignore[misc]

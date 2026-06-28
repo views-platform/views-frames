@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-27                           |
 | Total Concerns    | 62                                   |
-| Open Concerns     | 12                                   |
-| Resolved Concerns | 50                                   |
+| Open Concerns     | 11                                   |
+| Resolved Concerns | 51                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -46,7 +46,9 @@
 > former **immutability-enforcement** cluster (C-63) is resolved: the contract was corrected
 > to the by-convention reality and the `setflags`-enforce deferred to a future MAJOR (ADR-025,
 > epic #179 / S2). The cross-cutting
-> **verification-completeness** theme links C-58 and C-65. Earlier clusters are closed:
+> **verification-completeness** theme now narrows to C-58 (the reconciler's production-slice
+> check); its sibling C-65 (non-finite fail-loud on the blocked path) was pinned with a red
+> test (epic #179 / S3). Earlier clusters are closed:
 > **post-1.1.0 polish** {C-35, C-36, C-37, C-38} by **Epic 7** (2026-06-24) and the 2026-06-22
 > test-review gaps {C-29, C-31} by **Epic 6** — both now in Resolved Concerns. (`map_estimate`'s
 > tower-nesting sibling **C-33** was resolved by ADR-019, 2026-06-23.)
@@ -220,21 +222,6 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 
 ---
 
-### C-65: non-finite fail-loud proven only on the single-shot path, not the blocked (multi-block) path
-
-| Field | Value |
-|-------|-------|
-| ID | C-65 |
-| Tier | 3 |
-| Source | test-review (2026-06-27) |
-| Trigger | When the per-block `np.isfinite(...)` guard in `exceedance`/`expected_shortfall` is hoisted, vectorized, or otherwise moved out of the per-block reducer — a refactor the existing single-row tests would not catch. |
-| Location | `src/views_frames_summarize/exceedance.py:40` + `expected_shortfall.py:41` (the `np.isfinite` guard, called per block by `_common.block_apply`); `tests/test_summarize_exceedance.py`, `tests/test_summarize_expected_shortfall.py` (every non-finite raise test uses 1-row frames, e.g. `_pf([[0.0, np.nan, 2.0, 3.0]])`). |
-| Cross-refs | C-50 (exceedance fail-loud on NaN — RESOLVED), C-56 (expected_shortfall fail-loud on NaN/±inf — RESOLVED; the guard *exists*, this is the **verification-completeness gap** on its blocked path), C-25 (the block_apply memory-bounding that introduces the path). |
-
-The non-finite guard (reject NaN/±inf draws) is correct and lives **inside** `_exceed`/`_expected_shortfall`, which `block_apply` calls **per row-block** — so structurally it fires on every block. But every committed adversarial test places the non-finite draw in a **1–2 row** frame, which takes the single-shot path (`n ≤ ROW_BLOCK`, 65536). **No test puts a NaN/±inf in a row beyond block 0**, so the blocked path — exactly the #181-scale regime the `block_apply` machinery (C-25) exists for — has **no red test**. The behavior is sound today; the risk is a **silent regression**: a future hoist of the guard above the per-block loop would still pass the single-shot tests while ceasing to protect the multi-block path. (The pre-v1.6.0 falsify audit *probed* this corner and it survived, but no committed test pins it.) **Tier 3** — verification completeness, not a current defect. **Open.**
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -374,6 +361,21 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-65: non-finite fail-loud proven only on the single-shot path, not the blocked (multi-block) path — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-65 |
+| Tier | 3 |
+| Source | test-review (2026-06-27) |
+| Trigger | When the per-block `np.isfinite(...)` guard in `exceedance`/`expected_shortfall` is hoisted, vectorized, or otherwise moved out of the per-block reducer — a refactor the existing single-row tests would not catch. |
+| Location | `src/views_frames_summarize/exceedance.py` + `expected_shortfall.py` (the `np.isfinite` guard, called per block by `_common.block_apply`); pinned by `tests/test_summarize_exceedance.py::test_nonfinite_in_a_non_first_block_raises` + the matching test in `tests/test_summarize_expected_shortfall.py`. |
+| Cross-refs | C-50 (exceedance fail-loud on NaN — RESOLVED), C-56 (expected_shortfall fail-loud on NaN/±inf — RESOLVED; the guard *exists*, this was the **verification-completeness gap** on its blocked path), C-25 (the block_apply memory-bounding that introduces the path). |
+
+The non-finite guard (reject NaN/±inf draws) lives **inside** `_exceed`/`_expected_shortfall`, which `block_apply` calls **per row-block** — but every committed adversarial test placed the non-finite draw in a **1–2 row** frame (the single-shot path, `n ≤ ROW_BLOCK`), so the blocked path had **no red test** and a future hoist of the guard above the per-block loop would have silently regressed. **Tier 3** — verification completeness, not a current defect. **Resolved** (2026-06-28, epic #179 / S3 #182): a parametrized red test (NaN, +inf, −inf) now forces `>1` block via the `block_rows` kwarg with the non-finite draw in a **non-first** block and **block 0 all-finite** — so a guard that inspected only the first block would pass silently, and the test fails loud as required. 100% line+branch coverage held; no `src/` change.
+
+---
 
 ### C-63: the frame `values` buffer is not write-protected, so the immutability guarantee is unenforced — RESOLVED (contract corrected; enforce deferred)
 
@@ -960,7 +962,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {resolved C-63, C-07} — **resolved by ADR-025 (2026-06-28, epic #179 / S2).** Immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` in place is unsupported). The contract was corrected to this reality across the three frame CICs + README design principle 3; the `setflags`-enforce on `.values` would be a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is recorded as a deferred MAJOR-rider.
-  - cross-cutting **verification-completeness** = {C-58, C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58) and the non-finite fail-loud on the blocked/multi-block path (C-65).
+  - cross-cutting **verification-completeness** = {C-58, resolved C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58, still open). Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
 - **Sources:** `repo-assimilation`, `expert-review`, `test-review`, `falsification-audit`, `persona-critique`, `clean-architecture-review`, `pr-review`, `tech-debt-audit`, `incident`, `manual`.
