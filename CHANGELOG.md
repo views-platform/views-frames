@@ -43,7 +43,7 @@ additive — the frozen leaf and summarize public surface are unchanged, and the
   was the last non-trivial surface without a CIC (ADR-006); **register C-64 resolved**.
 - **ADR-025 — value-buffer immutability is by convention; only the index is enforced** (Epic #179).
   Corrects the "immutable value objects" contract (the three frame CICs §9/§3 + README design
-  principle 2) to match the code: the index (`time`/`unit`) is `setflags(write=False)`-enforced; the
+  principle 3) to match the code: the index (`time`/`unit`) is `setflags(write=False)`-enforced; the
   value buffer is immutable *by convention* (left writeable to preserve zero-copy / `mmap` — mutating
   `.values` in place is unsupported). The `setflags`-enforce on `.values` would be a MAJOR
   ("tightening an invariant" on a frozen-surface member, GOVERNANCE/ADR-018), so it is recorded as a
