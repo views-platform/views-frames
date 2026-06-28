@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-06-27                           |
 | Total Concerns    | 62                                   |
-| Open Concerns     | 14                                   |
-| Resolved Concerns | 48                                   |
+| Open Concerns     | 13                                   |
+| Resolved Concerns | 49                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -35,11 +35,12 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **14 currently open** concerns fall into five clusters plus a cross-cutting theme
+> The **13 currently open** concerns fall into five clusters plus a cross-cutting theme
 > (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
 > coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
-> estimators); **(2) reconcile method + governance** — C-58, C-62, C-64 (+ D-12): a pragmatic
-> per-draw port with a deferred principled upgrade (ADR-024) and no CIC; **(3)
+> estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
+> per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
+> was closed by `Reconcile.md` (epic #179 / S1); **(3)
 > construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
 > "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06); **(5)
 > immutability enforcement** — C-63 (the value buffer is not write-protected). The cross-cutting
@@ -232,21 +233,6 @@ The leaf advertises **immutable value objects**, but the guarantee is enforced o
 
 ---
 
-### C-64: `views_frames_reconcile` ships without a CIC — the package is contract-less
-
-| Field | Value |
-|-------|-------|
-| ID | C-64 |
-| Tier | 3 |
-| Source | test-review (2026-06-27) |
-| Trigger | When a behavior change to the reconcile package needs a written contract to test against and amend — e.g. adding a third reconciliation mode, the ADR-024 principled-reconciliation **sibling module**, or a new public symbol on `ReconciliationModule`/`ReconciliationResult` — and there is no §3-guarantee / §6-failure-mode CIC to extend. |
-| Location | `docs/CICs/` (no `Reconcile.md`); the contract-less surface is `src/views_frames_reconcile/{module,result,proportional,grouping,validation,conformance,frames}.py` — incl. the newest `reconcile_result`/`ReconciliationResult`/`POINT_BROADCAST`/`ALIGNED_DRAWS`/`METHOD_PROPORTIONAL` (`result.py`). |
-| Cross-refs | ADR-006 (intent contracts for non-trivial classes — the governing requirement), ADR-023 (the reconcile sibling), ADR-024 (the principled-reconciliation design that will need a contract), C-62 (the per-draw-approximation limitation, same package), D-12 (the mode-reporting decision); Summarize CIC §2 (explicitly **excludes** reconciliation, so it cannot cover this). |
-
-The leaf and summarize surfaces are governed by CICs (`PredictionFrame.md`, `TargetFrame.md`, `FeatureFrame.md`, `SpatioTemporalIndex.md`, `Protocols.md`, `Summarize.md`), but the **entire `views_frames_reconcile` package** (shipped Epic 11, v1.7.0; extended v1.8.0) has **none** — and `Summarize.md §2` explicitly fences reconciliation out. ADR-006 requires intent contracts for non-trivial classes; `ReconciliationModule` and the new `ReconciliationResult`/mode surface qualify. The package is **heavily tested** (10 `test_reconcil*` files, 100% coverage, a frozen torch-oracle parity gate), but those tests align to an oracle and inline docstrings, not to a §3-guarantee / §6-failure-mode contract — so the package's red/beige/green completeness has nothing authoritative to be measured against (the point/aligned mode contract, the sum-to-country / zero-preservation / non-negativity guarantees, and the fail-loud modes live only in code + tests, not a CIC). **Tier 3** — governance/maintainability (contract↔test alignment), not silent corruption. **Open.**
-
----
-
 ### C-65: non-finite fail-loud proven only on the single-shot path, not the blocked (multi-block) path
 
 | Field | Value |
@@ -401,6 +387,21 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-64: `views_frames_reconcile` ships without a CIC — the package is contract-less — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-64 |
+| Tier | 3 |
+| Source | test-review (2026-06-27) |
+| Trigger | When a behavior change to the reconcile package needs a written contract to test against and amend — e.g. adding a third reconciliation mode, the ADR-024 principled-reconciliation **sibling module**, or a new public symbol on `ReconciliationModule`/`ReconciliationResult` — and there is no §3-guarantee / §6-failure-mode CIC to extend. |
+| Location | `docs/CICs/Reconcile.md` (now authored); governs `src/views_frames_reconcile/{module,result,proportional,grouping,validation,conformance,frames}.py` incl. `reconcile_result`/`ReconciliationResult`/`POINT_BROADCAST`/`ALIGNED_DRAWS`/`METHOD_PROPORTIONAL`. |
+| Cross-refs | ADR-006 (intent contracts for non-trivial classes — the governing requirement), ADR-023 (the reconcile sibling), ADR-024 (the principled-reconciliation design the CIC §11 points to), C-62 (the per-draw-approximation limitation, documented in §2/§6), D-12 (the mode-reporting decision, §2/§3). |
+
+The leaf and summarize surfaces are CIC-governed, but the **entire `views_frames_reconcile` package** (shipped Epic 11, v1.7.0; extended v1.8.0) had **none**, and `Summarize.md §2` explicitly fences reconciliation out — so the package's red/beige/green completeness had nothing authoritative to be measured against. **Tier 3** — governance/maintainability (contract↔test alignment), not silent corruption. **Resolved** (2026-06-28, epic #179 / S1 #180): `docs/CICs/Reconcile.md` authored as a package-level CIC (§1–§11) modeled on `Summarize.md` — documenting the sum-to-country / zero-preservation / non-negativity / de-mutation guarantees (§3), the point/aligned **mode** contract (§3), the five fail-loud validation guards + the per-draw-approximation caveat (§6), and the green/beige/red test alignment (§10); listed under Active Contracts in `docs/CICs/README.md`; `validate_docs` green.
+
+---
 
 ### C-59: the summaries notebook teaches named intervals with no calibration / coverage demonstration — RESOLVED
 
@@ -953,7 +954,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-27):
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
-  - **reconcile method + governance** = {C-58, C-62, C-64, + D-12; resolved C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) and its **missing CIC** (C-64) are the governance debt, with the mode-reporting decision recorded as D-12.
+  - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {C-63, + resolved C-07} — immutability is enforced and tested for the *index* (`setflags(write=False)`) but not for the *value buffer* (writeable; the "immutable value objects" contract is unenforced there).
