@@ -11,8 +11,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from views_frames import SpatialLevel
+from views_frames import PredictionFrame, SpatialLevel
 from views_frames_reconcile import ReconciliationModule
+from views_frames_reconcile import conformance as _conformance
 from views_frames_reconcile.conformance import assert_reconcile_contract
 from views_frames_reconcile.frames import prediction_frame_from_arrays
 
@@ -92,3 +93,24 @@ def test_injected_mapping_is_honored():
     swapped_vals = np.where(mv == 1, 2, 1)  # flip every cell's country
     swapped = ReconciliationModule(mk, swapped_vals).reconcile(cm, pgm)
     assert not np.array_equal(correct.values, swapped.values)
+
+
+def test_conformance_rejects_a_non_conforming_reconciler(monkeypatch):
+    # The conformance suite must have TEETH: every positive test above runs the REAL
+    # (conforming) ReconciliationModule, so none exercises an assertion's raise-path
+    # (100% branch coverage does not — cf. the leaf's register C-51 envelope negatives).
+    # Substitute a deliberately broken reconciler (returns all -1.0 → violates the
+    # non-negativity law) and prove assert_reconcile_contract fails loud on it.
+    cm, pgm, mk, mv = _synthetic(5, samples=16)
+
+    class _BadModule:
+        def __init__(self, _mk, _mv):
+            pass
+
+        def reconcile(self, _cm, pgm_frame):
+            bad = np.full_like(pgm_frame.values, -1.0)  # non-negativity-violating
+            return PredictionFrame(bad, pgm_frame.index, pgm_frame.metadata)
+
+    monkeypatch.setattr(_conformance, "ReconciliationModule", _BadModule)
+    with pytest.raises(AssertionError, match="non-negative"):
+        assert_reconcile_contract(cm, pgm, mk, mv)
