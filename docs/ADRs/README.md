@@ -2,16 +2,17 @@
 # ADR README and Governance Map — views-frames
 
 This repository uses Architecture Decision Records (ADRs) to govern structural, semantic,
-and operational behavior. Because `views-frames` is currently a **design bible** (a
-README, consumer-review findings, design critiques, and falsification stubs — no `src/` yet), these
-ADRs describe the **intended** architecture; when the leaf is stood up, code must conform
-to them (and to the README, which is itself authoritative).
+and operational behavior. The architecture these ADRs describe is **implemented and
+released** (three packages under `src/`, public API frozen since v1.0.0); code must
+conform to them (and to the README design bible, which is itself authoritative — if code
+and README disagree, reconcile before merging).
 
 ADRs are divided into:
 
 1. **Constitutional ADRs (000–009)** — foundational architectural rules.
 2. **Governance ADRs (010)** — the technical risk register.
-3. **Project-Specific ADRs (011–016)** — the ratified contract decisions.
+3. **Project-Specific ADRs (011–025)** — the ratified contract, estimator, sibling-package,
+   and freeze/immutability decisions.
 
 ---
 
@@ -50,10 +51,13 @@ Together, these define the invariant layer of the system.
 
 ---
 
-## Project-Specific ADRs (011–016) — the ratified contract decisions
+## Project-Specific ADRs (011–025) — the ratified project decisions
 
-These ratify the six resolved decisions from the design bible (README §13a). All **Accepted**
-2026-06-21; each cites the risk-register IDs it resolves.
+**011–016** ratify the six founding contract decisions from the design bible (README §13a,
+all Accepted 2026-06-21); **017–025** are the post-v1 decisions — sibling packages, the API
+freeze, estimators, contract homes, and the immutability convention (Accepted 2026-06-22
+through 2026-07; ADR-024 is a design-direction ADR with implementation deferred). Each cites
+the risk-register IDs it resolves.
 
 - **ADR-011** — [Twin-unification model (Option C)](011_twin_unification_option_c.md). Share only `SpatioTemporalIndex` + `_validation` + protocols + `io/`; relocate the frames as separate sibling classes; reject the `_BaseFrame` god-class (A); defer the composed header (B). Resolves D-03; relates to C-16, C-03.
 - **ADR-012** — [Sample axis convention](012_sample_axis_convention.md). Always an explicit trailing axis (`S ≥ 1`); `is_sample = S > 1`; `collapse` reduces the trailing axis; one shape contract. Relates to C-02, C-16, C-17.

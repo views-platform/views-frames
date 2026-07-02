@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-24
+**Last reviewed:** 2026-07-02
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
 
 > Implemented in v0.1.0 (`src/views_frames/feature_frame.py`). This contract governs
@@ -59,7 +59,7 @@ Violations raise at construction (ADR-008).
 
 ## 5. Outputs and Side Effects
 
-- New frames from operations; `save` writes `y_features.npy` + `identifiers.npz`
+- New frames from operations; `save` writes `values.npy` + `identifiers.npz`
   + `feature_names`/`metadata` (via the frame-state round-trip contract).
 
 ---

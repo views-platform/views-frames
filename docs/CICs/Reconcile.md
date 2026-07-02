@@ -255,14 +255,20 @@ gate); these are the contract-bearing suites:
   both-points, pre-tiled cm) — `TestReconciliationResult`.
 - **Red (it fails loud):** `tests/test_reconciliation_validation.py` —
   `validate_reconciliation_inputs` raises on wrong cm level, wrong grid level, sample-count
-  mismatch, time mismatch, and a missing country forecast; the `(M, 2)` map-keys guard
-  (`test_bad_mapping_shape_raises`). The conformance-suite **negative** (a deliberately
-  non-conforming impl/input makes `assert_reconcile_contract` raise) and the
-  `ReconciliationResult` frozen-ness assertion are the red gaps being closed alongside this
-  contract (register C-65 batch, epic #179 / S3).
+  mismatch, time mismatch, a missing country forecast, and a missing
+  `(time, priogrid_gid)` mapping entry (`test_missing_mapping_entry_raises`); the `(M, 2)`
+  map-keys guard (`test_bad_mapping_shape_raises`). The conformance-suite **negative** (a
+  deliberately non-conforming impl makes `assert_reconcile_contract` raise) and the
+  `ReconciliationResult` frozen-ness assertion live in `test_reconcile_conformance.py` /
+  `test_reconciliation_e2e_parity.py` (the C-65 batch, epic #179 / S3). The
+  share-proportionality **law** (`test_shares_are_preserved_within_each_draw`) and the
+  2026-07 audit regressions — exact conservation for tiny nonzero sums, the negative-total
+  raise — are pinned in `test_reconciliation_parity.py` and
+  `test_falsification_safety_audit_2026_07.py` (register C-68/C-70).
 
-Each §3 guarantee maps to a green/beige test; each §6 failure mode maps to a red test in
-`test_reconciliation_validation.py`.
+Each §3 guarantee maps to a green/beige test; each §6 failure mode maps to a red test
+(the validation guards in `test_reconciliation_validation.py`; the negative-total and
+tiny-sum modes in the audit-regression file above).
 
 ---
 

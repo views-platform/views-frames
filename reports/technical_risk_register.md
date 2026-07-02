@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-07-02                           |
 | Total Concerns    | 67                                   |
-| Open Concerns     | 13                                   |
-| Resolved Concerns | 54                                   |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 55                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -35,9 +35,7 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **13 currently open** concerns fall into five clusters plus a cross-cutting theme
-> and one bundle (**C-70**, the 2026-07 audit's docs/tests polish list — one docs PR + one
-> tests PR clears it)
+> The **12 currently open** concerns fall into five clusters plus a cross-cutting theme
 > (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
 > coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
 > estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
@@ -239,21 +237,6 @@ C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is 
 
 ---
 
-### C-70: audit polish bundle — docs narrative epoch-lag + three small test adds (four-axis audit 2026-07)
-
-| Field | Value |
-|-------|-------|
-| ID | C-70 |
-| Tier | 3 |
-| Source | four-axis audit 2026-07-02 (review-base-docs Phase 2 + test-review Phase 3) |
-| Trigger | The next docs or tests PR — fold this bundle in rather than letting the narrative lag compound (a new contributor/agent onboarding from `CLAUDE.md` today is told a two-package v0.1.0 architecture). |
-| Location | **Docs:** `CLAUDE.md` (epoch-stale: "Two packages", "Status: v0.1.0", no `views_frames_reconcile`); `README.md:7` (banner says v1.7.0; chronicle ends at 1.7.0); `docs/ADRs/013_*.md` (claims `feature_names` lives in `FrameMetadata` — it is a `FeatureFrame` constructor arg, `feature_frame.py:32`); `docs/CICs/{PredictionFrame,TargetFrame,FeatureFrame}.md` §5 (say `y_pred/y_true/y_features.npy` — actual artifact is `values.npy`, `io/npz.py:34`); `PredictionFrame.md` §6 ("TypeError on non-float32" — float64 is *coerced*, object dtype raises *ValueError*); `docs/CICs/README.md:52-56` ("no contracts yet" contradicting its own Active list); `docs/ADRs/README.md:6-55` (design-bible framing, "011–016", "six decisions"); `Reconcile.md` §10 (blanket "each §6 mode maps to a red test" — the missing-map-entry mode is pinned only at the leaf); stale `Last reviewed` dates on 3 frame CICs. **Tests:** a share-proportionality *law* test (the method's essence is otherwise pinned only by the frozen oracle; the falsify F5 probe proved the law holds — commit it); an mmap read-only pin (`frame.values.flags.writeable is False` after `load(mmap=True)` — F2 proved it); a reconcile-suite test for the missing-`(time,gid)`-mapping-entry raise. |
-| Cross-refs | The systemic pattern: all doc drift is in narrative text `validate_docs.sh` does not check (banners, framing, filenames), while every mechanically-validated element is current. C-46 (the "verification surface depends on usage" family), C-58 (test-realism, registered), resolved C-67/C-68/C-69 (the fixed half of the same audit). |
-
-The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). One small docs PR + one small tests PR clears the whole entry. **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Open.**
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -393,6 +376,21 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-70: audit polish bundle — docs narrative epoch-lag + three small test adds (four-axis audit 2026-07) — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-70 |
+| Tier | 3 |
+| Source | four-axis audit 2026-07-02 (review-base-docs Phase 2 + test-review Phase 3) |
+| Trigger | The next docs or tests PR — fold this bundle in rather than letting the narrative lag compound (a new contributor/agent onboarding from `CLAUDE.md` today is told a two-package v0.1.0 architecture). |
+| Location | **Docs:** `CLAUDE.md` (epoch-stale: "Two packages", "Status: v0.1.0", no `views_frames_reconcile`); `README.md:7` (banner says v1.7.0; chronicle ends at 1.7.0); `docs/ADRs/013_*.md` (claims `feature_names` lives in `FrameMetadata` — it is a `FeatureFrame` constructor arg, `feature_frame.py:32`); `docs/CICs/{PredictionFrame,TargetFrame,FeatureFrame}.md` §5 (say `y_pred/y_true/y_features.npy` — actual artifact is `values.npy`, `io/npz.py:34`); `PredictionFrame.md` §6 ("TypeError on non-float32" — float64 is *coerced*, object dtype raises *ValueError*); `docs/CICs/README.md:52-56` ("no contracts yet" contradicting its own Active list); `docs/ADRs/README.md:6-55` (design-bible framing, "011–016", "six decisions"); `Reconcile.md` §10 (blanket "each §6 mode maps to a red test" — the missing-map-entry mode is pinned only at the leaf); stale `Last reviewed` dates on 3 frame CICs. **Tests:** a share-proportionality *law* test (the method's essence is otherwise pinned only by the frozen oracle; the falsify F5 probe proved the law holds — commit it); an mmap read-only pin (`frame.values.flags.writeable is False` after `load(mmap=True)` — F2 proved it); a reconcile-suite test for the missing-`(time,gid)`-mapping-entry raise. |
+| Cross-refs | The systemic pattern: all doc drift is in narrative text `validate_docs.sh` does not check (banners, framing, filenames), while every mechanically-validated element is current. C-46 (the "verification surface depends on usage" family), C-58 (test-realism, registered), resolved C-67/C-68/C-69 (the fixed half of the same audit). |
+
+The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Resolved** (2026-07-02, the option-3 cleanup): the tests half by PR #195 (share-proportionality law, mmap read-only pin, missing-map-entry raise); the docs half in the follow-up docs PR (CLAUDE.md rewritten for the three-package released reality; README banner → v1.8.0 + chronicle; ADR-013 as-built amendment; the three CIC §5 filenames → `values.npy`; PredictionFrame §6 coercion wording; SpatioTemporalIndex §6 NaN-via-dtype wording; CICs/ADRs README framing refreshed; `Last reviewed` dates bumped; Reconcile.md §10 updated to name the actual pinning files). Plus a **recurrence guard**: `validate_docs.sh` now checks the README banner's MAJOR.MINOR against `pyproject.toml`, so the narrative epoch-lag pattern fails validation instead of accumulating.
+
+---
 
 ### C-68: `reconcile_proportional` silently violated sum-to-country for tiny nonzero draw sums (the `+ 1e-8` epsilon), and silently clamped negative totals — RESOLVED
 
