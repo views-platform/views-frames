@@ -84,6 +84,26 @@ echo "--- Checking template status markers ---"
 template_count=$(grep -rl '\-\-template\-\-' --include='*.md' . 2>/dev/null | wc -l)
 echo "  INFO: $template_count files still have --template-- status (expected in template repo)"
 
+# 6. README status banner tracks the released MAJOR.MINOR (guards the narrative
+#    epoch-lag found by the 2026-07 audit, register C-70: the banner sat at v1.7.0
+#    while 1.8.0 was on PyPI). Patch releases are exempt — the banner tracks the
+#    surface, which only MINORs change.
+echo "--- Checking README status banner vs pyproject version ---"
+if [ -f "../pyproject.toml" ] && [ -f "../README.md" ]; then
+    pyver=$(grep -m1 '^version = ' ../pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+    pymm=$(echo "$pyver" | cut -d. -f1,2)
+    banner=$(grep -m1 -oE '\*\*Status:\*\* \*\*v[0-9]+\.[0-9]+' ../README.md | grep -oE '[0-9]+\.[0-9]+')
+    if [ -z "$banner" ]; then
+        echo "  ERROR: could not find a '**Status:** **vX.Y' banner in README.md"
+        errors=$((errors + 1))
+    elif [ "$banner" != "$pymm" ]; then
+        echo "  ERROR: README banner says v$banner but pyproject version is $pyver (MAJOR.MINOR $pymm)"
+        errors=$((errors + 1))
+    else
+        echo "  OK (banner v$banner ~ pyproject $pyver)"
+    fi
+fi
+
 echo ""
 if [ "$errors" -gt 0 ]; then
     echo "=== FAILED: $errors issue(s) found ==="

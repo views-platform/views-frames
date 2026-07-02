@@ -49,17 +49,18 @@ Contracts must be clear enough that:
 
 ---
 
-## Status: infrastructure only (no contracts yet)
+## Status: fully contracted
 
-`views-frames` currently contains no code — it is a design bible (see `README.md`). This
-directory holds the template (`cic_template.md`) and this README. **Contracts are authored
-as each class is implemented**, when the twins are relocated and the leaf is stood up.
+Every non-trivial surface across the three shipped packages (`views_frames`,
+`views_frames_summarize`, `views_frames_reconcile`) is governed by an active CIC below.
+New contracts are authored **with** the class/package that introduces them (the
+`Reconcile.md` gap was the last, closed 2026-06-28, register C-64).
 
 ---
 
 ## Active Contracts
 
-These CICs govern the classes implemented in v0.1.0 (`src/views_frames/`).
+These CICs govern the shipped surface (`src/`, three packages, frozen since v1.0.0).
 
 - `SpatioTemporalIndex.md` — the genuinely-reused alignment primitive; same-level logic owned,
   cross-level mapping injected (ADR-014).

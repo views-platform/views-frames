@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-24
+**Last reviewed:** 2026-07-02
 **Related ADRs:** ADR-002, ADR-008, ADR-009, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019, ADR-021
 
 > The `views_frames_summarize` package (functions, not a class). Implemented in

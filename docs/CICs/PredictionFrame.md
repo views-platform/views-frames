@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-24
+**Last reviewed:** 2026-07-02
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017
 
 > Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from
@@ -61,16 +61,19 @@ Violations raise at construction (ADR-008) — never log-and-continue.
 
 ## 5. Outputs and Side Effects
 
-- New frames from operations; `save` writes `y_pred.npy` + `identifiers.npz`
+- New frames from operations; `save` writes `values.npy` + `identifiers.npz`
   (+ header). No other side effects.
 
 ---
 
 ## 6. Failure Modes and Loudness
 
-- Raises `TypeError` on non-`float32`/object-dtype values; `ValueError` on shape,
+- Raises `ValueError` on object-dtype values (list-in-cell is banned), on shape,
   length, or completeness violations, and on `reindex(other)` when `other` is not a
-  subset of this frame's index. The structural guarantee is **not temporal** (register C-11).
+  subset of this frame's index. Other numeric dtypes (e.g. float64) are **coerced**
+  to float32 by copy at construction — accepted, not rejected (the no-copy fast path
+  is float32-only, register C-07). The structural guarantee is **not temporal**
+  (register C-11).
 
 ---
 

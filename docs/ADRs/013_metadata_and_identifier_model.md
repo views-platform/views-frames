@@ -81,6 +81,17 @@ the index aligns rows; the header describes the frame.
 
 ## Implementation Notes
 
+> **As-built amendment (2026-07-02, four-axis audit / register C-70).** Two details landed
+> differently from the notes below, both consistent with the decision's substance:
+> (1) **`feature_names` is not a header field** — it is a `FeatureFrame` constructor
+> argument/attribute (`feature_frame.py`), validated there against the feature axis
+> (`len(feature_names) == values.shape[1]`) and serialized with the frame; `FrameMetadata`
+> stays purely generic provenance (which ADR-020 later ratified as generic-*only*).
+> (2) "Validated at construction" applies to the **frames and identifiers**, not the header
+> fields themselves — `FrameMetadata` is a frozen dataclass of all-optional fields;
+> `from_dict` tolerates unknown keys (forward-compatible). The typed-optional-extensible
+> header and fixed `{time, unit}` identifiers — the decision's core — are implemented as decided.
+
 - Model the header as a frozen dataclass (`FrameMetadata`) with all-optional fields + validation;
   `feature_names` lives here for `FeatureFrame`.
 - `_validation.py` enforces required identifiers `{time, unit}`; optional identifiers validated

@@ -4,14 +4,18 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.7.0 — frozen API** (frozen since v1.0.0, ADR-018; the v1.1 surface is
+> **Status:** **v1.8.0 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
+> v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
 > zeroing by default, register C-45; v1.4.0 adds generic provenance to `FrameMetadata`
 > (`run_id`/`data_version`) and publishes the shared `assert_frame_envelope` checker,
 > ADR-020; v1.5.0 adds the threshold **exceedance** estimator `P(Y > c)`, ADR-021; v1.6.0
 > adds the worst-case **expected_shortfall** estimator, ADR-022; v1.7.0 adds a third
-> sibling package **`views_frames_reconcile`** — forecast reconciliation, ADR-023). This
+> sibling package **`views_frames_reconcile`** — forecast reconciliation, ADR-023; v1.8.0
+> adds the native point-country broadcast + the self-describing reconciliation mode,
+> the three showcase notebooks, and the frames-family hardening pass — Reconcile.md CIC,
+> ADR-025 immutability-by-convention, the adversarial red-test batch). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
