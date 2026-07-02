@@ -59,6 +59,18 @@ def test_npz_mmap_returns_memmap(tmp_path):
     assert isinstance(out["values"], np.memmap)
 
 
+def test_npz_mmap_is_read_only(tmp_path):
+    # The mmap load opens with mmap_mode="r": the buffer must be non-writeable and
+    # an in-place write must raise — previously asserted only as isinstance(memmap)
+    # (2026-07 audit, F2 / register C-70; the read-only-ness is the safety property).
+    st = _state_2d()
+    npz.save(tmp_path, **st)
+    out = npz.load(tmp_path, mmap=True)
+    assert out["values"].flags.writeable is False
+    with pytest.raises(ValueError, match="read-only"):
+        out["values"][0, 0] = 99.0
+
+
 def test_npz_builds_index_from_state(tmp_path):
     st = _state_2d()
     npz.save(tmp_path, **st)
