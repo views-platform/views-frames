@@ -4,9 +4,9 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
-## [Unreleased]
+## [1.8.1] — 2026-07-02
 
-**Falsification-audit hardening (four-axis audit 2026-07-02; register C-67/C-68/C-69).**
+**Falsification-audit hardening (four-axis audit 2026-07-02; register C-67/C-68/C-69/C-70).**
 Bug fixes with an identical contract — the code now honors what the docs already promised.
 No public-surface change; `CONFORMANCE_FLOOR` stays `1.0.0`.
 
@@ -31,7 +31,22 @@ No public-surface change; `CONFORMANCE_FLOOR` stays `1.0.0`.
 - Regression pins for all four fixes: `tests/test_falsification_safety_audit_2026_07.py`.
 - `Reconcile.md` §6 documents the two reconcile behaviors; `proportional.py`'s module docstring
   records the deliberate (bit-parity-preserving) deviation from the torch original.
-- Register: C-67/C-68/C-69 registered-and-resolved; C-70 (docs/tests polish bundle) opened.
+- Register: C-67/C-68/C-69 registered-and-resolved; **C-70** (the audit's docs/tests polish
+  bundle) opened and **cleared in the same release** (below).
+
+### Tests
+- **C-70 test adds** (#195): the share-**proportionality law** (the method's defining
+  forecast-proportion property, previously pinned only by the frozen-oracle fixtures); an mmap
+  **read-only pin** (`writeable is False`, in-place write raises); the reconcile
+  missing-`(time, priogrid_gid)`-mapping-entry raise.
+
+### Documentation
+- **C-70 docs refresh** (#196): `CLAUDE.md` rewritten for the released three-package reality;
+  README banner → v1.8.0 + chronicle; ADR-013 as-built amendment (`feature_names`); CIC accuracy
+  fixes (§5 artifact names → `values.npy`, PredictionFrame §6 real dtype behavior, index §6
+  NaN-via-dtype, Reconcile §10 pinning files); CICs/ADRs README framing refreshed; and a
+  **recurrence guard** — `validate_docs.sh` now checks the README banner's MAJOR.MINOR against
+  `pyproject.toml`.
 
 ## [1.8.0] — 2026-06-28
 
