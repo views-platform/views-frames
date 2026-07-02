@@ -132,6 +132,11 @@ class SpatioTemporalIndex:
         The pure-numpy analogue of ``pd.Index.get_indexer``: a same-level join.
         """
         self._require_same_level(other)
+        if self.n_rows == 0:
+            # An empty index contains nothing: every row of `other` is absent. The
+            # general path below would clip positions to -1 and crash with an
+            # obscure IndexError on the empty array (falsify audit 2026-07, F4).
+            return np.full(other.n_rows, -1, dtype=np.intp)
         self_rows = self._row_view(self._keys())
         other_rows = self._row_view(other._keys())
         order = np.argsort(self_rows, kind="stable")

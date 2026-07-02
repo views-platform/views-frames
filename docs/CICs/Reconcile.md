@@ -149,10 +149,16 @@ All input inconsistencies **raise `ValueError`** before any scaling work
   → raises (`"map_keys must be"` / `"map_vals must be"`).
 - A grid row whose `(time, priogrid_gid)` is absent from the injected mapping → raises (via
   `cross_level_align`).
+- A **negative country total** → raises (`"country totals must be non-negative"`) — it cannot
+  be conserved under the non-negativity clamp, so silently clamping to zero would break the
+  sum-to-country guarantee (falsify audit 2026-07, F8).
 
 **Never silent:** a level/coverage/shape inconsistency must surface as a `ValueError`, not a
 mid-compute crash or a wrong-but-plausible frame. **The all-zero-country draw is an edge, not
 a failure:** it stays `0` (no mass to distribute), not `NaN` and not the country total.
+**Sum-to-country holds exactly for any nonzero draw sum** — the port's `+ 1e-8` denominator
+epsilon, which silently deflated the scale factor for tiny nonzero sums, was replaced by an
+explicit all-zero guard (falsify audit 2026-07, F1; bit-identical on all realistic data).
 
 **The per-draw approximation is loud-by-documentation, not by exception (C-62):** an
 `aligned-draws` result of independently-trained models is a documented approximation
