@@ -4,6 +4,35 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [Unreleased]
+
+**Falsification-audit hardening (four-axis audit 2026-07-02; register C-67/C-68/C-69).**
+Bug fixes with an identical contract — the code now honors what the docs already promised.
+No public-surface change; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Fixed
+- **`reconcile_proportional` conserves exactly for any nonzero draw sum (C-68, the audit's one
+  hard finding).** The torch-port's `+ 1e-8` denominator epsilon — a float32 no-op for draw sums
+  ≳ 0.1 but a **silent** deflator for tiny nonzero sums (a draw sum of 1e-8 reconciled a country
+  total of 100 to 50, with no error signal, violating the Reconcile.md §3 sum-to-country
+  guarantee) — is replaced by an explicit all-zero-draw guard: exact division for any nonzero
+  sum; all-zero draws stay zero exactly as before. **Bit-identical on all realistic data**
+  (torch-oracle parity unchanged and green).
+- **Negative country totals now fail loud (C-68/F8):** `reconcile_proportional` raises
+  `ValueError` instead of silently clamping the output to zero (sum 0 ≠ the requested total).
+- **The published conformance suites refuse to run under `python -O` (C-67):** all three
+  (`views_frames.conformance`, summarize, reconcile) now guard their entry points with
+  `_require_assertions()` — under optimized bytecode (which strips the suites' `assert`
+  statements) they raise `RuntimeError` instead of silently reporting green.
+- **Empty-index `searchsorted` returns all `-1` (C-69)** — the documented not-found value —
+  instead of crashing with an obscure `IndexError` (the `np.clip(pos, 0, -1)` corner).
+
+### Notes
+- Regression pins for all four fixes: `tests/test_falsification_safety_audit_2026_07.py`.
+- `Reconcile.md` §6 documents the two reconcile behaviors; `proportional.py`'s module docstring
+  records the deliberate (bit-parity-preserving) deviation from the torch original.
+- Register: C-67/C-68/C-69 registered-and-resolved; C-70 (docs/tests polish bundle) opened.
+
 ## [1.8.0] — 2026-06-28
 
 **Native point-country broadcast in `views_frames_reconcile` (ADR-023 amendment, #143 / Epic #142),
