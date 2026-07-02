@@ -85,3 +85,12 @@ class TestGuards:
                  vals=fix["cm__pred_ged_sb"][keep])
         with pytest.raises(ValueError, match="no country forecast"):
             validate_reconciliation_inputs(cm, _pgm(fix), mk, mv)
+
+    def test_missing_mapping_entry_raises(self, fix):
+        # Reconcile.md §6: a grid row whose (time, priogrid_gid) is absent from the
+        # injected mapping fails loud (via cross_level_align). Every other "missing"
+        # test drops a cm row; this one drops a MAP KEY — previously pinned only at
+        # the leaf, never from the reconcile suite (2026-07 audit / register C-70).
+        mk, mv = _mk(fix)
+        with pytest.raises(ValueError, match="no entry in the injected mapping"):
+            validate_reconciliation_inputs(_cm(fix), _pgm(fix), mk[:-1], mv[:-1])

@@ -78,3 +78,18 @@ class TestProperties:
         country = np.zeros(200, dtype=np.float32)
         with pytest.raises(ValueError, match="Mismatch in sample count"):
             reconcile_proportional(grid, country)
+
+    def test_shares_are_preserved_within_each_draw(self):
+        # The method's DEFINING property — top-down *forecast-proportion*
+        # disaggregation: within a draw, every cell keeps its relative share of
+        # the nonzero mass. Until now this was pinned only by the frozen-oracle
+        # fixtures (an equal-split-among-nonzero mutation would have passed every
+        # law test); the 2026-07 audit (F5) proved the law holds — commit it as a
+        # law so the essence is oracle-independent (register C-70).
+        rng = np.random.default_rng(3)
+        grid = rng.gamma(2.0, 5.0, size=(50, 8)).astype(np.float32)
+        country = grid.sum(axis=1) * np.float32(1.7)
+        adjusted = reconcile_proportional(grid, country)
+        in_shares = grid / grid.sum(axis=1, keepdims=True)
+        out_shares = adjusted / adjusted.sum(axis=1, keepdims=True)
+        np.testing.assert_allclose(out_shares, in_shares, atol=1e-6)
