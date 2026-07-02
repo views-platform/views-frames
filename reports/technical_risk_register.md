@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-06-27                           |
-| Total Concerns    | 62                                   |
-| Open Concerns     | 11                                   |
-| Resolved Concerns | 51                                   |
+| Last Updated      | 2026-07-02                           |
+| Total Concerns    | 67                                   |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 55                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -35,17 +35,17 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **12 currently open** concerns fall into four clusters plus a cross-cutting theme
+> The **12 currently open** concerns fall into five clusters plus a cross-cutting theme
 > (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
 > coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
 > estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
 > per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
 > was closed by `Reconcile.md` (epic #179 / S1); **(3)
 > construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
-> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06). The
-> former **immutability-enforcement** cluster (C-63) is resolved: the contract was corrected
-> to the by-convention reality and the `setflags`-enforce deferred to a future MAJOR (ADR-025,
-> epic #179 / S2). The cross-cutting
+> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06); **(5)
+> immutability enforcement** — C-66 (+ resolved C-63): the C-63 contract-correction is done
+> (ADR-025, epic #179 / S2), but the actual `setflags`-enforce on `.values` is a MAJOR and is
+> deferred — **C-66** tracks that enforce-rider so it stays visible in Open. The cross-cutting
 > **verification-completeness** theme now narrows to C-58 (the reconciler's production-slice
 > check); its sibling C-65 (non-finite fail-loud on the blocked path) was pinned with a red
 > test (epic #179 / S3). Earlier clusters are closed:
@@ -222,6 +222,21 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 
 ---
 
+### C-66: value-buffer write-protection is deferred to the next MAJOR (the C-63 enforce-rider)
+
+| Field | Value |
+|-------|-------|
+| ID | C-66 |
+| Tier | 3 |
+| Source | review-diff + register-risk (2026-06-28, epic #179 / S2) — the residual of the C-63 resolution-by-decision (ADR-025). |
+| Trigger | When a MAJOR bump is opened for **any** reason — add `self._values.setflags(write=False)` after the `self._values = ...` assignment in the three frame constructors (`prediction_frame.py:44`, `target_frame.py:43`, `feature_frame.py:52`) **and** a red test (`frame.values.flags.writeable is False`; mirror `tests/test_properties.py:38`), riding that MAJOR for free. **Or** sooner, if a consumer is found applying an in-place `.values` mutation (`frame.values[mask] = 0`, `*=`, a clamp) on a `with_metadata`/`select` buffer-sharing frame — promote/expedite the enforce then. |
+| Location | `src/views_frames/{prediction_frame.py:44, target_frame.py:43, feature_frame.py:52}` (bare `self._values = values`, no `setflags`); `src/views_frames/_validation.py:64` (`coerce_values` returns float32 without copy); contrast `src/views_frames/index.py:55-56` (the index **is** write-protected). Decision in `docs/ADRs/025_value_buffer_immutability_by_convention.md`. |
+| Cross-refs | **C-63** (RESOLVED by contract correction — this entry tracks the *deferred enforce* it left open), **ADR-025** (the decision + the exact one-line-per-constructor change), ADR-018 (`values` is frozen-surface, so the enforce is a MAJOR), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), C-07 (the zero-copy reason the buffer is left writeable). |
+
+C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is documented as immutable *by convention* and the docs no longer claim an unenforced guarantee. But the **code** is unchanged — `frame.values.flags.writeable` is still `True`, and `with_metadata` shares the buffer — so the underlying mechanism (an in-place `.values` mutation **silently corrupts every frame sharing the buffer**, the Tier-2 basis of C-63) is **mitigated, not removed**. The mitigation is documentation (three frame CICs §9 + README design principle 3 say it is unsupported) + the empirical fact that **nothing in `src/` or `tests/` mutates `.values`**. The actual write-protection (`setflags(write=False)`) is deliberately deferred because, on the frozen-surface `values`, it is a **MAJOR** (GOVERNANCE/ADR-018) and does not justify a standalone cross-repo coordinated bump. **Tier 3** — this entry tracks the *accepted deferral* of a documented-and-unexercised exposure (the acute silent-corruption path requires a consumer to ignore the published contract); it is a governance/safety-tracking item, not a current defect, and exists so the deferred enforce stays visible in the **Open** section rather than buried in a resolved entry. **Open** — until the enforce rides the next MAJOR.
+
+---
+
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -361,6 +376,66 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-70: audit polish bundle — docs narrative epoch-lag + three small test adds (four-axis audit 2026-07) — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-70 |
+| Tier | 3 |
+| Source | four-axis audit 2026-07-02 (review-base-docs Phase 2 + test-review Phase 3) |
+| Trigger | The next docs or tests PR — fold this bundle in rather than letting the narrative lag compound (a new contributor/agent onboarding from `CLAUDE.md` today is told a two-package v0.1.0 architecture). |
+| Location | **Docs:** `CLAUDE.md` (epoch-stale: "Two packages", "Status: v0.1.0", no `views_frames_reconcile`); `README.md:7` (banner says v1.7.0; chronicle ends at 1.7.0); `docs/ADRs/013_*.md` (claims `feature_names` lives in `FrameMetadata` — it is a `FeatureFrame` constructor arg, `feature_frame.py:32`); `docs/CICs/{PredictionFrame,TargetFrame,FeatureFrame}.md` §5 (say `y_pred/y_true/y_features.npy` — actual artifact is `values.npy`, `io/npz.py:34`); `PredictionFrame.md` §6 ("TypeError on non-float32" — float64 is *coerced*, object dtype raises *ValueError*); `docs/CICs/README.md:52-56` ("no contracts yet" contradicting its own Active list); `docs/ADRs/README.md:6-55` (design-bible framing, "011–016", "six decisions"); `Reconcile.md` §10 (blanket "each §6 mode maps to a red test" — the missing-map-entry mode is pinned only at the leaf); stale `Last reviewed` dates on 3 frame CICs. **Tests:** a share-proportionality *law* test (the method's essence is otherwise pinned only by the frozen oracle; the falsify F5 probe proved the law holds — commit it); an mmap read-only pin (`frame.values.flags.writeable is False` after `load(mmap=True)` — F2 proved it); a reconcile-suite test for the missing-`(time,gid)`-mapping-entry raise. |
+| Cross-refs | The systemic pattern: all doc drift is in narrative text `validate_docs.sh` does not check (banners, framing, filenames), while every mechanically-validated element is current. C-46 (the "verification surface depends on usage" family), C-58 (test-realism, registered), resolved C-67/C-68/C-69 (the fixed half of the same audit). |
+
+The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Resolved** (2026-07-02, the option-3 cleanup): the tests half by PR #195 (share-proportionality law, mmap read-only pin, missing-map-entry raise); the docs half in the follow-up docs PR (CLAUDE.md rewritten for the three-package released reality; README banner → v1.8.0 + chronicle; ADR-013 as-built amendment; the three CIC §5 filenames → `values.npy`; PredictionFrame §6 coercion wording; SpatioTemporalIndex §6 NaN-via-dtype wording; CICs/ADRs README framing refreshed; `Last reviewed` dates bumped; Reconcile.md §10 updated to name the actual pinning files). Plus a **recurrence guard**: `validate_docs.sh` now checks the README banner's MAJOR.MINOR against `pyproject.toml`, so the narrative epoch-lag pattern fails validation instead of accumulating.
+
+---
+
+### C-68: `reconcile_proportional` silently violated sum-to-country for tiny nonzero draw sums (the `+ 1e-8` epsilon), and silently clamped negative totals — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-68 |
+| Tier | 2 |
+| Source | test-review (2026-07-02, the untested-region flag) + falsify audit 2026-07-02 (F1 hard, F8 soft — empirically confirmed, independently reproduced) |
+| Trigger | (historical) A country-month whose nonzero grid draws summed ≲1e-4 against a material cm total — the reconciled output silently under-conserved (50% shortfall at draw-sum 1e-8, 91% at 1e-9; still violating the §3 rtol at 1e-5), and `assert_reconcile_contract` rejected the package's own output. A negative country total silently clamped to an all-zero output (sum 0 ≠ the total). |
+| Location | `src/views_frames_reconcile/proportional.py` (formerly `_EPS = 1e-8` at :30, `sum_nonzero + _EPS` at :74). |
+| Cross-refs | Reconcile.md §3 (the sum-to-country guarantee that was silently violated) + §6 (now documents both fixes), ADR-023 (the bit-parity mandate the fix preserves), C-58 (the untested-region sibling), C-62 (same file, distinct: joint calibration), resolved C-67/C-69 + open C-70 (the same audit's other findings). |
+
+The port's `+ 1e-8` denominator epsilon was a float32 **no-op for draw sums ≳ 0.1** (machine epsilon exceeds it — which is why all oracle-parity and gamma-draw tests never saw it) but **silently deflated the scale factor** for tiny nonzero sums: at a draw sum of 1e-8 a country total of 100 reconciled to 50, with no error signal, violating the stated §3 guarantee inside the documented input domain — the audit's one **hard falsification**. A negative country total was likewise neither rejected nor conserved (clamped to zero). **Tier 2** — silent violation of a stated contract guarantee, demonstrated in-domain; not Tier 1 because realistic fatality-scale draws sit well above the band. **Resolved** (2026-07-02): the epsilon is replaced by an explicit all-zero-draw guard (exact division for any nonzero sum; all-zero draws stay zero exactly as before), and negative totals now raise `ValueError`. The fix is **bit-identical on all realistic data** (torch-oracle parity green, unchanged); conservation now exact at float32 precision across the whole domain. Pinned by `tests/test_falsification_safety_audit_2026_07.py` (TestF1HardEpsilonRegion, TestF8SoftNegativeCountryTotal); Reconcile.md §6 updated; `proportional.py` module docstring records the deliberate deviation from the torch original.
+
+---
+
+### C-67: the published conformance suites were a silent no-op under `python -O` — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-67 |
+| Tier | 4 |
+| Source | repo-assimilation (2026-07-02) + falsify audit 2026-07-02 (F3 — a float64 non-conformer with working save/load passed the envelope under `-O`) |
+| Trigger | (historical) A consumer wiring `assert_frame_contract` / `assert_summarizer_contract` / `assert_reconcile_contract` into a CI or production job running `python -O`/`-OO` — every check silently passed regardless of conformance. |
+| Location | `src/views_frames/conformance/__init__.py`, `src/views_frames_summarize/conformance.py`, `src/views_frames_reconcile/conformance.py` (bare `assert` throughout — stripped under optimized bytecode). |
+| Cross-refs | ADR-016 (the cross-repo floor whose teeth this restores), C-46 (the "verification depends on how consumers run it" family). |
+
+The three published conformance suites — the ADR-016 floor consumers run in *their* CI — were bare `assert` statements: under `-O` the interpreter strips them and the suite reports green while checking nothing. **Resolved** (2026-07-02): each suite's public entry points now call `_require_assertions()`, which raises `RuntimeError` when `__debug__` is false — under `-O` the suite **refuses to run loudly** instead of lying. Pinned by a subprocess regression test (`TestF3SoftConformanceUnderO`). **Tier 4** — no consumer was known to run optimized bytecode; latent sharp edge on the verification surface, not a data-corruption path.
+
+---
+
+### C-69: empty-index `searchsorted` crashed with an obscure `IndexError` — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-69 |
+| Tier | 4 |
+| Source | repo-assimilation (2026-07-02, the `np.clip(pos, 0, -1)` observation) + falsify audit 2026-07-02 (F4 — confirmed empirically) |
+| Trigger | (historical) Any same-level join against an **empty** `SpatioTemporalIndex` (e.g. aligning to a frame filtered down to zero rows) — `searchsorted` clipped positions into an empty array and died with `IndexError: index -1 is out of bounds` instead of a clean result. |
+| Location | `src/views_frames/index.py` (`searchsorted`, the `np.clip(pos, 0, len-1)` corner at the formerly-unguarded empty-self path). |
+| Cross-refs | C-57 (the same loud-but-obscure error family — `map_estimate`'s inf `IndexError`, still open with #89), C-21 (row-semantics territory). |
+
+**Resolved** (2026-07-02): an explicit empty-self early-return — every row of `other` is absent from an empty index, so the result is all `-1`, the method's documented not-found value. Pinned by `TestF4SoftEmptyIndexSearchsorted`. **Tier 4** — a crash (loud), not silent corruption; ergonomics-grade. The falsify audit's bonus observation (a *frame* passed to `reindex` surfaces as `AttributeError` rather than a clean `TypeError`) is noted here, deliberately unfixed — same family, below threshold.
+
+---
 
 ### C-65: non-finite fail-loud proven only on the single-shot path, not the blocked (multi-block) path — RESOLVED
 
@@ -961,7 +1036,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
   - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
-  - **immutability enforcement** = {resolved C-63, C-07} — **resolved by ADR-025 (2026-06-28, epic #179 / S2).** Immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` in place is unsupported). The contract was corrected to this reality across the three frame CICs + README design principle 3; the `setflags`-enforce on `.values` would be a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is recorded as a deferred MAJOR-rider.
+  - **immutability enforcement** = {C-66, + resolved C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
   - cross-cutting **verification-completeness** = {C-58, resolved C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58, still open). Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.

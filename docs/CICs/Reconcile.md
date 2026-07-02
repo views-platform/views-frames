@@ -149,10 +149,16 @@ All input inconsistencies **raise `ValueError`** before any scaling work
   → raises (`"map_keys must be"` / `"map_vals must be"`).
 - A grid row whose `(time, priogrid_gid)` is absent from the injected mapping → raises (via
   `cross_level_align`).
+- A **negative country total** → raises (`"country totals must be non-negative"`) — it cannot
+  be conserved under the non-negativity clamp, so silently clamping to zero would break the
+  sum-to-country guarantee (falsify audit 2026-07, F8).
 
 **Never silent:** a level/coverage/shape inconsistency must surface as a `ValueError`, not a
 mid-compute crash or a wrong-but-plausible frame. **The all-zero-country draw is an edge, not
 a failure:** it stays `0` (no mass to distribute), not `NaN` and not the country total.
+**Sum-to-country holds exactly for any nonzero draw sum** — the port's `+ 1e-8` denominator
+epsilon, which silently deflated the scale factor for tiny nonzero sums, was replaced by an
+explicit all-zero guard (falsify audit 2026-07, F1; bit-identical on all realistic data).
 
 **The per-draw approximation is loud-by-documentation, not by exception (C-62):** an
 `aligned-draws` result of independently-trained models is a documented approximation
@@ -249,14 +255,20 @@ gate); these are the contract-bearing suites:
   both-points, pre-tiled cm) — `TestReconciliationResult`.
 - **Red (it fails loud):** `tests/test_reconciliation_validation.py` —
   `validate_reconciliation_inputs` raises on wrong cm level, wrong grid level, sample-count
-  mismatch, time mismatch, and a missing country forecast; the `(M, 2)` map-keys guard
-  (`test_bad_mapping_shape_raises`). The conformance-suite **negative** (a deliberately
-  non-conforming impl/input makes `assert_reconcile_contract` raise) and the
-  `ReconciliationResult` frozen-ness assertion are the red gaps being closed alongside this
-  contract (register C-65 batch, epic #179 / S3).
+  mismatch, time mismatch, a missing country forecast, and a missing
+  `(time, priogrid_gid)` mapping entry (`test_missing_mapping_entry_raises`); the `(M, 2)`
+  map-keys guard (`test_bad_mapping_shape_raises`). The conformance-suite **negative** (a
+  deliberately non-conforming impl makes `assert_reconcile_contract` raise) and the
+  `ReconciliationResult` frozen-ness assertion live in `test_reconcile_conformance.py` /
+  `test_reconciliation_e2e_parity.py` (the C-65 batch, epic #179 / S3). The
+  share-proportionality **law** (`test_shares_are_preserved_within_each_draw`) and the
+  2026-07 audit regressions — exact conservation for tiny nonzero sums, the negative-total
+  raise — are pinned in `test_reconciliation_parity.py` and
+  `test_falsification_safety_audit_2026_07.py` (register C-68/C-70).
 
-Each §3 guarantee maps to a green/beige test; each §6 failure mode maps to a red test in
-`test_reconciliation_validation.py`.
+Each §3 guarantee maps to a green/beige test; each §6 failure mode maps to a red test
+(the validation guards in `test_reconciliation_validation.py`; the negative-total and
+tiny-sum modes in the audit-regression file above).
 
 ---
 

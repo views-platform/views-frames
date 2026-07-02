@@ -40,6 +40,20 @@ __all__ = [
 ]
 
 
+def _require_assertions() -> None:
+    """Fail loud if assertions are stripped (``python -O``/``-OO``).
+
+    The suite is built from ``assert`` statements; under optimized bytecode every
+    check would silently pass regardless of conformance — a verification tool that
+    reports green while dead (falsify audit 2026-07, F3). Refuse to run instead.
+    """
+    if not __debug__:  # pragma: no cover — pytest always runs with assertions on
+        raise RuntimeError(
+            "the views-frames conformance suite requires assertions; run without "
+            "python -O/-OO (PYTHONOPTIMIZE), otherwise every check silently passes"
+        )
+
+
 def assert_frame_envelope(frame: Any) -> None:
     """Assert ``frame`` satisfies the shared **frame envelope**.
 
@@ -56,6 +70,7 @@ def assert_frame_envelope(frame: Any) -> None:
     Raises:
         AssertionError: any part of the envelope is violated.
     """
+    _require_assertions()
     values = frame.values
     assert isinstance(values, np.ndarray), "values must be a numpy array"
     assert values.dtype == np.float32, f"values must be float32, got {values.dtype}"
@@ -77,6 +92,7 @@ def assert_frame_contract(frame: Any) -> None:
     Raises:
         AssertionError: the envelope or the spatiotemporal identifier rule is violated.
     """
+    _require_assertions()
     assert_frame_envelope(frame)
 
     ids = frame.identifiers
@@ -110,6 +126,7 @@ def assert_index_alignment_laws(index_a: Any, index_b: Any) -> None:
     Raises:
         AssertionError: a law is violated.
     """
+    _require_assertions()
     assert index_a.intersect(index_b) == index_b.intersect(index_a), (
         "intersect must be commutative"
     )
@@ -140,6 +157,7 @@ def assert_cross_level_alignment_law(
         AssertionError: the remap disagrees with the mapping, drops time, or
             produces the wrong level.
     """
+    _require_assertions()
     aligned = index.cross_level_align(mapping, target_level)
     assert aligned.level is target_level, "cross_level_align must carry target_level"
     assert np.array_equal(aligned.time, index.time), "cross_level_align must keep time"

@@ -20,6 +20,19 @@ from views_frames import PredictionFrame, SpatialLevel
 from views_frames_reconcile.module import ReconciliationModule
 
 
+def _require_assertions() -> None:
+    """Fail loud if assertions are stripped (``python -O``/``-OO``).
+
+    Mirrors ``views_frames.conformance._require_assertions`` (falsify audit 2026-07,
+    F3): under optimized bytecode every ``assert`` silently passes — refuse to run.
+    """
+    if not __debug__:  # pragma: no cover — pytest always runs with assertions on
+        raise RuntimeError(
+            "the reconcile conformance suite requires assertions; run without "
+            "python -O/-OO (PYTHONOPTIMIZE), otherwise every check silently passes"
+        )
+
+
 def assert_reconcile_contract(
     cm_frame: PredictionFrame,
     pgm_frame: PredictionFrame,
@@ -35,6 +48,7 @@ def assert_reconcile_contract(
     Raises:
         AssertionError: a contract law is violated.
     """
+    _require_assertions()
     mk = np.asarray(map_keys)
     mv = np.asarray(map_vals)
     out = ReconciliationModule(mk, mv).reconcile(cm_frame, pgm_frame)

@@ -77,8 +77,11 @@ Assumptions that do not hold **must raise** at construction (ADR-009), never fal
 
 ## 6. Failure Modes and Loudness
 
-- Raises `TypeError` if any identifier array is not integer dtype.
-- Raises `ValueError` if arrays differ in length, contain NaN, or `level` is invalid.
+- Raises `TypeError` if any identifier array is not integer dtype — which is also what
+  a NaN-carrying array hits (NaN forces a float dtype; integers cannot be NaN, so the
+  "no NaN" guarantee is enforced *via* the dtype check, not a separate `ValueError`).
+- Raises `ValueError` if arrays differ in length; `TypeError` if `level` is not a
+  `SpatialLevel`.
 - `cross_level_align` raises if called without an injected mapping — it must **never**
   silently fetch or assume one (the defining boundary of ADR-014).
 - Nothing fails silently.

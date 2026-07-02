@@ -50,7 +50,7 @@ index is write-protected.**
    new frame instead. This is the documented contract; it is **not** mechanically enforced.
 2. The leaf deliberately leaves the value buffer **writeable** so that structural/metadata
    operations stay **zero-copy** and `mmap`-backed frames stay `mmap`-backed (design
-   principle 2 / C-07). The enforced invariant is on the **index** (`time`/`unit`), which is
+   principle 3 / C-07). The enforced invariant is on the **index** (`time`/`unit`), which is
    small, never shared mutably, and already `setflags(write=False)`.
 3. **The `setflags`-enforce on `.values` is a deferred MAJOR-rider.** When a MAJOR bump
    happens for any reason, enforcement is added **for free** as part of that coordinated bump:
@@ -58,7 +58,7 @@ index is write-protected.**
    test that `frame.values.flags.writeable is False`. It is **out of scope** to do this on its
    own (it does not justify a standalone MAJOR).
 
-In scope: correcting the docs (the three frame CICs, README principle 2) to state the
+In scope: correcting the docs (the three frame CICs, README principle 3) to state the
 by-convention reality. Out of scope: any code change; any change to `CONFORMANCE_FLOOR` (stays
 `1.0.0`); enforcing read-only `.values` now.
 

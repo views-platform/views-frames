@@ -22,12 +22,26 @@ from views_frames_summarize.tower import hdi_tower
 from views_frames_summarize.tower_point import tower_point
 
 
+def _require_assertions() -> None:
+    """Fail loud if assertions are stripped (``python -O``/``-OO``).
+
+    Mirrors ``views_frames.conformance._require_assertions`` (falsify audit 2026-07,
+    F3): under optimized bytecode every ``assert`` silently passes — refuse to run.
+    """
+    if not __debug__:  # pragma: no cover — pytest always runs with assertions on
+        raise RuntimeError(
+            "the summarize conformance suite requires assertions; run without "
+            "python -O/-OO (PYTHONOPTIMIZE), otherwise every check silently passes"
+        )
+
+
 def assert_summarizer_contract(frame: AnyFrame) -> None:
     """Assert the summarizers behave on ``frame``.
 
     Raises:
         AssertionError: a summarizer violates its output contract.
     """
+    _require_assertions()
     n = frame.n_rows
 
     point = collapse(frame, np.mean)
