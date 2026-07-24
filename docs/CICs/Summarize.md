@@ -22,6 +22,13 @@
 > additively in v1.6.0** (`src/views_frames_summarize/expected_shortfall.py`,
 > `tests/test_summarize_expected_shortfall.py`; register C-55/C-56 Resolved). Best-case ships **no
 > code** (a low quantile + `exceedance(0)`). The §3/§4/§6/§8–§11 entries marked *(ADR-022)* are live.
+>
+> **Amendment (2026-07-24, ADR-019 Amendment 3).** `tip_mass` default **0.5 → 0.25** (the
+> top-quartile floor — the tower-tip MAP now reads the top floor of the published tower), with
+> the **MAP-containment law** added to `assert_summarizer_contract`: every floor holding more
+> than half the tip floor's draws provably contains the tip. Simulation evidence in
+> `research/map_hdi/tip_mass_study.py`; behavior change to `tower_point`/`summarize_tower`
+> outputs (MAPs shift toward the mode on skewed cells — the intended C-32 direction).
 
 ---
 
@@ -95,11 +102,18 @@ re-derive (ADR-017).
   HDI with no nesting constraint, use the frozen `hdi`; use the tower when you need a
   *coherent, reproducible* family of bands.
 - `tower_point(frame)` → a `(N, …, 1)` frame: the **tower tip**, the median of the
-  configurable **`tip_mass`** floor (default 0.5 — the shorth). Zero-inflation is read off
+  configurable **`tip_mass`** floor (default 0.25 — the top-quartile floor, the top floor of
+  the published tower; ADR-019 Amendment 3, evidence `research/map_hdi/tip_mass_study.py`).
+  Zero-inflation is read off
   that floor's density (a zero-majority row reads 0; the optional `zero_cutoff` magnitude
   rule is off by default — C-45). Unbinned and median-based, so it carries **none** of
   `map_estimate`'s histogram tie-break bias (mitigates C-32) **and** is robust to minority
-  duplicates (C-44).
+  duplicates (C-44 — a floor's median is safe while a duplicate stack is under half its
+  draws; at 0.25 that tolerates the real-cell zero-stacks with margin). **MAP-containment
+  law** (asserted in the conformance suite): every floor holding more than half the tip
+  floor's draws — asymptotically mass > `tip_mass`/2 = 12.5% — provably contains the tip;
+  all published bands (50/90/95/99) qualify. Narrower floors carry no containment
+  guarantee and are below platform sample resolution.
   It is **not** a consistency-guaranteed mode; pair it with `bimodality`. **Caveat (the
   semantic shift — read before adopting over a histogram MAP):** on right-skewed /
   zero-inflated / multi-cluster posteriors `tower_point` returns the **densest** mode, which

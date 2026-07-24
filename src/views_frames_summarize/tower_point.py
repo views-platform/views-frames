@@ -2,15 +2,21 @@
 
 `tower_point` is the "most likely single value" we report to a consumer: the median of
 the draws inside the **`tip_mass` floor** of the nested tower (config-driven, default
-0.5 — the "shorth"). Zero-inflation is handled by that floor's density (a zero-majority
-row reads 0); the optional, off-by-default magnitude cutoff applies too if set (C-45).
+0.25 — the top-quartile floor, i.e. the top floor of the published tower; ADR-019
+amendment 2026-07-24, evidence in `research/map_hdi/tip_mass_study.py`). Zero-inflation
+is handled by that floor's density (a zero-majority row reads 0); the optional,
+off-by-default magnitude cutoff applies too if set (C-45). Containment law: every HDI
+whose floor holds more than half the tip floor's draws provably contains the tip
+(asymptotically, mass > `tip_mass`/2 — a nested contiguous window longer than half
+the parent cannot trim away the parent's median); narrower floors carry no guarantee
+and are below platform sample resolution. Asserted in ``conformance.py``.
 
 It is a *new* estimator, deliberately distinct from the frozen `map_estimate` (ADR-018):
 `map_estimate` is a binned histogram mode with a zero-*mass*-fraction rule and a
 lowest-index tie-break that is directionally biased on right-skewed, zero-inflated,
 low-sample posteriors (register C-32). The tower tip is unbinned — it reads the median
 of a mass-aware floor — so it carries no histogram tie-break **and** is robust to
-minority duplicated draws (register C-44; a lonely outlier cannot define a 50%-mass
+minority duplicated draws (register C-44; a lonely outlier cannot define a 25%-mass
 floor). On a genuinely multi-peaked row the tip is, like any point, ambiguous; pair it
 with `bimodality` to detect that case rather than collapse it silently.
 """

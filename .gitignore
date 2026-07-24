@@ -44,3 +44,6 @@ research/**/.cache/
 research/**/results.tsv
 research/**/run.log
 research/**/audit_plots/
+
+# generated figures (research/figures/ generators; deliverable copies travel with the deliverable)
+reports/plots/

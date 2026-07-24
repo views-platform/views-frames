@@ -21,7 +21,10 @@ def test_green_shipped_config_is_complete():
 
 
 def test_green_get_returns_the_set_value():
-    assert config.get("tip_mass") == 0.5
+    # tip_mass 0.25: the top-quartile floor (ADR-019 amendment 2026-07-24; evidence
+    # in research/map_hdi/tip_mass_study.py — the 0.5 shorth carried a structural
+    # rightward bias; 0.25 passes the real-cell C-44 gate with margin).
+    assert config.get("tip_mass") == 0.25
     assert config.get("zero_cutoff") is None  # magnitude rule off by default (C-45)
     assert config.get("row_block") == (1 << 16)
 

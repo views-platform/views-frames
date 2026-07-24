@@ -23,6 +23,28 @@
 > `tip_mass`-floor density, and the magnitude rule is now an **optional, off-by-default**
 > `config['zero_cutoff']` (read live) for count consumers that want it. The summary family is
 > now **distribution-agnostic**. See the *Decided properties* below.
+>
+> **Amendment 3 (2026-07-24 — `tip_mass` 0.5 → 0.25, the top-quartile floor).** The design
+> intent was always a **tower-tip** MAP — the point read off an *upper* floor of the tower —
+> but the shipped default read the 0.5 (shorth) floor, whose median carries a **structural
+> bias away from the mode** on skewed shapes that does not shrink with sample count
+> (measured: +0.12 to +2.0 across the shape battery; the narrow-floor bias is roughly half,
+> everywhere). A simulation study (`research/map_hdi/tip_mass_study.py`: 1000-replicate
+> accuracy/stability sweep, a duplicate-capture frontier, and the real-cell C-44 gate)
+> settled the choice: floors of mass ≤ 0.15 **resurrect the C-44 zero-stack signal loss on
+> the real faoapi cells** (a floor's median is safe only while a duplicate stack is under
+> half its draws), 0.20 passes with zero margin, and **0.25 passes with margin** while
+> beating the shorth on RMSE at pooled sample counts and reading zero-inflated cells
+> exactly. Decided: `tip_mass = 0.25`. With it comes the **MAP-containment law**, now
+> asserted in `conformance.py`: every floor holding more than half the tip floor's draws
+> (a floor of mass `m` spans `floor(m·S)+1` draws; asymptotically `m > tip_mass/2 = 12.5%`)
+> provably contains the tip — wider floors by nesting, narrower qualifying floors because a
+> contiguous sub-window longer than half its parent cannot trim away the parent's median.
+> Floors below that threshold carry no containment guarantee and are below platform sample
+> resolution (the published bands 50/90/95/99 all qualify under both old and new defaults;
+> the change *shrinks* the unguaranteed region from mass < 0.25 to mass ≤ ~0.125).
+> Consumer note: published MAPs shift toward the mode on skewed cells — the intended
+> direction (the C-32 lineage). The full shrinking-limit MAP remains #89.
 
 ---
 
@@ -80,7 +102,7 @@ new surface (MINOR under ADR-018); the frozen estimators (`map_estimate`, `hdi`,
   **independent of the other requested masses** (the reproducibility guarantee that resolves
   C-33).
 - `tower_point(frame) -> (N, …, 1)` frame. The "tower tip": the median of the configurable
-  **`tip_mass`** floor's samples (default 0.5 — the "shorth"); zero-inflation is read off
+  **`tip_mass`** floor's samples (default 0.25 — the top-quartile floor, Amendment 3); zero-inflation is read off
   that floor's density (an optional `zero_cutoff` magnitude rule is off by default — C-45).
   Unbinned and median-based, so it carries **none** of `map_estimate`'s
   histogram tie-break bias (mitigates C-32), and — reading a *mass-aware* floor rather than
@@ -185,7 +207,7 @@ decide); cross-repo adoption (consumers adopt when ready).
 - The bimodality flag is a heuristic with deliberately limited recall on *ambiguous*
   (overlapping) mixtures, unequal-weight splits, and a tall-narrow mode beside a spread one
   — documented as a conservative trade, not a formal test, and **registered as C-34**.
-- `tower_point` reads a fixed `tip_mass` floor (default 50% — the shorth), so it is **not**
+- `tower_point` reads a fixed `tip_mass` floor (default 25% — the top-quartile floor, Amendment 3), so it is **not**
   a consistency guarantee to the true mode; a fully-principled convergent mode remains #89.
 - `map_estimate` remains in the frozen surface (biased), now with a documented better
   alternative — a residual a naïve consumer can still step on.
