@@ -285,12 +285,14 @@ def test_beige_all_equal_row():
     assert bimodality(pf)[0, 0] == 0.0
 
 
-def test_beige_tiny_sample_tip_is_tip_mass_shorth():
-    # S=5, tip_mass=0.5 → the 50% floor is the shortest 3 of [2,4,6,8,10] = (2,4,6),
-    # whose median is 4.0 (NOT the global median 6.0 — the tip is the shorth, not the
-    # row median). Narrow floors (k<=0) collapse to a real sample and stay nested.
+def test_beige_tiny_sample_tip_is_tip_mass_floor_median():
+    # S=5, tip_mass=0.25 → the 25% floor spans floor(0.25·5)+1 = 2 draws: the
+    # shortest 2-window of [2,4,6,8,10] under the nesting chain is (2,4), whose
+    # median is 3.0 (NOT the global median 6.0 — the tip is the tip_mass-floor
+    # median, not the row median). Narrow floors collapse to a real sample and
+    # stay nested.
     pf = _pf([[2.0, 4.0, 6.0, 8.0, 10.0]])
-    assert abs(_tp([2.0, 4.0, 6.0, 8.0, 10.0]) - 4.0) < 1e-6
+    assert abs(_tp([2.0, 4.0, 6.0, 8.0, 10.0]) - 3.0) < 1e-6
     tower = hdi_tower(pf, masses=(0.05, 0.5))
     assert tower[0, 0, 0] >= tower[0, 1, 0] - 1e-6  # 5% nested in 50%
     assert tower[0, 0, 1] <= tower[0, 1, 1] + 1e-6

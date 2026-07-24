@@ -28,9 +28,15 @@ TOWER_CONFIG: Final[dict[str, Any]] = {
         [round(0.05 * i, 2) for i in range(1, 19)]  # 0.05 … 0.90
         + [0.92, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99]  # fine high-mass tail
     ),
-    # The tower-tip reads the median of the floor at this mass — the "shorth". 0.5 is
-    # the maximally-robust choice: a duplicate would need ~half the draws to hijack it.
-    "tip_mass": 0.5,
+    # The tower-tip reads the median of the floor at this mass — the top floor of the
+    # published tower. 0.25 (the top-quartile floor; ADR-019 amendment 2026-07-24,
+    # evidence in research/map_hdi/tip_mass_study.py): lower bias than the 0.5 shorth
+    # everywhere, RMSE-superior at pooled S, exact on zero-inflated cells, and it
+    # passes the real-cell C-44 gate with margin — the tip floor's median is safe as
+    # long as a duplicate stack is under half the floor (k > 2·duplicates; at S=32,
+    # k=8 tolerates the observed 2-3-zero stacks). Containment law: every HDI of mass
+    # > tip_mass/2 provably contains the tip (asserted in conformance.py).
+    "tip_mass": 0.25,
     # Optional magnitude zero rule, OFF by default (``None``). When set to a float, a
     # row whose every draw is <= it collapses to 0 — a *count* opt-in (sub-1 ⇒ 0).
     # Left ``None`` for any non-count target: zero-inflation is otherwise handled by the
