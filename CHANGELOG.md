@@ -4,6 +4,33 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.9.0] — 2026-07-24
+
+**The tower-tip MAP reads the top floor (ADR-019 Amendment 3): `tip_mass` 0.5 → 0.25.**
+Behavior change to `tower_point`/`summarize_tower` outputs, shipped MINOR per the C-44/C-45
+precedent (estimator amendment with ADR evidence); `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Changed
+- **`tip_mass` default 0.5 → 0.25 (the top-quartile floor).** The tower-tip MAP is now the
+  median of the **top floor of the published tower**, matching the design intent the name
+  always promised. Evidence (`research/map_hdi/tip_mass_study.py`, 1000-replicate battery +
+  duplicate-capture frontier + the real-cell C-44 gate): the 0.5 shorth carried a structural
+  rightward bias that does not shrink with sample count; 0.25 roughly halves it, beats the
+  shorth on RMSE at pooled S, reads zero-inflated cells exactly, and passes the real-cell
+  zero-stack gate with margin (masses ≤ 0.15 resurrect the C-44 signal loss; 0.20 has zero
+  margin). Consumer note: published MAPs shift toward the mode on skewed cells — the intended
+  C-32 direction.
+
+### Added
+- **MAP-containment law** in `assert_summarizer_contract`: every floor holding more than half
+  the tip floor's draws (asymptotically mass > `tip_mass`/2 = 12.5%) provably contains the
+  tip — wider floors by nesting, narrower qualifying floors by the sub-window trim argument.
+  All published bands (50/90/95/99) qualify; the unguaranteed region *shrinks* versus the old
+  default (was: everything below 0.5).
+- `research/map_hdi/tip_mass_study.py` — the committed evidence trail for the amendment.
+- `research/figures/` — permanent, seeded generators for the PRN06 tower figures (overlay +
+  detail, upright-tower rendering), with `reports/plots/` as the gitignored output home.
+
 ## [1.8.1] — 2026-07-02
 
 **Falsification-audit hardening (four-axis audit 2026-07-02; register C-67/C-68/C-69/C-70).**

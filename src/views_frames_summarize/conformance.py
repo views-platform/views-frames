@@ -126,6 +126,32 @@ def _assert_tower_contract(frame: AnyFrame, n: int) -> None:
     assert (tip.values[..., 0] >= tlo - 1e-6).all(), "tip below the tip_mass floor"
     assert (tip.values[..., 0] <= thi + 1e-6).all(), "tip above the tip_mass floor"
 
+    # MAP-containment law (ADR-019 amendment 2026-07-24). Wider-than-tip_mass floors
+    # contain the tip by nesting. Below tip_mass, a nested floor still contains it
+    # whenever it holds MORE THAN HALF the tip floor's draws: a contiguous sub-window
+    # longer than half the parent cannot trim away the parent's middle draw(s), and
+    # the tip is their median/average. A floor of mass m spans floor(m·S)+1 draws
+    # (the `_ks` value counts inter-draw steps), so the exact condition is
+    # 2·(floor(m·S)+1) > floor(tip_mass·S)+1 — asymptotically mass > tip_mass/2.
+    # Floors below it carry NO guarantee and are below platform sample resolution
+    # (see tower_point.py / research/map_hdi/tip_mass_study.py).
+    s_count = int(frame.values.shape[-1])
+    n_tip = int(np.floor(tip_mass * s_count)) + 1
+    guaranteed = tuple(
+        float(m)
+        for m in config.canonical_floors()
+        if 2 * (int(np.floor(float(m) * s_count)) + 1) > n_tip
+    )
+    law_tower = hdi_tower(frame, masses=guaranteed)
+    for j, m in enumerate(guaranteed):
+        glo, ghi = law_tower[..., j, 0], law_tower[..., j, 1]
+        assert (tip.values[..., 0] >= glo - 1e-6).all(), (
+            f"MAP-containment violated: tip below the {m:.2f} floor"
+        )
+        assert (tip.values[..., 0] <= ghi + 1e-6).all(), (
+            f"MAP-containment violated: tip above the {m:.2f} floor"
+        )
+
     # Reproducibility law: the 50% HDI is independent of the other requested masses.
     just_50 = hdi_tower(frame, masses=(0.5,))
     assert np.array_equal(just_50[..., 0, :], tower[..., 0, :]), (

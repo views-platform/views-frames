@@ -4,7 +4,7 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.8.0 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
+> **Status:** **v1.9.0 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
@@ -15,7 +15,10 @@
 > sibling package **`views_frames_reconcile`** — forecast reconciliation, ADR-023; v1.8.0
 > adds the native point-country broadcast + the self-describing reconciliation mode,
 > the three showcase notebooks, and the frames-family hardening pass — Reconcile.md CIC,
-> ADR-025 immutability-by-convention, the adversarial red-test batch). This
+> ADR-025 immutability-by-convention, the adversarial red-test batch; v1.9.0 moves the
+> tower-tip MAP to the **top floor** of the published tower — `tip_mass` 0.25 with the
+> **MAP-containment law** in the conformance suite, ADR-019 Amendment 3 — and adds the
+> `research/figures/` tower-figure toolkit). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
