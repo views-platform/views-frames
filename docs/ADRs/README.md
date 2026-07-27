@@ -11,7 +11,7 @@ ADRs are divided into:
 
 1. **Constitutional ADRs (000–009)** — foundational architectural rules.
 2. **Governance ADRs (010)** — the technical risk register.
-3. **Project-Specific ADRs (011–025)** — the ratified contract, estimator, sibling-package,
+3. **Project-Specific ADRs (011–026)** — the ratified contract, estimator, sibling-package,
    and freeze/immutability decisions.
 
 ---
@@ -51,10 +51,10 @@ Together, these define the invariant layer of the system.
 
 ---
 
-## Project-Specific ADRs (011–025) — the ratified project decisions
+## Project-Specific ADRs (011–026) — the ratified project decisions
 
 **011–016** ratify the six founding contract decisions from the design bible (README §13a,
-all Accepted 2026-06-21); **017–025** are the post-v1 decisions — sibling packages, the API
+all Accepted 2026-06-21); **017–026** are the post-v1 decisions — sibling packages, the API
 freeze, estimators, contract homes, and the immutability convention (Accepted 2026-06-22
 through 2026-07; ADR-024 is a design-direction ADR with implementation deferred). Each cites
 the risk-register IDs it resolves.
@@ -74,6 +74,7 @@ the risk-register IDs it resolves.
 - **ADR-023** — [Forecast reconciliation is a sibling package (`views_frames_reconcile`)](023_reconciliation_is_a_sibling_package.md). Adds a third sibling package (mirrors ADR-017): the numpy-only, `views_frames`-only forecast reconciler (`reconcile_proportional`/`ReconciliationModule` — make pgm grid forecasts sum to cm country totals per draw), relocated **WET** from views-postprocessing and proven bit-identical. Charter: frame-reconciliation algorithms only; **never fetch the mapping** (injected as arrays, like `cross_level_align`); no IO/scoring/plotting/foreign `views_*`. Import-DAG `views_frames_reconcile → {views_frames}`; additive/MINOR (v1.7.0), `CONFORMANCE_FLOOR` stays 1.0.0. **Amended 2026-06-27 (#143, v1.8.0):** the sample-count contract — a point cm (`sample_count == 1`) is broadcast across the grid's draws; the equal-count path stays bit-exact.
 - **ADR-024** — [Principled joint probabilistic reconciliation — design direction & deferral](024_principled_joint_reconciliation_design.md). Design-only (no code): per-draw `proportional` is an information-losing approximation that pairs grid-draw `s` with country-draw `s` across **independently-trained** models with no shared draw identity. Names the **draw-identity contract** principled reconciliation requires (shared ensemble / copula coupling), fixes the upgrade as a **future sibling module** (probabilistic reconciliation / MinT — never a change to `proportional`), and **defers** implementation until a consumer needs calibrated joint tails *and* the country model can supply the identity/coupling. Records C-62; corrects the ambiguous `proportional.py` "C-37" reference (views-frames C-37 is unrelated/resolved; the lineage is views-postprocessing C-37).
 - **ADR-025** — [Value-buffer immutability is by convention; only the index is enforced](025_value_buffer_immutability_by_convention.md). Corrects the "immutable value objects" contract to match the code: only the index (`time`/`unit`) is `setflags(write=False)`-enforced; the frame **value buffer is immutable by convention** (mutating `.values` in place is unsupported and may corrupt buffer-sharing frames), left writeable to preserve zero-copy / `mmap` (C-07). The `setflags`-enforce on `.values` would be "tightening an invariant" on a frozen-surface member (a MAJOR, GOVERNANCE/ADR-018) for a hole nothing exercises, so it is recorded as a **deferred MAJOR-rider** (added free on the next MAJOR), not done now. Resolves C-63; docs-only, `CONFORMANCE_FLOOR` stays 1.0.0.
+- **ADR-026** — [Dense-grid fill is a leaf primitive](026_dense_grid_fill_primitive.md). Adds `frame.reindex_fill(other, *, fill_value)` (align with **no** superset requirement; present rows bit-exact, absent rows filled; `fill_value` keyword-only + required) on all three siblings, `SpatioTemporalIndex.cartesian(times, units, level)` (dense product index, time-major, explicit arrays only, fails loud on duplicated inputs), and the published `assert_reindex_fill_law`. Closes #203 (faoapi's "views-frames has no fill primitive", the last pandas blocker on FAO ingestion, faoapi #242); rejects a derivation rule and a `reindex` mode-kwarg (D-09/C-52 precedents). Additive MINOR (v1.10.0); `CONFORMANCE_FLOOR` stays 1.0.0.
 
 ---
 
