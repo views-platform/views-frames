@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-02
-**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
+**Last reviewed:** 2026-07-27
+**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/target_frame.py`). This contract governs
 > that implementation.
@@ -39,7 +39,10 @@ boundary array-native, replacing the pandas actuals the eval adapter takes today
   (writeable for zero-copy — in-place `.values` mutation is unsupported; ADR-025 / C-63).
 - Carries a typed `metadata` header (ADR-013) and the same row/metadata surface as the
   sibling frames: `with_metadata`, `select(positions | mask)`, `reindex(other)` (raises
-  unless this index is a superset of `other`); `sample_count == 1`, `is_sample == False`.
+  unless this index is a superset of `other`), and the dense-grid companion
+  `reindex_fill(other, *, fill_value)` (ADR-026 — no superset requirement; present rows
+  bit-exact, absent rows filled; law-pinned by `assert_reindex_fill_law`);
+  `sample_count == 1`, `is_sample == False`.
 - The role (ground truth, single realized value) is explicit so line-graph / eval code
   can treat it distinctly from sampled frames.
 

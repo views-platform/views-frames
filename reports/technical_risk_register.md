@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-07-02                           |
-| Total Concerns    | 67                                   |
-| Open Concerns     | 12                                   |
+| Last Updated      | 2026-07-27                           |
+| Total Concerns    | 68                                   |
+| Open Concerns     | 13                                   |
 | Resolved Concerns | 55                                   |
 | Disagreements     | 12                                   |
 
@@ -35,7 +35,9 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **12 currently open** concerns fall into five clusters plus a cross-cutting theme
+> The **13 currently open** concerns fall into five clusters plus a cross-cutting theme
+> (and one standalone operational item — **C-71**, the dense-fill grid-scale allocation
+> awareness shipped with ADR-026, 2026-07-27)
 > (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
 > coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
 > estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
@@ -85,7 +87,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 
 **Latent today** (the leaf publishes nothing — hence Tier 2, not 1), but it is **silent, directional output incorrectness for any consumer that adopts it expecting parity**. Resolution path: estimator-design effort tracked in **#89** (a distributional assumption *or* `n`-adaptive smoothing + floor; **not** merely a better tie-break; SemVer decision required). See C-24 (resolved), C-25, C-33.
 
-**Mitigation shipped (2026-06-23, ADR-019; redesigned 2026-06-24, C-44) — not a full resolution; stays open.** `tower_point` ships as an **unbinned, median-based** point estimator (the median of the configurable **`tip_mass`** floor, default 0.5 — the shorth), so it carries **none** of the lowest-index histogram tie-break's directional bias, and — reading a *mass-aware* floor rather than the degenerate 2-sample 5% floor — it is now also **robust to minority duplicated draws** (C-44). Scored against a *non-circular analytic-mode* oracle (the active families only — zero-mode families have no analytic continuous mode), it ties/beats `map_estimate` on clean active cells **at the production sample size n=1024**; at **n=128 the two are mixed** (the tip wins on some families, loses on others — see `research/map_hdi/point_pass.py`), so this is a mitigation at production `n`, not a guaranteed win at the low-`n` regime where the bias bites hardest. `bimodality` flags the multimodal cells where any single mode is ill-defined (with its own recall caveat — see C-34). **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** `tip_mass` (50%) floor, so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
+**Mitigation shipped (2026-06-23, ADR-019; redesigned 2026-06-24, C-44) — not a full resolution; stays open.** `tower_point` ships as an **unbinned, median-based** point estimator (the median of the configurable **`tip_mass`** floor, default 0.5 — the shorth), so it carries **none** of the lowest-index histogram tie-break's directional bias, and — reading a *mass-aware* floor rather than the degenerate 2-sample 5% floor — it is now also **robust to minority duplicated draws** (C-44). Scored against a *non-circular analytic-mode* oracle (the active families only — zero-mode families have no analytic continuous mode), it ties/beats `map_estimate` on clean active cells **at the production sample size n=1024**; at **n=128 the two are mixed** (the tip wins on some families, loses on others — see `research/map_hdi/point_pass.py`), so this is a mitigation at production `n`, not a guaranteed win at the low-`n` regime where the bias bites hardest. `bimodality` flags the multimodal cells where any single mode is ill-defined (with its own recall caveat — see C-34). **Residual:** `map_estimate` itself is unchanged (frozen, ADR-018) — a naïve adopter can still step on it (now with a documented better path, `tower_point`); and `tower_point` uses a **fixed** `tip_mass` floor (0.25 — the top-quartile floor since ADR-019 Amendment 3, 2026-07-24; originally the 0.5 shorth), so it is **not** the consistency-guaranteed convergent mode this entry calls for. That remains **#89**.
 
 ---
 
@@ -234,6 +236,21 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 | Cross-refs | **C-63** (RESOLVED by contract correction — this entry tracks the *deferred enforce* it left open), **ADR-025** (the decision + the exact one-line-per-constructor change), ADR-018 (`values` is frozen-surface, so the enforce is a MAJOR), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), C-07 (the zero-copy reason the buffer is left writeable). |
 
 C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is documented as immutable *by convention* and the docs no longer claim an unenforced guarantee. But the **code** is unchanged — `frame.values.flags.writeable` is still `True`, and `with_metadata` shares the buffer — so the underlying mechanism (an in-place `.values` mutation **silently corrupts every frame sharing the buffer**, the Tier-2 basis of C-63) is **mitigated, not removed**. The mitigation is documentation (three frame CICs §9 + README design principle 3 say it is unsupported) + the empirical fact that **nothing in `src/` or `tests/` mutates `.values`**. The actual write-protection (`setflags(write=False)`) is deliberately deferred because, on the frozen-surface `values`, it is a **MAJOR** (GOVERNANCE/ADR-018) and does not justify a standalone cross-repo coordinated bump. **Tier 3** — this entry tracks the *accepted deferral* of a documented-and-unexercised exposure (the acute silent-corruption path requires a consumer to ignore the published contract); it is a governance/safety-tracking item, not a current defect, and exists so the deferred enforce stays visible in the **Open** section rather than buried in a resolved entry. **Open** — until the enforce rides the next MAJOR.
+
+---
+
+### C-71: dense-grid fill allocates the full dense buffer — grid-scale memory footgun
+
+| Field | Value |
+|-------|-------|
+| ID | C-71 |
+| Tier | 3 |
+| Source | expert-code-review (2026-07-27, the #203 design review), Nygard lens; shipped with ADR-026 (v1.10.0). |
+| Trigger | When a consumer densifies at grid scale — a full-pgm `cartesian` target (~259k cells × months ≈ tens of millions of rows) fed to `reindex_fill` on a sampled frame — check the buffer arithmetic first: the dense values buffer is `target.n_rows × (trailing axes) × 4` bytes (at S=1000, hundreds of GB). Same check applies to `cartesian` itself (eager `T × U` identifier allocation). |
+| Location | `src/views_frames/index.py` (`cartesian`); `src/views_frames/{prediction_frame,feature_frame,target_frame}.py` (`reindex_fill` — `np.full` of the full dense shape). |
+| Cross-refs | **ADR-026** (the decision: the leaf documents the cost, never guesses a size guard — that would be policy), C-21 (the uniqueness stance `reindex_fill` inherits and `cartesian`'s duplicate-input `ValueError` protects), C-22/C-25 (the memory-bounded precedent on the *estimator* side — deliberately not applied here: densification's output *is* the allocation). |
+
+The fill primitive makes densification a one-liner, which is the point (#203, faoapi #242) — and also the hazard: the allocation that faoapi's pandas implementation made visible (an explicit `MultiIndex.from_product` + concat) is now behind one method call. The cost is **inherent to densifying** (the output *is* the dense buffer), not an implementation choice, so the leaf's controls are documentation (both docstrings state the cost) and this entry. The failure is **loud** (`MemoryError`/OOM-kill), not silent — hence Tier 3, an operational-awareness item, not a correctness risk. If a consumer legitimately needs bounded-memory densification (block-wise fill-and-stream), that is a future additive design, receipted first.
 
 ---
 
@@ -949,7 +966,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 |-------|-------|
 | ID | C-21 |
 | Resolved | 2026-06-21 (v0.3.0, PR #65) |
-| Resolution | Documented the stance on `SpatioTemporalIndex` (duplicates allowed — `cross_level_align` makes them; same-level joins assume uniqueness) + added `has_unique_rows()` for consumers that need the guarantee. No construction-time behaviour change. |
+| Resolution | Documented the stance on `SpatioTemporalIndex` (duplicates allowed — `cross_level_align` makes them; same-level joins assume uniqueness) + added `has_unique_rows()` for consumers that need the guarantee. No construction-time behaviour change. **2026-07-27 (ADR-026, v1.10.0):** the stance now also covers `reindex_fill` (assumes unique rows in *self*; duplicate target rows allowed) and is *enforced* at the one place a duplicate is always a caller bug — `cartesian` raises on duplicated input values. See C-71. |
 
 ---
 

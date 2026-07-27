@@ -37,6 +37,7 @@ __all__ = [
     "assert_frame_contract",
     "assert_frame_envelope",
     "assert_index_alignment_laws",
+    "assert_reindex_fill_law",
 ]
 
 
@@ -134,6 +135,50 @@ def assert_index_alignment_laws(index_a: Any, index_b: Any) -> None:
     pos = index_a.searchsorted(index_a)
     assert np.array_equal(index_a.time[pos], index_a.time), "searchsorted self-identity"
     assert np.array_equal(index_a.unit[pos], index_a.unit), "searchsorted self-identity"
+
+
+def assert_reindex_fill_law(frame: Any, target: Any, fill_value: float) -> None:
+    """Assert the dense-grid fill law (ADR-026) for ``frame`` against ``target``.
+
+    ``reindex_fill`` aligns a frame to a target index with **no** superset
+    requirement, filling absent rows. The law:
+
+    - the result's index equals ``target`` row-for-row (time, unit, level);
+    - every target row present in ``frame`` comes through **bit-exact**;
+    - every absent row equals ``fill_value`` exactly (NaN-safe comparison);
+    - when every target row is present, ``reindex_fill`` degenerates to
+      ``reindex`` (filling a superset frame adds nothing).
+
+    Args:
+        frame: a frame exposing ``reindex_fill``/``reindex``/``index``/``values``.
+        target: a ``SpatioTemporalIndex`` (same level) to densify against.
+        fill_value: the fill for absent rows (``NaN`` is legal).
+
+    Raises:
+        AssertionError: a law is violated.
+    """
+    _require_assertions()
+    filled = frame.reindex_fill(target, fill_value=fill_value)
+    assert filled.index.level == target.level, "reindex_fill must keep the level"
+    assert np.array_equal(filled.index.time, target.time), (
+        "reindex_fill result index must equal the target (time)"
+    )
+    assert np.array_equal(filled.index.unit, target.unit), (
+        "reindex_fill result index must equal the target (unit)"
+    )
+    pos = frame.index.searchsorted(target)
+    found = pos >= 0
+    assert np.array_equal(
+        filled.values[found], frame.values[pos[found]], equal_nan=True
+    ), "reindex_fill must pass present rows through bit-exact"
+    expected = np.full_like(filled.values[~found], np.float32(fill_value))
+    assert np.array_equal(filled.values[~found], expected, equal_nan=True), (
+        "reindex_fill must set every absent row to fill_value"
+    )
+    if bool(found.all()):
+        assert np.array_equal(
+            filled.values, frame.reindex(target).values, equal_nan=True
+        ), "reindex_fill on a superset frame must equal reindex"
 
 
 def assert_cross_level_alignment_law(

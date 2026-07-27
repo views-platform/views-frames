@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-02
-**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017
+**Last reviewed:** 2026-07-27
+**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from
 > views-pipeline-core with numpy-only validation — the source imports pandas, so the
@@ -43,6 +43,11 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
 - Row ops return new frames: `select(positions | mask)` and `reindex(other)` — the
   latter raises unless this frame's index is a superset of `other`. Selection **copies**
   the selected `values` (only structural/metadata ops share the buffer).
+- `reindex_fill(other, *, fill_value)` (ADR-026) is the dense-grid companion: aligns to
+  `other` with **no** superset requirement — present rows pass through **bit-exact**,
+  absent rows get the caller's `fill_value` (keyword-only, required; no silent default,
+  ADR-009). Allocates the full dense buffer; assumes unique rows in *self* (C-21);
+  law-pinned by `assert_reindex_fill_law` in the published conformance suite.
 - Sample-axis reduction (collapse/MAP/HDI) is **not** a method here — it lives in
   `views_frames_summarize` (ADR-017). The frame exposes the structural `sample_count`/
   `is_sample` only.

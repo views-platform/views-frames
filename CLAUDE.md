@@ -6,7 +6,7 @@ at the **root of the platform dependency DAG**, plus two sibling operation packa
 in the same wheel. numpy only; depends on nothing internal; every other repo
 depends *toward* it.
 
-> **Status:** **released — v1.8.x on PyPI**, public API **frozen since v1.0.0**
+> **Status:** **released — v1.10.x on PyPI**, public API **frozen since v1.0.0**
 > (ADR-018; everything after is additive, `CONFORMANCE_FLOOR` stays `1.0.0`).
 > Consumers install `views-frames` and validate against the published conformance
 > suite (`views_frames.conformance`, ADR-016). See `CHANGELOG.md` for the release
@@ -90,7 +90,7 @@ CI additionally gates 100% line+branch coverage
 
 ## Governance
 
-Constitutional ADRs 000–010, project ADRs 011–025, CICs for every non-trivial
+Constitutional ADRs 000–010, project ADRs 011–026, CICs for every non-trivial
 surface (7 active incl. the package-level `Summarize.md` and `Reconcile.md`),
 contributor protocols, and standards live in `docs/`. The technical risk register
 (`reports/technical_risk_register.md`) is the curated concern/decision log. Run
