@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-24
-**Related ADRs:** ADR-001, ADR-002, ADR-009, ADR-013, ADR-014, ADR-015
+**Last reviewed:** 2026-07-27
+**Related ADRs:** ADR-001, ADR-002, ADR-009, ADR-013, ADR-014, ADR-015, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/index.py`). This contract governs that
 > implementation.
@@ -43,6 +43,11 @@ label-alignment that today drags pandas back into the hot path.
 - Guarantees **same-level** set operations over `(time, unit)` are pure-numpy and
   deterministic: `intersect`, `reindex` / `searchsorted`, `is_superset_of`, `argsort`,
   and `select` (rows at integer positions or a boolean mask).
+- Offers the dense product-index constructor `cartesian(times, units, level)`
+  (ADR-026): every `(time, unit)` combination in **time-major** order, from **explicit
+  arrays only** (a derivation rule — e.g. "units of the last time step" — is consumer
+  policy, never the leaf's). Fails loud on duplicated input values: a duplicated
+  product input manufactures duplicate rows and undefined joins (register C-21).
 - Exposes **cross-level** remap as an injected-mapping protocol — `cross_level_align`
   and the columnar `cross_level_align_arrays` (register C-26); see §2.
 - **Row-uniqueness stance (register C-21):** duplicate `(time, unit)` rows are *allowed*

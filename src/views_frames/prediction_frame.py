@@ -118,6 +118,37 @@ class PredictionFrame:
             )
         return self.select(self._index.searchsorted(other))
 
+    def reindex_fill(
+        self, other: SpatioTemporalIndex, *, fill_value: float
+    ) -> PredictionFrame:
+        """Align to ``other``'s rows, filling rows absent from this frame.
+
+        The dense-grid companion to :meth:`reindex` (ADR-026): every row of
+        ``other`` present in this frame comes through **bit-exact**; a row
+        absent from it gets ``fill_value``, broadcast across the sample axis.
+        There is no superset requirement — that is the difference from the
+        fail-loud ``reindex``. The result's index **is** ``other`` (immutable,
+        shared); metadata is preserved.
+
+        Same-level join semantics: assumes unique ``(time, unit)`` rows in
+        **this** frame (register C-21); ``other`` may repeat rows. Allocates
+        the full ``(other.n_rows, S)`` buffer — densifying a large grid is a
+        deliberate, costly act. A ``NaN`` fill is legal here, but the
+        summarize estimators fail loud on NaN draws by design (ADR-017).
+
+        Raises:
+            ValueError: ``other`` is at a different ``SpatialLevel``.
+        """
+        pos = self._index.searchsorted(other)
+        found = pos >= 0
+        out = np.full(
+            (other.n_rows, *self._values.shape[1:]),
+            np.float32(fill_value),
+            dtype=np.float32,
+        )
+        out[found] = self._values[pos[found]]
+        return PredictionFrame(out, other, self._metadata)
+
     # ---- persistence --------------------------------------------------------
 
     def save(self, directory: Path | str) -> None:

@@ -43,9 +43,7 @@ class SpatioTemporalIndex:
         level: SpatialLevel,
     ) -> None:
         if not isinstance(level, SpatialLevel):
-            raise TypeError(
-                f"level must be a SpatialLevel, got {type(level).__name__}"
-            )
+            raise TypeError(f"level must be a SpatialLevel, got {type(level).__name__}")
         is_array = isinstance(time, np.ndarray) and time.ndim >= 1
         n = int(time.shape[0]) if is_array else -1
         validate_identifiers({"time": time, "unit": unit}, n_rows=n)
@@ -55,6 +53,65 @@ class SpatioTemporalIndex:
         self._time.setflags(write=False)
         self._unit.setflags(write=False)
         self._level = level
+
+    # ---- construction -------------------------------------------------------
+
+    @classmethod
+    def cartesian(
+        cls,
+        times: IntArray,
+        units: IntArray,
+        level: SpatialLevel,
+    ) -> SpatioTemporalIndex:
+        """The dense ``(time × unit)`` product index, in time-major order.
+
+        The dense-grid constructor (ADR-026): every combination of the given
+        ``times`` and ``units``, ordered time-major (all units of the first time,
+        then all units of the next), so dense indices are canonical across
+        consumers. The inputs are **explicit arrays only** — any rule for
+        deriving them (e.g. "the units present in the last time step") is
+        consumer policy and never lives in the leaf.
+
+        Fails loud on duplicated ``times`` or ``units``: a duplicated product
+        input manufactures duplicate ``(time, unit)`` rows, which make every
+        same-level join undefined (register C-21) — always a caller bug here.
+
+        Allocates ``len(times) × len(units)`` rows eagerly; densifying a large
+        grid is a deliberate, costly act (a full-pgm dense grid runs to tens of
+        millions of rows).
+
+        Args:
+            times: 1-D integer array of unique time identifiers.
+            units: 1-D integer array of unique unit identifiers.
+            level: The ``SpatialLevel`` of the produced index.
+
+        Raises:
+            TypeError: ``times``/``units`` is not an integer-dtype numpy array,
+                or ``level`` is not a ``SpatialLevel``.
+            ValueError: an input array is not 1-D or contains duplicate values.
+        """
+        for name, arr in (("times", times), ("units", units)):
+            if not isinstance(arr, np.ndarray):
+                raise TypeError(
+                    f"cartesian {name} must be a numpy array, got {type(arr).__name__}"
+                )
+            if not np.issubdtype(arr.dtype, np.integer):
+                raise TypeError(
+                    f"cartesian {name} must be an integer dtype, got {arr.dtype}"
+                )
+            if arr.ndim != 1:
+                raise ValueError(f"cartesian {name} must be 1-D, got ndim={arr.ndim}")
+            if np.unique(arr).shape[0] != arr.shape[0]:
+                raise ValueError(
+                    f"cartesian {name} contains duplicate values; a duplicated "
+                    "product input manufactures duplicate (time, unit) rows, "
+                    "which make same-level joins undefined (register C-21)"
+                )
+        return cls(
+            time=np.repeat(times, units.shape[0]),
+            unit=np.tile(units, times.shape[0]),
+            level=level,
+        )
 
     # ---- core surface -------------------------------------------------------
 
@@ -109,9 +166,11 @@ class SpatioTemporalIndex:
     @staticmethod
     def _row_view(keys: NDArray[np.int64]) -> NDArray[np.void]:
         """View each ``(time, unit)`` row as a single void scalar for set ops."""
-        return np.ascontiguousarray(keys).view(
-            np.dtype((np.void, keys.dtype.itemsize * keys.shape[1]))
-        ).reshape(-1)
+        return (
+            np.ascontiguousarray(keys)
+            .view(np.dtype((np.void, keys.dtype.itemsize * keys.shape[1])))
+            .reshape(-1)
+        )
 
     def _require_same_level(self, other: SpatioTemporalIndex) -> None:
         if self._level != other._level:
@@ -180,9 +239,7 @@ class SpatioTemporalIndex:
         rows = self._row_view(self._keys())
         return bool(len(np.unique(rows)) == rows.shape[0])
 
-    def select(
-        self, indexer: IntArray | NDArray[np.bool_]
-    ) -> SpatioTemporalIndex:
+    def select(self, indexer: IntArray | NDArray[np.bool_]) -> SpatioTemporalIndex:
         """A new index of the rows at integer positions **or** a boolean mask.
 
         The row-selection primitive the frame-level ``select``/``reindex`` build on:
@@ -298,9 +355,7 @@ class SpatioTemporalIndex:
         sorted_rows = map_rows[order]
 
         self_rows = self._row_view(self._keys())
-        pos = np.clip(
-            np.searchsorted(sorted_rows, self_rows), 0, len(sorted_rows) - 1
-        )
+        pos = np.clip(np.searchsorted(sorted_rows, self_rows), 0, len(sorted_rows) - 1)
         found = sorted_rows[pos] == self_rows
         if not bool(found.all()):
             miss = int(np.argmax(~found))

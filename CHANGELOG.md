@@ -4,6 +4,34 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.10.0] — 2026-07-27
+
+**The dense-grid fill primitive (ADR-026) — unblocks pandas-free FAO ingestion (#203).**
+Additive MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Added
+- **`frame.reindex_fill(other, *, fill_value)`** on all three sibling frames
+  (`PredictionFrame`/`FeatureFrame`/`TargetFrame`, WET per ADR-011): align to `other`'s
+  rows with **no** superset requirement — present rows pass through **bit-exact**, absent
+  rows get the caller's `fill_value` broadcast across the trailing axes (`NaN` legal;
+  keyword-only and required — no silent default, ADR-009). The result's index **is**
+  `other`; metadata (and `feature_names`) preserved. Owns the `-1`-sentinel scatter once:
+  a consumer hand-rolling `values[pos]` silently picks the *last* row for absent cells.
+  Inherits the C-21 row-uniqueness stance (unique rows assumed in *self*; duplicate
+  target rows allowed and repeat).
+- **`SpatioTemporalIndex.cartesian(times, units, level)`**: the dense product-index
+  constructor — every `(time, unit)` combination in canonical **time-major** order, from
+  **explicit arrays only** (deriving them, e.g. "units of the last time step", is
+  consumer policy). Fails loud on duplicated input values (a duplicated product input
+  manufactures duplicate rows → undefined same-level joins, C-21).
+- **`assert_reindex_fill_law`** in the published conformance suite (ADR-016): result
+  index equals the target row-for-row; present rows bit-exact; absent rows equal the
+  fill (NaN-safe); on a superset frame the fill degenerates to `reindex`.
+- Consumer note: faoapi's `dense_grid.py` can now delegate (its last-step-entity rule +
+  C-87 dropped-entity check stay consumer-side) and drop its pandas implementation
+  (faoapi #242). Densification allocates the full dense buffer — a deliberate, costly
+  act at grid scale (documented on both symbols).
+
 ## [1.9.0] — 2026-07-24
 
 **The tower-tip MAP reads the top floor (ADR-019 Amendment 3): `tip_mass` 0.5 → 0.25.**

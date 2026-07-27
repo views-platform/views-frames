@@ -3,8 +3,8 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-02
-**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013
+**Last reviewed:** 2026-07-27
+**Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/feature_frame.py`). This contract governs
 > that implementation.
@@ -44,6 +44,10 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
 - Row ops return new frames preserving `feature_names`: `select(positions | mask)` and
   `reindex(other)` — the latter raises unless this index is a superset of `other`;
   selection **copies** the selected `values`.
+- `reindex_fill(other, *, fill_value)` (ADR-026): the dense-grid companion — no superset
+  requirement; present rows bit-exact, absent rows filled (`fill_value` keyword-only,
+  required, broadcast across `(F, S)`); `feature_names`/metadata preserved; law-pinned
+  by `assert_reindex_fill_law`.
 
 ---
 
