@@ -173,3 +173,66 @@ def test_arrow_load_non_frame_parquet_raises(tmp_path):
     pq.write_table(pa.table({"x": [1, 2, 3]}), str(path))
     with pytest.raises(KeyError):
         arrow.load(path)
+
+
+# --- G2 RED: wire-contract ordering validation on load (#199, ADR-013 §4.5b) --
+# 🟥 Red team: `load` reshapes positionally, so the row order IS the contract.
+# A reordered / truncated / cross-swapped table previously reshaped plausible
+# floats into the wrong sample slots silently; every such violation must raise.
+
+
+def _saved_table(tmp_path):
+    import pyarrow.parquet as pq
+
+    st = _state_2d()
+    path = tmp_path / "frame.parquet"
+    arrow.save(path, **st)
+    return path, pq.read_table(str(path))
+
+
+def test_arrow_load_reordered_rows_raise(tmp_path):
+    # Reversing the rows breaks the written tile(arange(S), N) sample order.
+    import pyarrow.parquet as pq
+
+    path, table = _saved_table(tmp_path)
+    pq.write_table(table.take(list(range(table.num_rows - 1, -1, -1))), str(path))
+    with pytest.raises(ValueError, match="reordered"):
+        arrow.load(path)
+
+
+def test_arrow_load_truncated_table_raises(tmp_path):
+    # Dropping a row makes the row count a non-multiple of n_samples.
+    import pyarrow.parquet as pq
+
+    path, table = _saved_table(tmp_path)
+    pq.write_table(table.slice(0, table.num_rows - 1), str(path))
+    with pytest.raises(ValueError, match="truncated or filtered"):
+        arrow.load(path)
+
+
+def test_arrow_load_cross_cell_row_swap_raises(tmp_path):
+    # Swap the sample-0 rows of two different (time, unit) cells: the sample
+    # column still reads tile(arange(S), N), so the tile check alone passes —
+    # only the block-constancy check catches the identifier/value misalignment.
+    import pyarrow.parquet as pq
+
+    path, table = _saved_table(tmp_path)
+    order = list(range(table.num_rows))
+    order[0], order[2] = order[2], order[0]  # (1,10,s0) <-> (1,11,s0)
+    pq.write_table(table.take(order), str(path))
+    with pytest.raises(ValueError, match="not constant within"):
+        arrow.load(path)
+
+
+def test_arrow_load_whole_cell_reorder_still_loads(tmp_path):
+    # 🟩 Boundary of the contract: moving a WHOLE cell block (identifiers travel
+    # with their draws) is a consistent table — a reordered-but-valid frame
+    # loads, with the identifiers following the moved values.
+    import pyarrow.parquet as pq
+
+    path, table = _saved_table(tmp_path)
+    order = [2, 3, 0, 1, 4, 5]  # swap the first two complete (time, unit) blocks
+    pq.write_table(table.take(order), str(path))
+    out = arrow.load(path)
+    assert np.array_equal(out["unit"], np.array([11, 10, 10]))
+    assert np.array_equal(out["values"][0], np.array([2.0, 3.0], dtype=np.float32))

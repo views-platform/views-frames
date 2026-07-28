@@ -4,6 +4,26 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.10.1] — 2026-07-28
+
+**`io.arrow.load` now validates the wire-contract row order before reshaping (#199 item 1).**
+Fail-loud hardening of the parquet load path; no API change; `CONFORMANCE_FLOOR` stays `1.0.0`.
+
+### Fixed
+- **Silent sample-slot corruption on out-of-order parquet input.** `arrow.save` writes the
+  row order as the contract (`sample = tile(arange(S), N)`; `io/arrow.py`) but `load`
+  reconstructed positionally without ever checking it — a reordered, truncated, or
+  foreign-rewritten table reshaped **plausible floats into the wrong sample slots with no
+  error**. `load` now validates the layout first and raises `ValueError` on: a row count
+  that is not a positive multiple of the header's `n_samples` (truncated/filtered table);
+  a `sample` column deviating from the written tile order (row-level reorder); or
+  `time`/`unit` not constant within a sample block (rows swapped between cells — the case
+  the tile check alone cannot see). A whole-cell block reorder (identifiers travel with
+  their draws) remains a *consistent* table and still loads. Implements the check
+  views-postprocessing ADR-013 §4.5(b) previously required every consumer to run
+  themselves on a separate raw-table read — the leaf now hardens all consumers at once.
+  Register C-72. (#199 item 2 — mmap/partitioned arrow reading — remains open.)
+
 ## [1.10.0] — 2026-07-27
 
 **The dense-grid fill primitive (ADR-026) — unblocks pandas-free FAO ingestion (#203).**
