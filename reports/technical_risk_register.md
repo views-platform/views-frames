@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-07-27                           |
-| Total Concerns    | 68                                   |
+| Last Updated      | 2026-07-28                           |
+| Total Concerns    | 69                                   |
 | Open Concerns     | 13                                   |
-| Resolved Concerns | 55                                   |
+| Resolved Concerns | 56                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -393,6 +393,20 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+### C-72: `arrow.load` trusted the parquet row order it never checked — silent sample-slot corruption on out-of-order input — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-72 |
+| Tier | 2 (silent data corruption, but only reachable via an out-of-contract intermediary mutating the file between `save` and `load` — the supported save→load path was always correct) |
+| Source | views-postprocessing ADR-013 §4.5(b) (the consumer-side check it mandated); filed as #199 item 1 (2026-07-19); fixed 2026-07-28 (v1.10.1). |
+| Resolved | 2026-07-28 (v1.10.1, #199 item 1) |
+| Location | `src/views_frames/io/arrow.py` (`load` — the positional `reshape(n, s)` reconstruction). |
+| Resolution | `load` now validates the wire-contract layout before reshaping and raises `ValueError` on: row count not a positive multiple of the header's `n_samples` (truncated/filtered); the `sample` column deviating from the written `tile(arange(S), N)` order (row-level reorder); or `time`/`unit` not constant within a sample block (cross-cell row swaps — invisible to the tile check alone). A whole-cell block reorder stays loadable (identifiers travel with their draws — a consistent table). Red tests pin all three raises + the consistent-reorder boundary (`tests/test_io.py`). Consumers' WET pre-checks per ADR-013 §4.5(b) are now redundant — the leaf hardens every consumer at once. Residual: #199 item 2 (mmap/partitioned arrow reading) stays open in the issue — an optimization, explicitly not a contract dependency. |
+| Cross-refs | C-29 (the original io red-team family this extends), C-51 (assert-raise-path testing convention), #199. |
+
+---
 
 ### C-70: audit polish bundle — docs narrative epoch-lag + three small test adds (four-axis audit 2026-07) — RESOLVED
 

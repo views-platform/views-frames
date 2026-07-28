@@ -71,7 +71,20 @@ def save(
 
 
 def load(path: Path | str) -> dict[str, Any]:
-    """Read a flat-columnar parquet frame state written by :func:`save`."""
+    """Read a flat-columnar parquet frame state written by :func:`save`.
+
+    The reconstruction is positional (``reshape(n, s)``), so the table's row
+    order **is** the contract: before trusting it, the wire-contract layout is
+    validated and any violation **raises** rather than reshaping plausible
+    floats into the wrong sample slots (ADR-013 §4.5b wire contract; #199).
+
+    Raises:
+        ValueError: the table is truncated/filtered (row count not a multiple
+            of the header's ``n_samples``), the ``sample`` column deviates from
+            the written ``tile(arange(S), N)`` order, or ``time``/``unit`` are
+            not constant within a row's sample block (rows swapped between
+            cells) — a reordered, truncated, or foreign-rewritten table.
+    """
     table = pq.read_table(str(path))
     raw = table.schema.metadata or {}
     header = json.loads(raw[b"views_frames"].decode())
@@ -80,9 +93,39 @@ def load(path: Path | str) -> dict[str, Any]:
 
     time_col = table.column("time").to_numpy()
     unit_col = table.column("unit").to_numpy()
-    n = time_col.shape[0] // s
-    time = time_col.reshape(n, s)[:, 0]
-    unit = unit_col.reshape(n, s)[:, 0]
+    total = int(time_col.shape[0])
+    if s <= 0 or total % s != 0:
+        raise ValueError(
+            f"corrupt frame parquet: {total} rows is not a positive multiple of "
+            f"the header's n_samples={s} — a truncated or filtered table cannot "
+            "be reshaped safely (wire contract, #199)"
+        )
+    n = total // s
+
+    sample_col = table.column("sample").to_numpy()
+    if not np.array_equal(sample_col, np.tile(np.arange(s, dtype=np.int32), n)):
+        raise ValueError(
+            "corrupt frame parquet: the 'sample' column deviates from the "
+            "written tile(arange(S), N) order — the table was reordered or "
+            "rewritten, so a positional reshape would silently place draws in "
+            "the wrong sample slots (wire contract, #199)"
+        )
+
+    time_blocks = time_col.reshape(n, s)
+    unit_blocks = unit_col.reshape(n, s)
+    if not (
+        bool((time_blocks == time_blocks[:, :1]).all())
+        and bool((unit_blocks == unit_blocks[:, :1]).all())
+    ):
+        raise ValueError(
+            "corrupt frame parquet: 'time'/'unit' are not constant within a "
+            "row's sample block — rows were swapped between cells, so a "
+            "positional reshape would silently misattribute draws "
+            "(wire contract, #199)"
+        )
+
+    time = time_blocks[:, 0]
+    unit = unit_blocks[:, 0]
 
     if ndim == 2:
         values = table.column("value").to_numpy().reshape(n, s).astype(np.float32)
