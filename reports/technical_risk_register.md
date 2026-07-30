@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-07-31                           |
-| Total Concerns    | 70                                   |
-| Open Concerns     | 14                                   |
+| Total Concerns    | 73                                   |
+| Open Concerns     | 17                                   |
 | Resolved Concerns | 56                                   |
 | Disagreements     | 12                                   |
 
@@ -20,6 +20,21 @@
 | 2 | High | Structural fragility that will cause failures under realistic change scenarios. |
 | 3 | Medium | Maintainability or coupling issues that increase cost of change. |
 | 4 | Low | Code quality concerns that do not affect correctness or reliability. |
+
+## Status (open concerns)
+
+Tier answers *how bad*; **Status answers *can we act***. At 17 open concerns — 13 of them
+Tier 3 — tier alone stopped discriminating, and "17 open" read as 17 things someone might
+have to do when most cannot be acted on at all. Every open entry carries one:
+
+| Status | Meaning |
+|--------|---------|
+| **actionable** | Nothing blocks it. It can be closed with work available today; the entry says roughly how much. |
+| **awaiting — `<precondition>`** | Cannot be "fixed" — it waits on a MAJOR bump, a consumer receipt, a research result, or another repo. Correct state is *visible and dormant*, not *neglected*. Naming the precondition is mandatory; "awaiting" with no named condition is a bug in the entry. |
+
+Read the register by Status first, Tier second: **Status is the work queue, Tier is the
+ordering within it.** An `awaiting` entry is not a backlog item and must not be treated as
+one — re-auditing it produces the same answer its precondition already gives.
 
 ---
 
@@ -35,15 +50,18 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> **The 14 open concerns are grouped under *Causal clusters* in Register Conventions —
+> **The 17 open concerns are grouped under *Causal clusters* in Register Conventions —
 > that list is the single authority and this preamble deliberately does not restate it**
 > (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
 > {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-58, C-62}; **construction
 > convenience accretion (#113)** {C-52, C-53, C-54}; **cross-repo coordination** {C-13, C-46};
 > **immutability enforcement** {C-66}; **scale & footprint awareness** {C-71, C-73}; plus the
-> cross-cutting **verification-completeness** theme {C-58} and the **freeze-as-root-cause**
-> meta-cluster that spans several of them. Read the Conventions entries for *why* each is
-> open — most are waiting on a precondition, not on effort.
+> cross-cutting **verification-completeness** theme {C-58, C-74, C-75} and the
+> **freeze-as-root-cause** meta-cluster {…, C-76} that spans several of them. Read the
+> Conventions entries for *why* each is open — most are waiting on a precondition, not on
+> effort. **The 2026-07-31 pre-release sweep added C-74/C-75/C-76** — all three are
+> *ship-readiness* items (unarmed gates, fossil tests, a frozen-surface wording call), none
+> blocking, and unlike most of the register they are cheap and actionable *now*.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
@@ -51,6 +69,7 @@
 |-------|-------|
 | ID | C-13 |
 | Tier | 3 (recalibrated from 2 on 2026-07-31, `review-rr` strategic) |
+| Status | **awaiting** — the next MAJOR bump (this entry *is* its pre-tag checklist) |
 | Source | expert-review (2026-06-20) |
 | Trigger | **When a MAJOR bump is opened — before tagging:** confirm every consumer repo has an adoption issue filed and a pinned floor per GOVERNANCE §coordinated-bump, and pair the bump with the **freeze-cluster rider list** (C-66's `setflags` enforce + its red test, C-57's `np.isfinite` guard on `map_estimate`, C-43's shared-binning extraction) — a MAJOR that fans out without carrying its riders spends the coordination budget for nothing. |
 | Location | `README.md` §12 (~12 register items, 3+ repos); `GOVERNANCE.md` (coordinated-bump process) |
@@ -68,6 +87,7 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 |-------|-------|
 | ID | C-32 |
 | Tier | 2 |
+| Status | **awaiting** — #89 estimator redesign (research); `tower_point` is the shipped mitigation |
 | Source | views-faoapi integration spike (2026-06-23) |
 | Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. **Tier watch (2026-07-31):** the FAO forecast path is now live (faoapi #100/#242 in execution), and the *only* thing holding this at Tier 2 rather than Tier 1 is that the leaf publishes nothing itself. If faoapi (or any consumer) adopts `map_estimate` for **published** modes, the bias stops being latent and this entry becomes Tier 1 — route them to `tower_point` instead. |
 | Location | `src/views_frames_summarize/point.py:110` (`np.argmax(counts, axis=1)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
@@ -90,6 +110,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 |-------|-------|
 | ID | C-34 |
 | Tier | 3 |
+| Status | **awaiting** — a genuinely multimodal model regime (#89) |
 | Source | merge-gate review (2026-06-23) |
 | Trigger | When a model change begins producing genuinely multimodal posteriors, watch whether the `bimodality` flag rate rises on those cells. If it stays ~0 while separated modes appear — especially an unequal-weight split, or one mode tall-and-narrow beside a spread mode — the detector is under-flagging and a consumer trusting the single `tower_point` / a single interval will be misled. |
 | Location | `src/views_frames_summarize/bimodality.py` (the coarse-histogram + smoothing + prominence + `min_mass` heuristic). Thresholds (`bimodality_bins`/`prominence`/`min_mass`/`smooth`) now live in `config.TOWER_CONFIG` (C-44 redesign) — still battery-tuned; the trigger is unchanged. |
@@ -104,6 +125,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 |-------|-------|
 | ID | C-43 |
 | Tier | 4 |
+| Status | **awaiting** — #89 or a MAJOR; `point.py` is frozen and ulp-sensitive (C-24) |
 | Source | tech-debt-cleanup (2026-06-24) |
 | Trigger | When `map_estimate` is unfrozen or reworked (#89), or the bimodality binning needs to change — at that point extract a shared row-blocked binning helper. It is **not** safely de-dupable now: `point._batched_map` is frozen (ADR-018) and its bin edges are ~1-ulp-sensitive across numpy versions (the C-24 portability saga), so touching it risks a behaviour change to `map_estimate`. |
 | Location | `src/views_frames_summarize/bimodality.py` (`_coarse_counts`); `src/views_frames_summarize/point.py` (`_batched_map`). |
@@ -118,6 +140,7 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 |-------|-------|
 | ID | C-46 |
 | Tier | 2 |
+| Status | **awaiting** — views-evaluation's `MetricFrame` (cross-repo; not resolvable here) |
 | Source | expert-code-review (2026-06-24, GH #109; Kleppmann/Feathers/Nygard lenses) |
 | Trigger | When `views-evaluation` implements `MetricFrame` on the views-frames substrate (Option B, ADR-020), or when the leaf changes its serialisation/round-trip or float32 discipline (`io/`, `_validation.py`) — at that point the envelope invariants (float32 values, round-trip identity, optional-only metadata) exist in two places with no shared check. Re-run a cross-boundary round-trip contract test that calls the leaf's published conformance checker. |
 | Location | Leaf side: `src/views_frames/conformance/__init__.py` (`assert_frame_envelope` / `assert_frame_contract`), `src/views_frames/io/`, `src/views_frames/metadata.py`. Boundary: the (to-be) `MetricFrame` in `views-evaluation`. |
@@ -133,6 +156,7 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 |-------|-------|
 | ID | C-52 |
 | Tier | 3 |
+| Status | **awaiting** — the #113 decision (D-09 settled the shape; implementation deprioritized) |
 | Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
 | Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — **or adds frame-level serialization/adapter conveniences (`to_parquet`/`from_parquet`, and especially `to_pddf`/`from_pddf`) to the frame classes** — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
 | Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py` and against `to_parquet`/`to_pddf`/`from_pddf` accreting onto `src/views_frames/*_frame.py`. |
@@ -148,6 +172,7 @@ ADR-001 (line 17) names accretion as the leaf's existential failure mode — "so
 |-------|-------|
 | ID | C-53 |
 | Tier | 3 |
+| Status | **awaiting** — #113 landing as a zero-logic delegator |
 | Source | expert-code-review (2026-06-24, GH #113; Kleppmann lens) |
 | Trigger | When a future **additive identifier** (an optional third id beyond `{time, unit}`, ADR-013) is threaded through `PredictionFrame.__init__` / `SpatioTemporalIndex` but **not** through `PredictionFrame.from_arrays` (or vice-versa) — the two **frozen** (ADR-018) construction signatures then drift, and a consumer on one path silently cannot express what the other can. |
 | Location | (planned) `src/views_frames/prediction_frame.py` (`__init__` + `from_arrays`). |
@@ -163,6 +188,7 @@ Adding `from_arrays` publishes a **second** construction path that ADR-018 then 
 |-------|-------|
 | ID | C-54 |
 | Tier | 3 |
+| Status | **awaiting** — the #113 DoD correction (cross-repo: views-baseline) |
 | Source | expert-code-review (2026-06-24, GH #113; cross-repo / views-baseline) |
 | Trigger | When a maintainer reads #113's Definition-of-Done literally ("retires baseline's local `build_prediction_frame`") and moves views-baseline's `value_fn` + entity×time grid loop into the leaf to "finish the job" — importing a domain grid-builder (an ADR-001 non-entity / consumer edge) into the data-contract leaf. |
 | Location | views-baseline `views_baseline/model/helpers.py:110` ↔ the leaf. |
@@ -178,6 +204,7 @@ The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over 
 |-------|-------|
 | ID | C-57 |
 | Tier | 3 |
+| Status | **awaiting** — a cross-estimator non-finite hardening pass (additive MINOR) |
 | Source | falsify audit (2026-06-25, P5b — discovered while widening the exceedance/ES guards) |
 | Trigger | When a consumer feeds a frame containing an `inf` draw (a valid float32 the leaf does **not** ban — e.g. an upstream model bug) to the frozen `map_estimate`: the histogram span is `inf`, the bin index divides to `nan`, and the `astype(intp)` cast overflows to the int-min sentinel, so `np.take_along_axis` raises `IndexError: index -9223372036854775808 is out of bounds` instead of a clean `ValueError` or a finite result. |
 | Location | `src/views_frames_summarize/point.py:89-92` (`_batched_map`). |
@@ -193,6 +220,7 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 |-------|-------|
 | ID | C-58 |
 | Tier | 3 |
+| Status | **actionable (decision)** — resolve citing the shipped `--compare` gate, or state the closing condition; the technical residual awaits the next cutover |
 | Source | expert-code-review (2026-06-26, #138 cutover review) + the Epic 11 cutover closeout |
 | Trigger | When a future reconciliation cutover repoints a consumer to a new reconciler relying only on the in-repo evidence — the frozen torch-oracle fixtures + the synthetic new-vs-old head-to-head — and **skips a comparison against an actual served production slice** at the repoint. If the in-repo oracle and the live served path have drifted (e.g. an upstream input or mapping change not reflected in the fixtures), the re-baseline of served numbers goes unverified. |
 | Location | The cutover gates (runbook `docs/guides/reconciliation_migration_and_cutover_runbook.md`, Phase 2); mitigation tool `scripts/verify_reconcile_parity.py` (`--compare`). |
@@ -208,6 +236,7 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 |-------|-------|
 | ID | C-62 |
 | Tier | 3 |
+| Status | **awaiting** — ADR-024's two deferral preconditions (a joint-tail need, or shared draw identity upstream) |
 | Source | expert-method-review lineage + S3 design (#145), 2026-06-27 |
 | Trigger | When a consumer's decision provably needs **calibrated joint** country tails that proportional's per-draw marginal rescale cannot provide, **or** when the country model (views-models) gains a shared draw-identity / coupling that makes principled joint reconciliation buildable — i.e. when ADR-024's two deferral preconditions are met, build the principled sibling module (never by modifying `proportional`). |
 | Location | `src/views_frames_reconcile/proportional.py` (the per-draw method); designed in `docs/ADRs/024_principled_joint_reconciliation_design.md`. |
@@ -223,6 +252,7 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 |-------|-------|
 | ID | C-66 |
 | Tier | 3 |
+| Status | **awaiting** — the next MAJOR (the one-line enforce + red test are pre-written) |
 | Source | review-diff + register-risk (2026-06-28, epic #179 / S2) — the residual of the C-63 resolution-by-decision (ADR-025). |
 | Trigger | When a MAJOR bump is opened for **any** reason — add `self._values.setflags(write=False)` after the `self._values = ...` assignment in the three frame constructors (`prediction_frame.py:44`, `target_frame.py:43`, `feature_frame.py:52`) **and** a red test (`frame.values.flags.writeable is False`; mirror `tests/test_properties.py:38`), riding that MAJOR for free. **Or** sooner, if a consumer is found applying an in-place `.values` mutation (`frame.values[mask] = 0`, `*=`, a clamp) on a `with_metadata`/`select` buffer-sharing frame — promote/expedite the enforce then. |
 | Location | `src/views_frames/{prediction_frame.py:44, target_frame.py:43, feature_frame.py:52}` (bare `self._values = values`, no `setflags`); `src/views_frames/_validation.py:64` (`coerce_values` returns float32 without copy); contrast `src/views_frames/index.py:55-56` (the index **is** write-protected). Decision in `docs/ADRs/025_value_buffer_immutability_by_convention.md`. |
@@ -238,6 +268,7 @@ C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is 
 |-------|-------|
 | ID | C-71 |
 | Tier | 3 |
+| Status | **awaiting** — a receipted need for bounded-memory densification |
 | Source | expert-code-review (2026-07-27, the #203 design review), Nygard lens; shipped with ADR-026 (v1.10.0). |
 | Trigger | When a consumer densifies at grid scale — a full-pgm `cartesian` target (~259k cells × months ≈ tens of millions of rows) fed to `reindex_fill` on a sampled frame — check the buffer arithmetic first: the dense values buffer is `target.n_rows × (trailing axes) × 4` bytes (at S=1000, hundreds of GB). Same check applies to `cartesian` itself (eager `T × U` identifier allocation). |
 | Location | `src/views_frames/index.py` (`cartesian`); `src/views_frames/{prediction_frame,feature_frame,target_frame}.py` (`reindex_fill` — `np.full` of the full dense shape). |
@@ -253,12 +284,63 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 |-------|-------|
 | ID | C-73 |
 | Tier | 3 |
+| Status | **awaiting** — a memory-wall receipt (an OOM *despite* per-month sharding) |
 | Source | GH #199 item 2 (ADR-013 §8, views-postprocessing); split out when item 1 shipped as C-72 (2026-07-31) — the residual was recorded only inside the *resolved* C-72 and needed to stay visible in Open. |
 | Trigger | When a consumer loads a **full-S global-reference shard in one call** — i.e. drops or widens the per-month sharding on the FAO/postprocessing ingestion path (views-faoapi #100), or loads several shards concurrently in one process. At that point do the arithmetic before running: `N_rows × S × 4` bytes for the flat table **plus** the same again for the reshaped values (`pq.read_table` materializes the whole table, then `.to_numpy()`/`reshape`/`np.stack` copy it). #199 measures ~1.6 GB transient per full-S month shard at global reference. |
 | Location | `src/views_frames/io/arrow.py:88` (`pq.read_table` — whole-table materialization), `:130-137` (per-column `.to_numpy().reshape()` + `np.stack` — the second full copy). The npz path already has `mmap=True`; arrow has no equivalent. |
 | Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. |
 
 `arrow` is the platform's **interchange** codec — the format the FAO/postprocessing path actually ships forecasts in — and `load` reads the entire parquet into RAM, then copies it again to reshape. ADR-013 §8 states the mitigation as **per-month sharding** (a consumer-side contract obligation) and names mmap/partitioned reading as the long-term fix while explicitly declaring it **NOT a contract dependency** — so this is deliberately open, not neglected: shipping FAO data does not wait on it. **Tier 3** — the failure mode is a loud `MemoryError`/OOM-kill under a footprint the consumer controls, never a wrong number; the cost is operational, and the mitigation already exists. Deliberately **not designed yet**: the leaf does not guess a streaming API for a wall nobody has hit. The receipt that would change this — a consumer OOM *despite* sharding, or a shard size that cannot be reduced further — is the thing to wait for; a design without it risks a speculative, frozen surface (ADR-018, C-52).
+
+---
+
+### C-74: the CI gate is a strict subset of the local gate — `validate_docs.sh` and `ruff format` run only by habit
+
+| Field | Value |
+|-------|-------|
+| ID | C-74 |
+| Tier | 3 |
+| Status | **actionable** — two `- run:` lines in `ci.yml` + one `ruff format .` pass |
+| Source | pre-release repo sweep (2026-07-31), prompted by the ship-readiness review; found while checking what the C-70 "recurrence guard" actually enforces. |
+| Trigger | **At the next MINOR/MAJOR version bump** — the case where the README banner must move — do not rely on CI to catch a stale banner; run `bash docs/validate_docs.sh` locally before tagging, or wire it into `ci.yml` first. Same at the next multi-file contribution: without a `ruff format --check` job, the first contributor whose formatter runs produces a reformat-the-world diff. |
+| Location | `.github/workflows/ci.yml:20-22` (gates `ruff check`, `mypy src/`, `pytest --cov-fail-under=100` — **and nothing else**); `docs/validate_docs.sh` (referenced **nowhere** under `.github/`); `ruff format` (never invoked in CI; **22 of 77 files** currently drifted). |
+| Cross-refs | **C-70** (its resolution claimed this guard was live — corrected there), C-51 / C-58 (the same "the check exists but is not exercised" family), C-75 (the sibling finding: tests inside the gate that don't test the code), the cross-cutting **verification-completeness** cluster. |
+
+Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh` — including the README-banner-vs-`pyproject` check added *specifically* as C-70's recurrence guard — is not referenced anywhere in `.github/`; it runs only when a maintainer types it. C-70's resolution asserts the opposite ("the narrative epoch-lag pattern **fails validation** instead of accumulating"), so the register itself carried an overstated enforcement claim until this entry (C-70 corrected 2026-07-31). The guard is one `- run:` line from being real. **(2)** `ruff format` is never run in CI, and 22 of 77 files are already drifted from it — harmless today because one person formats deliberately, a noisy-diff generator the moment a second contributor's editor does it automatically.
+
+**Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
+
+---
+
+### C-75: four design-phase falsification tests assert README *prose*, inside the 100%-coverage gate
+
+| Field | Value |
+|-------|-------|
+| ID | C-75 |
+| Tier | 3 |
+| Status | **actionable** — rewrite four assertions against the API, or retire the probes as design-phase fossils |
+| Source | pre-release repo sweep (2026-07-31) — stale `TODO` markers whose stated precondition has been satisfied since v0.1.0. |
+| Trigger | **When the README is reworded** (a §11/§13a edit, a banner/chronicle refresh, a design-bible rewrite) these tests go **red for the wrong reason** — the contract is intact, the prose moved. Conversely, when `cross_level_align` / the index API is next changed, they stay **green regardless**. At either moment, replace the regex with an assertion against the actual API (the ADR-014 decision they were waiting on is documented, and `cross_level_align` has existed since v0.1.0). |
+| Location | `tests/test_falsification_domain_free_crosslevel.py:47,74,98,124` (four `# TODO: replace with a real check once the decision is documented` / `once the actual index API exists`). The prose-regex pattern spans four files — `test_falsification_{domain_free_crosslevel,twin_parity,spatiallevel_and_metricframe,immutability_copy}.py` (16 / 19 / 13 / 7 README references respectively). |
+| Cross-refs | **C-51** (the direct precedent: paths that *looked* covered were only transitively asserted — coverage-green ≠ verified), C-58 (verification-realism), C-74 (the sibling gate-completeness finding), ADR-014 (the decision these TODOs were blocked on), ADR-005 (red/beige/green taxonomy). |
+
+These began as legitimate **design-phase** falsification probes: before the code existed, asserting that the README *decided* where the cm↔pgm mapping lives was the only check available. The design phase ended — ADR-014 ratified the injected-mapping protocol and `cross_level_align` shipped in v0.1.0 — but the probes were never upgraded, and their own `TODO`s say so. The result is inverted tests sitting inside the project's strongest gate: they are counted by `--cov-fail-under=100`, they pass, and they are coupled to the wording of a document rather than the behavior of the code. **Tier 3** — no correctness risk (the real contract *is* pinned elsewhere, by the conformance suite and the frame/index test modules), but it is maintainability debt with a false-confidence edge: a reader auditing coverage sees the cross-level contract "tested" when what is tested is a sentence. Resolved when the four TODOs assert against the API, or when the probes are retired as design-phase fossils with that decision recorded.
+
+---
+
+### C-76: `FeatureFrame.from_2d` is documented "deprecated" on the frozen surface — deprecated and unremovable
+
+| Field | Value |
+|-------|-------|
+| ID | C-76 |
+| Tier | 4 |
+| Status | **actionable** — the wording call is a one-word edit today; *removal* itself would await a MAJOR |
+| Source | pre-release repo sweep (2026-07-31). |
+| Trigger | **When a MAJOR is opened** — decide it then, as part of the freeze-cluster rider list: either remove `from_2d` (the only moment removal is permitted, ADR-018) or strike "deprecated" from the docstring. **Sooner** if a consumer asks what "deprecated shim" means for a symbol they are pinned to, or if a deprecation warning is proposed — that would be a behavior change on a frozen symbol, not a docs fix. |
+| Location | `src/views_frames/feature_frame.py:65` — `"""Lift a legacy 2D ``(N, F)`` array to ``(N, F, 1)`` (deprecated shim)."""`. No `DeprecationWarning`, no ADR recording the deprecation, no `Deprecated` status anywhere in `docs/`; `docs/CICs/FeatureFrame.md:39` documents it as live surface. |
+| Cross-refs | ADR-018 (freeze — removal is a MAJOR), the **freeze-as-root-cause** meta-cluster (this joins C-66/C-57/C-43 on the MAJOR rider list), C-13 (whose trigger is the pre-tag rider checklist), ADR-011. |
+
+A one-word contradiction with a governance tail: the docstring calls `from_2d` a deprecated shim, but ADR-018 makes removal a platform-wide MAJOR, so it is deprecated *and* permanent — and nothing outside that parenthetical records the deprecation (no warning, no ADR, and the CIC lists it as ordinary surface). A consumer reading the docstring cannot tell whether it is going away, and the answer is "not before the next MAJOR, which has no date". **Tier 4** — cosmetic/documentation-consistency, single-word fix in either direction, zero correctness or reliability impact; registered only so the decision rides the next MAJOR rather than being rediscovered then.
 
 ---
 
@@ -427,7 +509,7 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 | Location | **Docs:** `CLAUDE.md` (epoch-stale: "Two packages", "Status: v0.1.0", no `views_frames_reconcile`); `README.md:7` (banner says v1.7.0; chronicle ends at 1.7.0); `docs/ADRs/013_*.md` (claims `feature_names` lives in `FrameMetadata` — it is a `FeatureFrame` constructor arg, `feature_frame.py:32`); `docs/CICs/{PredictionFrame,TargetFrame,FeatureFrame}.md` §5 (say `y_pred/y_true/y_features.npy` — actual artifact is `values.npy`, `io/npz.py:34`); `PredictionFrame.md` §6 ("TypeError on non-float32" — float64 is *coerced*, object dtype raises *ValueError*); `docs/CICs/README.md:52-56` ("no contracts yet" contradicting its own Active list); `docs/ADRs/README.md:6-55` (design-bible framing, "011–016", "six decisions"); `Reconcile.md` §10 (blanket "each §6 mode maps to a red test" — the missing-map-entry mode is pinned only at the leaf); stale `Last reviewed` dates on 3 frame CICs. **Tests:** a share-proportionality *law* test (the method's essence is otherwise pinned only by the frozen oracle; the falsify F5 probe proved the law holds — commit it); an mmap read-only pin (`frame.values.flags.writeable is False` after `load(mmap=True)` — F2 proved it); a reconcile-suite test for the missing-`(time,gid)`-mapping-entry raise. |
 | Cross-refs | The systemic pattern: all doc drift is in narrative text `validate_docs.sh` does not check (banners, framing, filenames), while every mechanically-validated element is current. C-46 (the "verification surface depends on usage" family), C-58 (test-realism, registered), resolved C-67/C-68/C-69 (the fixed half of the same audit). |
 
-The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Resolved** (2026-07-02, the option-3 cleanup): the tests half by PR #195 (share-proportionality law, mmap read-only pin, missing-map-entry raise); the docs half in the follow-up docs PR (CLAUDE.md rewritten for the three-package released reality; README banner → v1.8.0 + chronicle; ADR-013 as-built amendment; the three CIC §5 filenames → `values.npy`; PredictionFrame §6 coercion wording; SpatioTemporalIndex §6 NaN-via-dtype wording; CICs/ADRs README framing refreshed; `Last reviewed` dates bumped; Reconcile.md §10 updated to name the actual pinning files). Plus a **recurrence guard**: `validate_docs.sh` now checks the README banner's MAJOR.MINOR against `pyproject.toml`, so the narrative epoch-lag pattern fails validation instead of accumulating.
+The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Resolved** (2026-07-02, the option-3 cleanup): the tests half by PR #195 (share-proportionality law, mmap read-only pin, missing-map-entry raise); the docs half in the follow-up docs PR (CLAUDE.md rewritten for the three-package released reality; README banner → v1.8.0 + chronicle; ADR-013 as-built amendment; the three CIC §5 filenames → `values.npy`; PredictionFrame §6 coercion wording; SpatioTemporalIndex §6 NaN-via-dtype wording; CICs/ADRs README framing refreshed; `Last reviewed` dates bumped; Reconcile.md §10 updated to name the actual pinning files). Plus a **recurrence guard**: `validate_docs.sh` now checks the README banner's MAJOR.MINOR against `pyproject.toml`, so the narrative epoch-lag pattern fails validation instead of accumulating. **Correction (2026-07-31, see C-74):** that last clause overstated the guard — `validate_docs.sh` is **not referenced in `.github/`**, so it fails validation only when a maintainer runs it locally, never in CI. The check exists and passes; it is simply not armed. Tracked as **C-74**; C-70 itself stays resolved (its docs+tests remediation did land).
 
 ---
 
@@ -1075,16 +1157,18 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
 - **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
-  - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-53, C-57, C-66, the C-32 residual, + D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
+  - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-53, C-57, C-66, **C-76**, the C-32 residual, + D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
   - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
   - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {C-66, + resolved C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
-  - cross-cutting **verification-completeness** = {C-58, resolved C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58, still open). Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
+  - cross-cutting **verification-completeness** = {C-58, **C-74**, **C-75**, resolved C-51, C-65} — **the register's most persistent pattern: a check exists, passes, and does not actually exercise the thing it appears to guard.** The reconciler's production-slice check was never run (C-58); `validate_docs.sh` and `ruff format` are treated as gates but are absent from CI (C-74); four falsification tests inside the 100%-coverage gate assert README prose rather than the API (C-75); and the precedent — `assert_frame_envelope`'s rejection paths were "covered" only transitively (C-51, resolved by direct adversarial tests). The recurring lesson is that **coverage-green and gate-green are not the same as verified**, and the failure is always *false confidence*, never a wrong number — which is why this cluster is uniformly Tier 3 yet keeps producing entries. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
+- **Tier 4 in Open — the scheduled-trigger rule** (adopted 2026-07-31, `review-rr` strategic): a Tier 4 concern earns a place in **Open** only if its trigger is an **event it must ride** — otherwise it is a chore, not a risk, and belongs in an issue. **C-43** (extract the shared binning when `map_estimate` is unfrozen) and **C-76** (decide `from_2d`'s deprecated-but-frozen status at the next MAJOR) both qualify: each is a *decision that must not be rediscovered* at the moment it becomes possible. This rule was written after the register briefly held both a recommendation to demote C-43 for being cosmetic and a fresh registration of C-76 with the same profile — the two are the same case and are now handled the same way.
+- **Field order:** `ID`, `Tier`, `Status` (open only), `Source`, `Trigger`, `Location`, `Cross-refs`. Resolved entries compress to `ID`, `Resolved`, `Resolution` (some retain `Tier` where the severity is part of the record).
 - **Sources:** `repo-assimilation`, `expert-review`, `test-review`, `falsification-audit`, `persona-critique`, `clean-architecture-review`, `pr-review`, `tech-debt-audit`, `incident`, `manual`.
 - **Resolution:** Move to "Resolved Concerns" with resolution date and summary when addressed.
 - **Header counts:** Manually maintained — update whenever a concern is added or resolved.
