@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-07-28                           |
-| Total Concerns    | 69                                   |
-| Open Concerns     | 13                                   |
+| Last Updated      | 2026-07-31                           |
+| Total Concerns    | 70                                   |
+| Open Concerns     | 14                                   |
 | Resolved Concerns | 56                                   |
 | Disagreements     | 12                                   |
 
@@ -35,37 +35,30 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **13 currently open** concerns fall into five clusters plus a cross-cutting theme
-> (and one standalone operational item — **C-71**, the dense-fill grid-scale allocation
-> awareness shipped with ADR-026, 2026-07-27)
-> (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
-> coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
-> estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
-> per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
-> was closed by `Reconcile.md` (epic #179 / S1); **(3)
-> construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
-> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06); **(5)
-> immutability enforcement** — C-66 (+ resolved C-63): the C-63 contract-correction is done
-> (ADR-025, epic #179 / S2), but the actual `setflags`-enforce on `.values` is a MAJOR and is
-> deferred — **C-66** tracks that enforce-rider so it stays visible in Open. The cross-cutting
-> **verification-completeness** theme now narrows to C-58 (the reconciler's production-slice
-> check); its sibling C-65 (non-finite fail-loud on the blocked path) was pinned with a red
-> test (epic #179 / S3). Earlier clusters are closed:
-> **post-1.1.0 polish** {C-35, C-36, C-37, C-38} by **Epic 7** (2026-06-24) and the 2026-06-22
-> test-review gaps {C-29, C-31} by **Epic 6** — both now in Resolved Concerns. (`map_estimate`'s
-> tower-nesting sibling **C-33** was resolved by ADR-019, 2026-06-23.)
+> **The 14 open concerns are grouped under *Causal clusters* in Register Conventions —
+> that list is the single authority and this preamble deliberately does not restate it**
+> (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
+> {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-58, C-62}; **construction
+> convenience accretion (#113)** {C-52, C-53, C-54}; **cross-repo coordination** {C-13, C-46};
+> **immutability enforcement** {C-66}; **scale & footprint awareness** {C-71, C-73}; plus the
+> cross-cutting **verification-completeness** theme {C-58} and the **freeze-as-root-cause**
+> meta-cluster that spans several of them. Read the Conventions entries for *why* each is
+> open — most are waiting on a precondition, not on effort.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
 | Field | Value |
 |-------|-------|
 | ID | C-13 |
-| Tier | 2 |
+| Tier | 3 (recalibrated from 2 on 2026-07-31, `review-rr` strategic) |
 | Source | expert-review (2026-06-20) |
-| Trigger | A future MAJOR bump to the frozen contract fans out across every consumer at once — when planning one, drive it through the GOVERNANCE coordinated-bump process rather than letting consumers desync. |
+| Trigger | **When a MAJOR bump is opened — before tagging:** confirm every consumer repo has an adoption issue filed and a pinned floor per GOVERNANCE §coordinated-bump, and pair the bump with the **freeze-cluster rider list** (C-66's `setflags` enforce + its red test, C-57's `np.isfinite` guard on `map_estimate`, C-43's shared-binning extraction) — a MAJOR that fans out without carrying its riders spends the coordination budget for nothing. |
 | Location | `README.md` §12 (~12 register items, 3+ repos); `GOVERNANCE.md` (coordinated-bump process) |
+| Cross-refs | D-06 (the WIP-sequencing disagreement, resolved-by-events), C-05 / C-10 (resolved — owner + coordinated-bump process), ADR-018 (the freeze this fans out), the **freeze-as-root-cause** meta-cluster (the rider list). |
 
-The leaf's breadth is both its value and an inherent concentration risk (critique_01 §3.7): it is structurally the single point every consumer pins. **Mitigation shipped** — a minimal, stable, **frozen v1.0.0** (ADR-018) gives consumers a contract that will not churn, and ADR-016 / GOVERNANCE name the owner and the coordinated MAJOR-bump process (C-05, C-10 resolved). **Residual is accepted and monitored:** the fan-out cost of any future MAJOR is irreducible; the control is the GOVERNANCE process, watched as consumers adopt. See also D-06.
+The leaf's breadth is both its value and an inherent concentration risk (critique_01 §3.7): it is structurally the single point every consumer pins. **Mitigation shipped** — a minimal, stable, **frozen v1.0.0** (ADR-018) gives consumers a contract that will not churn, and ADR-016 / GOVERNANCE name the owner and the coordinated MAJOR-bump process (C-05, C-10 resolved). **Residual is accepted and monitored:** the fan-out cost of any future MAJOR is irreducible; the control is the GOVERNANCE process, watched as consumers adopt.
+
+**Tier 3, recalibrated 2026-07-31.** Originally Tier 2, but Tier 2 means *structural fragility that will cause failures under realistic change scenarios* — this entry describes an irreducible **cost** incurred under a process that already exists and has never failed, not a fragility. It is an **accepted standing condition** kept in Open solely so the coordinated-bump discipline stays visible, and its trigger now does real work: it is the pre-tag checklist for the one event that makes concentration bite. See also D-06.
 
 ---
 
@@ -76,7 +69,7 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 | ID | C-32 |
 | Tier | 2 |
 | Source | views-faoapi integration spike (2026-06-23) |
-| Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. |
+| Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. **Tier watch (2026-07-31):** the FAO forecast path is now live (faoapi #100/#242 in execution), and the *only* thing holding this at Tier 2 rather than Tier 1 is that the leaf publishes nothing itself. If faoapi (or any consumer) adopts `map_estimate` for **published** modes, the bias stops being latent and this entry becomes Tier 1 — route them to `tower_point` instead. |
 | Location | `src/views_frames_summarize/point.py:110` (`np.argmax(counts, axis=1)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
 
 **Symptom.** At 32 draws in 100 bins the histogram peak is almost always a multi-way tie; `np.argmax` takes the lowest index = leftmost = smallest value, so for a right-skewed, zero-inflated posterior the MAP is dragged toward zero. The faoapi spike measured this against the production estimator: **~21% of active cells diverge one-directionally (NEW MAP ≤ OLD MAP always), up to 7.9 in ln-space** (≈2,700× in count-space). This is the **C-24** portability fix's blind side — C-24 removed the numpy-version *instability* of the `density = count/width` tie-break, but the lowest-index choice it landed on carries a *directional bias* C-24 never weighed.
@@ -251,6 +244,21 @@ C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is 
 | Cross-refs | **ADR-026** (the decision: the leaf documents the cost, never guesses a size guard — that would be policy), C-21 (the uniqueness stance `reindex_fill` inherits and `cartesian`'s duplicate-input `ValueError` protects), C-22/C-25 (the memory-bounded precedent on the *estimator* side — deliberately not applied here: densification's output *is* the allocation). |
 
 The fill primitive makes densification a one-liner, which is the point (#203, faoapi #242) — and also the hazard: the allocation that faoapi's pandas implementation made visible (an explicit `MultiIndex.from_product` + concat) is now behind one method call. The cost is **inherent to densifying** (the output *is* the dense buffer), not an implementation choice, so the leaf's controls are documentation (both docstrings state the cost) and this entry. The failure is **loud** (`MemoryError`/OOM-kill), not silent — hence Tier 3, an operational-awareness item, not a correctness risk. If a consumer legitimately needs bounded-memory densification (block-wise fill-and-stream), that is a future additive design, receipted first.
+
+---
+
+### C-73: `io.arrow.load` is read-all-to-RAM — no mmap or partitioned path on the wire format
+
+| Field | Value |
+|-------|-------|
+| ID | C-73 |
+| Tier | 3 |
+| Source | GH #199 item 2 (ADR-013 §8, views-postprocessing); split out when item 1 shipped as C-72 (2026-07-31) — the residual was recorded only inside the *resolved* C-72 and needed to stay visible in Open. |
+| Trigger | When a consumer loads a **full-S global-reference shard in one call** — i.e. drops or widens the per-month sharding on the FAO/postprocessing ingestion path (views-faoapi #100), or loads several shards concurrently in one process. At that point do the arithmetic before running: `N_rows × S × 4` bytes for the flat table **plus** the same again for the reshaped values (`pq.read_table` materializes the whole table, then `.to_numpy()`/`reshape`/`np.stack` copy it). #199 measures ~1.6 GB transient per full-S month shard at global reference. |
+| Location | `src/views_frames/io/arrow.py:88` (`pq.read_table` — whole-table materialization), `:130-137` (per-column `.to_numpy().reshape()` + `np.stack` — the second full copy). The npz path already has `mmap=True`; arrow has no equivalent. |
+| Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. |
+
+`arrow` is the platform's **interchange** codec — the format the FAO/postprocessing path actually ships forecasts in — and `load` reads the entire parquet into RAM, then copies it again to reshape. ADR-013 §8 states the mitigation as **per-month sharding** (a consumer-side contract obligation) and names mmap/partitioned reading as the long-term fix while explicitly declaring it **NOT a contract dependency** — so this is deliberately open, not neglected: shipping FAO data does not wait on it. **Tier 3** — the failure mode is a loud `MemoryError`/OOM-kill under a footprint the consumer controls, never a wrong number; the cost is operational, and the mitigation already exists. Deliberately **not designed yet**: the leaf does not guess a streaming API for a wall nobody has hit. The receipt that would change this — a consumer OOM *despite* sharding, or a shard size that cannot be reduced further — is the thing to wait for; a design without it risks a speculative, frozen surface (ADR-018, C-52).
 
 ---
 
@@ -888,13 +896,16 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 
 ---
 
-### C-18: relocating `SpatialLevel` ports C-65 + a gid/id inconsistency — RESOLVED
+### C-18: relocating `SpatialLevel` ports the entity-first tuple + a gid/id inconsistency — RESOLVED
 
 | Field | Value |
 |-------|-------|
 | ID | C-18 |
 | Resolved | 2026-06-22 |
-| Resolution | ADR-015 (fix-don't-port) — the leaf's `spatial_level.py` ships the time-first index and a consistent identifier vocabulary; the reversed (entity-first) tuple (C-65) and the `priogrid_gid`/`priogrid_id` inconsistency were fixed, not ported. (Subsumes the original C-04 "SpatialLevel slippery slope".) |
+| Resolution | ADR-015 (fix-don't-port) — the leaf's `spatial_level.py` ships the time-first index and a consistent identifier vocabulary; the reversed (entity-first) tuple (**pipeline-core's C-65** — *not* this register's C-65, see Register Conventions → foreign ids) and the `priogrid_gid`/`priogrid_id` inconsistency were fixed, not ported. (Subsumes the original C-04 "SpatialLevel slippery slope".) |
+| Recurrence guard | **Resolved-by-decision — the trigger now protects the decision.** Re-opens if anyone adds an alias/normalization layer for the legacy identifier spelling to `spatial_level.py`; the answer is ADR-015 (the leaf carries one canonical vocabulary) + the rename belongs upstream in pipeline-core (its ADR-034). |
+
+**2026-07-27 — first live recurrence, discarded.** An unmerged remote branch (`gid_patch`, ~19 real lines plus an accidental 9,984-line dump) added exactly the ported inconsistency this entry resolved: `_ENTITY_ALIASES = {"priogrid_gid": "priogrid_id"}` plus a `SpatialLevel.normalize_entity_column` helper, with the *calling* half already merged in a sibling repo — i.e. a cross-repo change whose two halves landed 26 seconds apart, only one of which was reviewed here. Discarded on ratified grounds (ADR-015 fix-don't-port; ADR-018 freeze — an unratified addition to the frozen surface; C-52 accretion guard), branch deleted, and the legitimate follow-up (the upstream rename) tracked in views-r2darts2#24 with a SHA breadcrumb. Recorded here because it demonstrates the guard is load-bearing, not historical: the pressure to re-port the alias comes from consumers, arrives via feature branch, and can be pre-satisfied in another repo before the leaf ever reviews it.
 
 ---
 
@@ -1062,7 +1073,10 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
-- **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-27):
+- **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
+- **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
+  - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-53, C-57, C-66, the C-32 residual, + D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
+  - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
   - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
