@@ -11,8 +11,8 @@ ADRs are divided into:
 
 1. **Constitutional ADRs (000–009)** — foundational architectural rules.
 2. **Governance ADRs (010)** — the technical risk register.
-3. **Project-Specific ADRs (011–026)** — the ratified contract, estimator, sibling-package,
-   and freeze/immutability decisions.
+3. **Project-Specific ADRs (011–027)** — the ratified contract, estimator, sibling-package,
+   freeze/immutability, and surface-scope decisions.
 
 ---
 
@@ -51,13 +51,14 @@ Together, these define the invariant layer of the system.
 
 ---
 
-## Project-Specific ADRs (011–026) — the ratified project decisions
+## Project-Specific ADRs (011–027) — the ratified project decisions
 
 **011–016** ratify the six founding contract decisions from the design bible (README §13a,
-all Accepted 2026-06-21); **017–026** are the post-v1 decisions — sibling packages, the API
-freeze, estimators, contract homes, and the immutability convention (Accepted 2026-06-22
-through 2026-07; ADR-024 is a design-direction ADR with implementation deferred). Each cites
-the risk-register IDs it resolves.
+all Accepted 2026-06-21); **017–027** are the post-v1 decisions — sibling packages, the API
+freeze, estimators, contract homes, the immutability convention, and what the frozen surface
+declines to grow (Accepted 2026-06-22 through 2026-07; ADR-024 is a design-direction ADR with
+implementation deferred, ADR-027 records a declined addition). Each cites the risk-register IDs
+it resolves.
 
 - **ADR-011** — [Twin-unification model (Option C)](011_twin_unification_option_c.md). Share only `SpatioTemporalIndex` + `_validation` + protocols + `io/`; relocate the frames as separate sibling classes; reject the `_BaseFrame` god-class (A); defer the composed header (B). Resolves D-03; relates to C-16, C-03.
 - **ADR-012** — [Sample axis convention](012_sample_axis_convention.md). Always an explicit trailing axis (`S ≥ 1`); `is_sample = S > 1`; `collapse` reduces the trailing axis; one shape contract. Relates to C-02, C-16, C-17.
@@ -75,6 +76,7 @@ the risk-register IDs it resolves.
 - **ADR-024** — [Principled joint probabilistic reconciliation — design direction & deferral](024_principled_joint_reconciliation_design.md). Design-only (no code): per-draw `proportional` is an information-losing approximation that pairs grid-draw `s` with country-draw `s` across **independently-trained** models with no shared draw identity. Names the **draw-identity contract** principled reconciliation requires (shared ensemble / copula coupling), fixes the upgrade as a **future sibling module** (probabilistic reconciliation / MinT — never a change to `proportional`), and **defers** implementation until a consumer needs calibrated joint tails *and* the country model can supply the identity/coupling. Records C-62; corrects the ambiguous `proportional.py` "C-37" reference (views-frames C-37 is unrelated/resolved; the lineage is views-postprocessing C-37).
 - **ADR-025** — [Value-buffer immutability is by convention; only the index is enforced](025_value_buffer_immutability_by_convention.md). Corrects the "immutable value objects" contract to match the code: only the index (`time`/`unit`) is `setflags(write=False)`-enforced; the frame **value buffer is immutable by convention** (mutating `.values` in place is unsupported and may corrupt buffer-sharing frames), left writeable to preserve zero-copy / `mmap` (C-07). The `setflags`-enforce on `.values` would be "tightening an invariant" on a frozen-surface member (a MAJOR, GOVERNANCE/ADR-018) for a hole nothing exercises, so it is recorded as a **deferred MAJOR-rider** (added free on the next MAJOR), not done now. Resolves C-63; docs-only, `CONFORMANCE_FLOOR` stays 1.0.0.
 - **ADR-026** — [Dense-grid fill is a leaf primitive](026_dense_grid_fill_primitive.md). Adds `frame.reindex_fill(other, *, fill_value)` (align with **no** superset requirement; present rows bit-exact, absent rows filled; `fill_value` keyword-only + required) on all three siblings, `SpatioTemporalIndex.cartesian(times, units, level)` (dense product index, time-major, explicit arrays only, fails loud on duplicated inputs), and the published `assert_reindex_fill_law`. Closes #203 (faoapi's "views-frames has no fill primitive", the last pandas blocker on FAO ingestion, faoapi #242); rejects a derivation rule and a `reindex` mode-kwarg (D-09/C-52 precedents). Additive MINOR (v1.10.0); `CONFORMANCE_FLOOR` stays 1.0.0.
+- **ADR-027** — [Frame construction stays two-step; the convenience factory is declined](027_decline_construction_convenience_factory.md). **Declines #113** (a leaf-side `build_prediction_frame` / `PredictionFrame.from_arrays`): building the `SpatioTemporalIndex` explicitly is the caller stating which rows their values describe (ADR-003), the two-step form blocked no one (engines migrated by constructing the index directly), and under the ADR-018 freeze a convenience method is a permanent commitment bought with a transient inconvenience. Records D-09's settled design + its binding constraints (classmethod, zero own logic, singular, no `factory.py`) so a receipted future need starts from it, and names what would reopen the decision. Resolves C-52/C-53/C-54; docs-only, `CONFORMANCE_FLOOR` stays 1.0.0.
 
 ---
 
