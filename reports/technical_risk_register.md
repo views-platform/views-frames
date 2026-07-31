@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-07-31                           |
-| Total Concerns    | 75                                   |
-| Open Concerns     | 13                                   |
+| Total Concerns    | 77                                   |
+| Open Concerns     | 15                                   |
 | Resolved Concerns | 62                                   |
 | Disagreements     | 12                                   |
 
@@ -50,7 +50,7 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> **The 13 open concerns are grouped under *Causal clusters* in Register Conventions —
+> **The 15 open concerns are grouped under *Causal clusters* in Register Conventions —
 > that list is the single authority and this preamble deliberately does not restate it**
 > (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
 > {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-62}; **cross-repo coordination** {C-13, C-46};
@@ -103,6 +103,49 @@ The falsification guards rewritten in epic #208 are real and catch the regressio
 3. **`cl_03`/`cl_04` see instance state only.** A module-level cache in `index.py` populated with a *copy* of an injected mapping would hold domain reference data invisibly to both.
 
 None of these is a defect to fix now. Every one requires someone to work around a guard deliberately, and this package has one maintainer whose regressions are honest — the discarded `gid_patch` branch, the case that motivated `sl_01`, made no attempt to hide. **Tier 4** — recorded so the guards are not over-trusted, not because action is needed. Deepening them (AST inspection, package-wide scans, module-state introspection) would buy protection against an adversary this repository does not have, at the cost of tests that are harder to read than the code they guard.
+
+---
+
+### C-79: nothing tests that today's loader can read a file written by an older release
+
+| Field | Value |
+|-------|-------|
+| ID | C-79 |
+| Tier | 3 |
+| Status | **actionable** — freeze one parquet fixture from the current release and assert the next version loads it |
+| Source | test-review (2026-07-31), Kleppmann lens. |
+| Trigger | **Before the next change to `io/arrow.py::save` or `io/arrow.py::load`** — and especially before adding another validation rule to `load`. Write a parquet with the *current* release, commit it as a fixture, and assert a later version still reads it to the same values. The `.npz` fixtures under `tests/fixtures/` already establish the pattern. |
+| Location | `tests/test_io.py` (every arrow test writes and reads in one process at one version); `tests/fixtures/` (holds `reconciliation_parity.npz` and `reconciliation_e2e_parity.npz` — but no parquet); `src/views_frames/io/arrow.py::save` / `::load`. |
+| Cross-refs | **C-72** (the v1.10.1 validation added to `load` — the specific change this gap cannot see), C-73 (the same function's memory residual), **C-46** (adjacent: it already tracks a versioned wire schema, but scoped to the views-evaluation boundary rather than this package's own parquet across its own versions), views-postprocessing ADR-013 (the wire contract), views-faoapi #100. |
+
+Every arrow IO test writes a file and reads it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that actually matters for a data-contract package: that a file written by an earlier release still loads.
+
+This is not hypothetical in shape. **v1.10.1 added validation to `load`** — three new `ValueError` paths rejecting row orders that violate the written wire contract. Those rules were derived from what `save` writes *today*. Nothing checks that a parquet written by v1.8.0 or v1.10.0 satisfies them, and the consumers on that path (views-postprocessing, views-faoapi #100) hold archived shards written by earlier releases.
+
+**Tier 3** — the failure is **loud**: a rejected file raises `ValueError` with a clear message, never a wrong number. It is Tier 3 rather than 4 because the blast radius is consumer-side and awkward to diagnose (a consumer's archived data suddenly unreadable after a routine upgrade), and because the fixture pattern already exists here, so the cost of closing it is one committed file plus one test. **Resolved when** a parquet fixture written by a released version is committed and read by a test.
+
+---
+
+### C-80: the test suite's self-description does not match its contents
+
+| Field | Value |
+|-------|-------|
+| ID | C-80 |
+| Tier | 4 |
+| Status | **actionable** — four small corrections, none requiring new test logic |
+| Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
+| Trigger | **When someone reads the suite to answer "is X covered?"** — most likely a new contributor, or the maintainer at a future audit. Each item below makes that question answerable wrongly. Fix them the next time the relevant file is opened for another reason, rather than as a standalone sweep. |
+| Location | `tests/test_reconcile_head_to_head.py` (collects **0** tests anywhere); the 20 of 36 test files carrying no ADR-005 category marker, and the **zero** 🟨 beige markers suite-wide; `docs/CICs/PredictionFrame.md` §10 (states a memory guarantee pinned by a type check in `tests/test_io.py::test_npz_mmap_returns_memmap`); `docs/CICs/TargetFrame.md` §10 (names no pinning test file, where the other six CICs name one to five). |
+| Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
+
+Four small things, one root cause: **what the suite says about itself is not quite what it does.**
+
+1. **`test_reconcile_head_to_head.py` collects zero tests** — anywhere. It `importorskip`s `views_postprocessing` at module level, and that package is installed neither locally, nor in CI, nor in any dependency group. The file reads as coverage of the bit-identity guarantee against the old implementation; it contributes nothing. The guarantee *is* covered, by the frozen-oracle route in `test_reconciliation_parity.py` and `test_reconciliation_e2e_parity.py` — so nothing is unprotected. What is wrong is that the file implies otherwise.
+2. **The beige category is unmarked suite-wide** — 15 🟩, 26 🟥, **0 🟨**, with 20 of 36 files carrying no marker at all. The CICs *do* specify beige guarantees per class, and most look covered; the taxonomy simply is not applied. A half-applied classification is worse than none, because it implies a system that is being followed.
+3. **A memory guarantee pinned as a type check.** `PredictionFrame` §10 promises *"`mmap` load keeps peak RAM at the working set"*; the tests assert the returned object **is** an `np.memmap` and is read-only. The proxy is defensible — memmap implies lazy paging by definition — but three summarize test files already measure memory, so the capability exists and is simply not pointed here.
+4. **`TargetFrame.md` §10 names no pinning test file**, where the other six CICs name between one and five.
+
+**Tier 4** — nothing is unprotected and no behaviour is at risk; every item is a labelling or wiring correction. Registered because this suite's credibility is the project's main safety argument, and each item degrades the ability to audit it. **Resolved when** the inert file is either wired into CI or removed with its coverage route named, the beige category is applied or dropped from ADR-005, and the two CIC gaps are filled.
 
 ---
 
@@ -1181,7 +1224,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
   - **construction-convenience accretion (#113)** = {resolved C-52, C-53, C-54, + D-09} — **CLOSED 2026-07-31 by ADR-027** (Epic #208 / S1 #209). The planned `PredictionFrame.from_arrays` factory was the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), a DoD overstating scope (C-54) — all three guarding an addition that was **never made and is now declined**. The cluster is instructive rather than dead: it is the register's clearest case of concerns that existed *only* because a proposal sat undecided. Thirteen months open, zero code written, three entries consuming review attention every cycle — and the resolution was a decision, not an implementation. **The guard survives as a written precedent:** ADR-027 records the binding constraints any future construction convenience must satisfy and what would reopen the question, so the next such request is closed by citation instead of re-argued. The lesson generalises to the `awaiting` Status class: an undecided proposal is not free.
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {C-66, + resolved C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
-  - cross-cutting **verification-completeness** = {**C-74**, **C-75**, resolved C-51, C-58, C-65} — **the register's most persistent pattern: a check exists, passes, and does not actually exercise the thing it appears to guard.** The reconciler's production-slice check was never run (C-58 — **closed 2026-07-31**, the tool and the requirement both now exist); `validate_docs.sh` and `ruff format` are treated as gates but are absent from CI (C-74); four falsification tests inside the 100%-coverage gate assert README prose rather than the API (C-75); and the precedent — `assert_frame_envelope`'s rejection paths were "covered" only transitively (C-51, resolved by direct adversarial tests). The recurring lesson is that **coverage-green and gate-green are not the same as verified**, and the failure is always *false confidence*, never a wrong number — which is why this cluster is uniformly Tier 3 yet keeps producing entries. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
+  - cross-cutting **verification-completeness** = {**C-74**, **C-79**, **C-80**, resolved C-51, C-58, C-65, C-75} — **the register's most persistent pattern: a check exists, passes, and does not actually exercise the thing it appears to guard.** The reconciler's production-slice check was never run (C-58 — **closed 2026-07-31**, the tool and the requirement both now exist); `validate_docs.sh` and `ruff format` are treated as gates but are absent from CI (C-74); four falsification tests inside the 100%-coverage gate assert README prose rather than the API (C-75); and the precedent — `assert_frame_envelope`'s rejection paths were "covered" only transitively (C-51, resolved by direct adversarial tests). The recurring lesson is that **coverage-green and gate-green are not the same as verified**, and the failure is always *false confidence*, never a wrong number — which is why this cluster is uniformly Tier 3 yet keeps producing entries. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
 - **Tier 4 in Open — the scheduled-trigger rule** (adopted 2026-07-31, `review-rr` strategic): a Tier 4 concern earns a place in **Open** only if its trigger is an **event it must ride** — otherwise it is a chore, not a risk, and belongs in an issue. **C-43** (extract the shared binning when `map_estimate` is unfrozen) and **C-76** (decide `from_2d`'s deprecated-but-frozen status at the next MAJOR) both qualify: each is a *decision that must not be rediscovered* at the moment it becomes possible. This rule was written after the register briefly held both a recommendation to demote C-43 for being cosmetic and a fresh registration of C-76 with the same profile — the two are the same case and are now handled the same way.
