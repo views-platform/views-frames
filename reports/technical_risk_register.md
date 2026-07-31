@@ -245,6 +245,8 @@ Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh`
 
 **Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
 
+**Half done (2026-07-31, Epic #208 / S3 #211).** `ci.yml` now has a `docs` job that runs `bash docs/validate_docs.sh` on every push and pull request to `main` and `development` — so the version-banner check is finally a gate, in time for this epic's own version bump. It is a **separate job rather than a step in the four-version matrix**: the script is bash and grep with no Python involvement, so running it inside the matrix would repeat it four times and couple documentation policy to the list of supported Python versions. **Still open for the formatting half** — `ruff format --check` cannot be turned on until the 22 drifted files are fixed, or it fails every pull request. That is S10 (#218), deliberately sequenced after the release. This entry closes there.
+
 ---
 
 ### C-75: four design-phase falsification tests assert README *prose*, inside the 100%-coverage gate
