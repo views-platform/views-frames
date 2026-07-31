@@ -1,10 +1,11 @@
 """`FeatureFrame` — model inputs (X): ``y_features (N, F, S)`` float32.
 
 A sibling frame (no shared base; ADR-011 Option C). Relocated from
-views-datafactory. The sample axis is **always explicit** (ADR-012): legacy 2D
-``(N, F)`` arrays are lifted to ``(N, F, 1)`` only through the explicit
-:meth:`from_2d` shim. Carries ``feature_names`` and a typed metadata header
-(ADR-013). ``from_grid`` is **not** here — it stays in views-datafactory.
+views-datafactory. The sample axis is **always explicit** (ADR-012), so
+unsampled features are stored as ``(N, F, 1)``; :meth:`from_2d` builds such a
+frame from a 2-D ``(N, F)`` array by adding that trailing axis. Carries
+``feature_names`` and a typed metadata header (ADR-013). ``from_grid`` is
+**not** here — it stays in views-datafactory.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ class FeatureFrame:
             raise ValueError(
                 "FeatureFrame y_features must be 3D (N, F, S) with an explicit "
                 f"trailing sample axis (ADR-012), got ndim={values.ndim}. "
-                "Use FeatureFrame.from_2d to lift a legacy (N, F) array."
+                "Use FeatureFrame.from_2d to build a frame from a 2-D (N, F) array."
             )
         if values.shape[0] != index.n_rows:
             raise ValueError(
