@@ -4,7 +4,7 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.10.0 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
+> **Status:** **v1.10.2 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
@@ -21,7 +21,7 @@
 > `research/figures/` tower-figure toolkit; v1.10.0 adds the **dense-grid fill**
 > primitive — `reindex_fill(other, *, fill_value)` on all three frames +
 > `SpatioTemporalIndex.cartesian` + the published `assert_reindex_fill_law`, ADR-026,
-> unblocking pandas-free FAO ingestion). This
+> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
