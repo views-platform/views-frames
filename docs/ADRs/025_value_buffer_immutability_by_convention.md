@@ -124,9 +124,9 @@ by-convention reality. Out of scope: any code change; any change to `CONFORMANCE
   convention** (mutating it is unsupported and may corrupt shares — build a new frame), left
   writeable to preserve zero-copy. Mark register **C-63 Resolved** (contract corrected) with
   the deferred-enforce recorded.
-- **The deferred MAJOR-rider (future):** in `prediction_frame.py` (~line 44), `target_frame.py`
-  (~line 43), `feature_frame.py` (~line 52), add `self._values.setflags(write=False)` after
-  the `self._values = ...` assignment; add a red test mirroring `tests/test_properties.py::test_with_metadata_shares_the_values_buffer`
+- **The deferred MAJOR-rider (future):** in `prediction_frame.py::PredictionFrame.__init__`,
+  `target_frame.py::TargetFrame.__init__` and `feature_frame.py::FeatureFrame.__init__`, add
+  `self._values.setflags(write=False)` immediately after the `self._values = ...` assignment; add a red test mirroring `tests/test_properties.py::test_with_metadata_shares_the_values_buffer`
   asserting `frame.values.flags.writeable is False` and that an in-place write raises. Do this
   **only** as part of a MAJOR that is already happening.
 

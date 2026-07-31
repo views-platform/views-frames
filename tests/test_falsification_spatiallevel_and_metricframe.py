@@ -65,9 +65,14 @@ def test_falsify_sl_01_the_legacy_identifier_spelling_never_comes_back():
     # `priogrid_gid_to_id` — which passed while being exactly the thing banned.
     #
     # The spelling has no legitimate use anywhere in this module, so its absence
-    # from the source is the honest check, and there is nothing to evade.
-    # Comments are excluded so this file's own explanation, and any future
-    # comment saying why the spelling is banned, do not trip it.
+    # from the source is the honest check. Comments are excluded so this file's
+    # own explanation, and any future comment saying why the spelling is banned,
+    # do not trip it.
+    #
+    # This catches an honest reintroduction, which is what we have actually seen.
+    # It is not proof: `{"priogrid" + "_gid": ...}` rebuilds the key at runtime
+    # without the literal ever appearing, and no static check survives an author
+    # working around it deliberately. Limits recorded in register C-78.
     source = pathlib.Path(spatial_level.__file__).read_text(encoding="utf-8")
     code = "\n".join(
         line for line in source.splitlines() if not line.strip().startswith("#")
