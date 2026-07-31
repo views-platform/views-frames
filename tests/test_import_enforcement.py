@@ -53,9 +53,7 @@ def test_package_dependency_dag() -> None:
                 forbidden = mod in FORBIDDEN
                 arrow_outside_io = mod == "pyarrow" and not under_io
                 foreign_views = (
-                    mod.startswith("views_")
-                    and mod != package
-                    and mod not in allowed
+                    mod.startswith("views_") and mod != package and mod not in allowed
                 )
                 if forbidden or arrow_outside_io or foreign_views:
                     rel = py.relative_to(SRC)

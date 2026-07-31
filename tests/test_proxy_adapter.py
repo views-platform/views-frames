@@ -62,9 +62,7 @@ def test_grid_adapter_with_samples_satisfies_the_contract():
     time = np.repeat(np.arange(2, dtype=np.int64), 9)
     unit = np.tile(np.arange(9, dtype=np.int32), 2)
     index = SpatioTemporalIndex(time=time, unit=unit, level=SpatialLevel.PGM)
-    frame = FeatureFrame(
-        samples.astype(np.float32), index, ["channel_0", "channel_1"]
-    )
+    frame = FeatureFrame(samples.astype(np.float32), index, ["channel_0", "channel_1"])
 
     assert frame.sample_count == 16 and frame.is_sample
     assert_frame_contract(frame)

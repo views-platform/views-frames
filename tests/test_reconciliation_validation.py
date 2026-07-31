@@ -73,16 +73,24 @@ class TestGuards:
     def test_time_mismatch_raises(self, fix):
         mk, mv = _mk(fix)
         keep = fix["cm_time"] != 530  # drop a month from cm
-        cm = _cm(fix, time=fix["cm_time"][keep], unit=fix["cm_unit"][keep],
-                 vals=fix["cm__pred_ged_sb"][keep])
+        cm = _cm(
+            fix,
+            time=fix["cm_time"][keep],
+            unit=fix["cm_unit"][keep],
+            vals=fix["cm__pred_ged_sb"][keep],
+        )
         with pytest.raises(ValueError, match="different time steps"):
             validate_reconciliation_inputs(cm, _pgm(fix), mk, mv)
 
     def test_missing_country_raises(self, fix):
         mk, mv = _mk(fix)
         keep = fix["cm_unit"] != fix["cm_unit"][0]  # drop a country from cm
-        cm = _cm(fix, time=fix["cm_time"][keep], unit=fix["cm_unit"][keep],
-                 vals=fix["cm__pred_ged_sb"][keep])
+        cm = _cm(
+            fix,
+            time=fix["cm_time"][keep],
+            unit=fix["cm_unit"][keep],
+            vals=fix["cm__pred_ged_sb"][keep],
+        )
         with pytest.raises(ValueError, match="no country forecast"):
             validate_reconciliation_inputs(cm, _pgm(fix), mk, mv)
 

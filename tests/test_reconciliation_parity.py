@@ -39,7 +39,10 @@ class TestParityWithOracle:
             got = reconcile_proportional(grid, arg_country)
             assert got.shape == expected.shape, f"shape drift in {label}"
             np.testing.assert_allclose(
-                got, expected, rtol=1e-5, atol=1e-6,
+                got,
+                expected,
+                rtol=1e-5,
+                atol=1e-6,
                 err_msg=f"parity drift in case {label}",
             )
 

@@ -85,7 +85,5 @@ def assert_reconcile_contract(
         cm_total = cm_frame.values[cm_pos[(int(t), int(c))]]
         total = np.broadcast_to(cm_total, out_sum.shape)
         active = in_sum != 0
-        np.testing.assert_allclose(
-            out_sum[active], total[active], rtol=1e-4, atol=1e-3
-        )
+        np.testing.assert_allclose(out_sum[active], total[active], rtol=1e-4, atol=1e-3)
         assert bool((out_sum[~active] == 0).all()), "all-zero draws stay zero"
