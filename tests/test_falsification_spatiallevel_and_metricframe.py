@@ -24,10 +24,12 @@ These originally asserted against the wording of the design document. They now
 assert against the behaviour (2026-07-31, epic #208 / S6 #214).
 """
 
+import pathlib
+
 import pytest
 
 import views_frames
-from views_frames import SpatialLevel
+from views_frames import SpatialLevel, spatial_level
 
 # The spelling ADR-015 removed. It must not come back — see below for why this
 # particular guard is not hypothetical.
@@ -54,22 +56,27 @@ def test_falsify_sl_01_the_legacy_identifier_spelling_never_comes_back():
         assert LEGACY_SPELLING not in level.entity_column
         assert not any(LEGACY_SPELLING in name for name in level.index_names)
 
-    import views_frames.spatial_level as module
-
-    for attribute in dir(module):
-        if attribute.startswith("__"):
-            continue
-        assert "normalize_entity" not in attribute, (
-            f"{attribute} looks like a spelling-normalisation helper; ADR-015 says "
-            "this package carries one vocabulary and renames happen upstream"
-        )
-        value = getattr(module, attribute)
-        if isinstance(value, dict):
-            text = " ".join([str(k) for k in value] + [str(v) for v in value.values()])
-            assert LEGACY_SPELLING not in text, (
-                f"{attribute} maps the legacy identifier spelling — this is the "
-                "alias ADR-015 removed; rename upstream instead"
-            )
+    # Read the module's source rather than inspecting its objects. An earlier
+    # version of this test walked `dir(module)` looking for a dict whose contents
+    # held the old spelling, plus an attribute named like a normaliser. That was
+    # too specific to the shape of the one attempt we had seen: a code review
+    # showed it could be walked around by a `frozenset`, a tuple of pairs, a
+    # constant nested in a class, or simply a function named
+    # `priogrid_gid_to_id` — which passed while being exactly the thing banned.
+    #
+    # The spelling has no legitimate use anywhere in this module, so its absence
+    # from the source is the honest check, and there is nothing to evade.
+    # Comments are excluded so this file's own explanation, and any future
+    # comment saying why the spelling is banned, do not trip it.
+    source = pathlib.Path(spatial_level.__file__).read_text(encoding="utf-8")
+    code = "\n".join(
+        line for line in source.splitlines() if not line.strip().startswith("#")
+    )
+    assert LEGACY_SPELLING not in code, (
+        f"{LEGACY_SPELLING} appears in spatial_level.py outside a comment — this "
+        "package carries one vocabulary (ADR-015) and renames happen upstream, "
+        "before data reaches it"
+    )
 
 
 def test_falsify_sl_01b_the_index_tuple_is_time_first():
