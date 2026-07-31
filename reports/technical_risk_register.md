@@ -82,6 +82,8 @@ Four times in a single epic, a resolution described what the author **meant to d
 
 **Tier 3** — no correctness or silent-corruption path; the cost is that the register, the artifact this project reasons with, states things that are not quite true, and every decision built on it inherits the error. It is Tier 3 rather than 4 because this register is load-bearing: entries like C-66 are executable instructions for a future breaking release, and an instruction that overstates its own completeness is worse than one that admits a gap. **Resolved when** three consecutive resolutions pass a re-run of their own stated check by someone other than their author — or when the habit of pasting the check's output into the resolution is visible in the next five entries.
 
+**Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
+
 ---
 
 ### C-78: the architectural guards have known blind spots — they catch honest regressions, not adversarial ones
@@ -111,8 +113,8 @@ None of these is a defect to fix now. Every one requires someone to work around 
 | Field | Value |
 |-------|-------|
 | ID | C-79 |
-| Tier | 3 |
-| Status | **actionable** — freeze one parquet fixture from the current release and assert the next version loads it |
+| Tier | 4 |
+| Status | **actionable** — freeze one parquet fixture and assert a later version loads it. **Preventive, not corrective:** the gap this closes is currently costing nothing (measured, see below) |
 | Source | test-review (2026-07-31), Kleppmann lens. |
 | Trigger | **Before the next change to `io/arrow.py::save` or `io/arrow.py::load`** — and especially before adding another validation rule to `load`. Write a parquet with the *current* release, commit it as a fixture, and assert a later version still reads it to the same values. The `.npz` fixtures under `tests/fixtures/` already establish the pattern. |
 | Location | `tests/test_io.py` (every arrow test writes and reads in one process at one version); `tests/fixtures/` (holds `reconciliation_parity.npz` and `reconciliation_e2e_parity.npz` — but no parquet); `src/views_frames/io/arrow.py::save` / `::load`. |
@@ -120,9 +122,13 @@ None of these is a defect to fix now. Every one requires someone to work around 
 
 Every arrow IO test writes a file and reads it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that actually matters for a data-contract package: that a file written by an earlier release still loads.
 
-This is not hypothetical in shape. **v1.10.1 added validation to `load`** — three new `ValueError` paths rejecting row orders that violate the written wire contract. Those rules were derived from what `save` writes *today*. Nothing checks that a parquet written by v1.8.0 or v1.10.0 satisfies them, and the consumers on that path (views-postprocessing, views-faoapi #100) hold archived shards written by earlier releases.
+**Measured 2026-07-31, before the v1.10.2 tag — the current exposure is zero.** The `save` function was extracted from tag `v1.8.0` and from `HEAD` and diffed: **byte-identical**. The writer has not changed since v1.8.0, so every file any consumer holds was produced by the same code today's checks were derived from. Confirmed empirically as well as structurally: v1.8.0's `save` was loaded from git as its own module, used to write both a 2-D prediction parquet and a 3-D feature parquet, and both were read back by today's `load` with values bit-identical and metadata intact.
 
-**Tier 3** — the failure is **loud**: a rejected file raises `ValueError` with a clear message, never a wrong number. It is Tier 3 rather than 4 because the blast radius is consumer-side and awkward to diagnose (a consumer's archived data suddenly unreadable after a routine upgrade), and because the fixture pattern already exists here, so the cost of closing it is one committed file plus one test. **Resolved when** a parquet fixture written by a released version is committed and read by a test.
+So this entry tracks a **missing test**, not a live defect — and the distinction matters, because it was first written as though the two were the same. What remains true: **v1.10.1 added validation to `load`** — three new `ValueError` paths rejecting row orders that violate the written wire contract. Those rules were derived from what `save` writes *today*. Nothing checks that a parquet written by v1.8.0 or v1.10.0 satisfies them, and the consumers on that path (views-postprocessing, views-faoapi #100) hold archived shards written by earlier releases.
+
+**Tier 4, recalibrated from 3 on the evidence above.** It was filed Tier 3 on the reasoning that a consumer's archived data could become unreadable after a routine upgrade. Measurement removed the premise: no such file exists, because the writer never changed. What is left is a genuine but purely preventive test gap — no correctness or reliability impact today, and the failure it would eventually catch is loud (a `ValueError` with a clear message, never a wrong number).
+
+**The trigger is what carries the value here**, not the tier: the moment `save` changes, this stops being preventive. Anyone editing it should commit a fixture written by the previous release first, while an unmodified writer still exists to produce one. **Resolved when** a parquet fixture written by a released version is committed and read by a test.
 
 ---
 
