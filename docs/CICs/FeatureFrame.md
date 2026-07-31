@@ -36,8 +36,9 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
   identifiers integer, length-`N`, complete; the sample axis is the **trailing** axis,
   always explicit (`S >= 1`; ADR-012) — a non-sampled feature frame is `(N, F, 1)`.
 - Carries `feature_names: list[str]` (length `F`) and a typed `metadata` header
-  (ADR-013); both serialize **with** the frame (register C-09). `from_2d` lifts a
-  legacy `(N, F)` array to `(N, F, 1)`.
+  (ADR-013); both serialize **with** the frame (register C-09). `from_2d` builds a
+  frame from a 2-D `(N, F)` array of unsampled features, adding the trailing sample
+  axis to give `(N, F, 1)`. It is ordinary, supported surface — not a deprecated shim.
 - Immutable with copy-vs-view semantics identical to `PredictionFrame` (C-07): the
   **index is enforced** read-only; the **value buffer is immutable by convention**
   (writeable for zero-copy — in-place `.values` mutation is unsupported; ADR-025 / C-63).

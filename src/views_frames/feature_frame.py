@@ -62,7 +62,12 @@ class FeatureFrame:
         feature_names: list[str],
         metadata: FrameMetadata | None = None,
     ) -> FeatureFrame:
-        """Lift a legacy 2D ``(N, F)`` array to ``(N, F, 1)`` (deprecated shim)."""
+        """Build a frame from a 2-D ``(N, F)`` array of unsampled features.
+
+        The sample axis is always explicit (ADR-012), so unsampled features are
+        stored as ``(N, F, 1)``. This adds that trailing axis for you. Raises
+        ``ValueError`` if the input is not 2-D.
+        """
         arr = coerce_values(y_features_2d)
         if arr.ndim != 2:
             raise ValueError(f"from_2d expects a 2D (N, F) array, got ndim={arr.ndim}")
