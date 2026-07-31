@@ -17,9 +17,9 @@ PredictionFrame CIC §9 lists `pf.values[:] = 0` as forbidden). The audit chain
 the guarantee is enforced **only for the index**, not the value buffer:
 
 - `SpatioTemporalIndex` stores its `time`/`unit` arrays `setflags(write=False)`
-  (`index.py:55-56`) — they are genuinely write-protected.
+  (`index.py::SpatioTemporalIndex.__init__` (the two `setflags(write=False)` calls)) — they are genuinely write-protected.
 - The frame **value buffer is not.** `_validation.coerce_values` returns a float32 input
-  **without copy** and without `setflags` (`_validation.py:64`); each frame constructor does
+  **without copy** and without `setflags` (`_validation.py::coerce_values`); each frame constructor does
   `self._values = values` with no write-protection; `frame.values.flags.writeable` is `True`.
 - `with_metadata` returns a new frame **sharing** that buffer (zero-copy, C-07). So an
   in-place mutation of `frame.values` (`f.values[:] = 0`, `f.values *= k`) **silently
@@ -126,7 +126,7 @@ by-convention reality. Out of scope: any code change; any change to `CONFORMANCE
   the deferred-enforce recorded.
 - **The deferred MAJOR-rider (future):** in `prediction_frame.py` (~line 44), `target_frame.py`
   (~line 43), `feature_frame.py` (~line 52), add `self._values.setflags(write=False)` after
-  the `self._values = ...` assignment; add a red test mirroring `tests/test_properties.py:38`
+  the `self._values = ...` assignment; add a red test mirroring `tests/test_properties.py::test_with_metadata_shares_the_values_buffer`
   asserting `frame.values.flags.writeable is False` and that an in-place write raises. Do this
   **only** as part of a MAJOR that is already happening.
 
