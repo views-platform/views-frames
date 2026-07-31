@@ -58,9 +58,13 @@ one — re-auditing it produces the same answer its precondition already gives.
 > cross-cutting **verification-completeness** theme {C-74, C-75} and the
 > **freeze-as-root-cause** meta-cluster that spans several of them. Read the
 > Conventions entries for *why* each is open — most are waiting on a precondition, not on
-> effort. **The 2026-07-31 pre-release sweep added C-74/C-75/C-76** — all three are
-> *ship-readiness* items (unarmed gates, fossil tests, a frozen-surface wording call), none
-> blocking, and unlike most of the register they are cheap and actionable *now*.
+> effort. **The 2026-07-31 pre-release sweep added C-74/C-75/C-76**, and **epic #208 then closed most of
+> what it found**: C-52/C-53/C-54 by declining #113 (ADR-027), C-58 and C-76 by settling two
+> deferred calls, C-75 by rewriting eleven tests to check behaviour instead of README wording,
+> and half of C-74 by putting `validate_docs.sh` into CI (the formatting half closes after the
+> v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
+> cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
+> with nothing closed.
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
