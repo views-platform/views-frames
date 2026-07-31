@@ -57,3 +57,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash docs/validate_docs.sh
+
+  # Formatting, kept out of the four-version matrix for the same reason as the
+  # docs job: `ruff format` does not depend on the Python version, so running it
+  # four times would be waste. Its own job rather than a step in `docs` because
+  # it needs `uv`, which that job deliberately does not install.
+  #
+  # This could only be armed once the tree was already formatted (register C-74,
+  # S10) — enabling it against 18 drifted files would have failed every pull
+  # request. It exists so the drift cannot silently return.
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv run ruff format --check .

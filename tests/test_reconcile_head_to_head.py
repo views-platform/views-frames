@@ -31,9 +31,12 @@ def _import_old():
         str(Path(__file__).resolve().parents[2] / "views-postprocessing"),
     ]
     for cand in candidates:
-        if cand and (
-            Path(cand) / "views_postprocessing" / "reconciliation" / "__init__.py"
-        ).exists():
+        if (
+            cand
+            and (
+                Path(cand) / "views_postprocessing" / "reconciliation" / "__init__.py"
+            ).exists()
+        ):
             if cand not in sys.path:
                 sys.path.insert(0, cand)
             break

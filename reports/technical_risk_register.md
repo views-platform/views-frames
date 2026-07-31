@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-07-31                           |
 | Total Concerns    | 78                                   |
-| Open Concerns     | 15                                   |
-| Resolved Concerns | 63                                   |
+| Open Concerns     | 14                                   |
+| Resolved Concerns | 64                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -50,7 +50,7 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> **The 15 open concerns are grouped under *Causal clusters* in Register Conventions —
+> **The 14 open concerns are grouped under *Causal clusters* in Register Conventions —
 > that list is the single authority and this preamble deliberately does not restate it**
 > (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
 > {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-62}; **cross-repo coordination** {C-13, C-46};
@@ -322,26 +322,6 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 
 ---
 
-### C-74: the CI gate is a strict subset of the local gate — `validate_docs.sh` and `ruff format` run only by habit
-
-| Field | Value |
-|-------|-------|
-| ID | C-74 |
-| Tier | 3 |
-| Status | **actionable** — half shipped in S3 (#211): the `docs` job runs `validate_docs.sh` in CI. Remaining: one `ruff format .` pass over 18 files, then one `- run:` line adding `ruff format --check` to that job. Sequenced after the release (S10 #218). |
-| Source | pre-release repo sweep (2026-07-31), prompted by the ship-readiness review; found while checking what the C-70 "recurrence guard" actually enforces. |
-| Trigger | **At the next MINOR/MAJOR version bump** — the case where the README banner must move — do not rely on CI to catch a stale banner; run `bash docs/validate_docs.sh` locally before tagging, or wire it into `ci.yml` first. Same at the next multi-file contribution: without a `ruff format --check` job, the first contributor whose formatter runs produces a reformat-the-world diff. |
-| Location | `.github/workflows/ci.yml:20-22` (gates `ruff check`, `mypy src/`, `pytest --cov-fail-under=100` — **and nothing else**); `docs/validate_docs.sh` (referenced **nowhere** under `.github/`); `ruff format` (never invoked in CI; **22 of 77 files** currently drifted). |
-| Cross-refs | **C-70** (its resolution claimed this guard was live — corrected there), C-51 / C-58 (the same "the check exists but is not exercised" family), C-75 (the sibling finding: tests inside the gate that don't test the code), the cross-cutting **verification-completeness** cluster. |
-
-Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh` — including the README-banner-vs-`pyproject` check added *specifically* as C-70's recurrence guard — is not referenced anywhere in `.github/`; it runs only when a maintainer types it. C-70's resolution asserts the opposite ("the narrative epoch-lag pattern **fails validation** instead of accumulating"), so the register itself carried an overstated enforcement claim until this entry (C-70 corrected 2026-07-31). The guard is one `- run:` line from being real. **(2)** `ruff format` is never run in CI, and 22 of 77 files are already drifted from it — harmless today because one person formats deliberately, a noisy-diff generator the moment a second contributor's editor does it automatically.
-
-**Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
-
-**Half done (2026-07-31, Epic #208 / S3 #211).** `ci.yml` now has a `docs` job that runs `bash docs/validate_docs.sh` on every push and pull request to `main` and `development` — so the version-banner check is finally a gate, in time for this epic's own version bump. It is a **separate job rather than a step in the four-version matrix**: the script is bash and grep with no Python involvement, so running it inside the matrix would repeat it four times and couple documentation policy to the list of supported Python versions. **Still open for the formatting half** — `ruff format --check` cannot be turned on until the 22 drifted files are fixed, or it fails every pull request. That is S10 (#218), deliberately sequenced after the release. This entry closes there.
-
----
-
 ## Disagreements
 
 ### D-01: `SpatioTemporalIndex` domain-purity fork (where does cross-level alignment live?)
@@ -483,6 +463,30 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-74: the CI gate was a strict subset of the local gate — `validate_docs.sh` and `ruff format` ran only by habit — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-74 |
+| Resolved | 2026-07-31 (Epic #208 / S3 #211 + S10 #218) |
+| Tier | 3 |
+| Source | pre-release repo sweep (2026-07-31), prompted by the ship-readiness review; found while checking what the C-70 "recurrence guard" actually enforces. |
+| Trigger | **At the next MINOR/MAJOR version bump** — the case where the README banner must move — do not rely on CI to catch a stale banner; run `bash docs/validate_docs.sh` locally before tagging, or wire it into `ci.yml` first. Same at the next multi-file contribution: without a `ruff format --check` job, the first contributor whose formatter runs produces a reformat-the-world diff. |
+| Location | `.github/workflows/ci.yml:20-22` (gates `ruff check`, `mypy src/`, `pytest --cov-fail-under=100` — **and nothing else**); `docs/validate_docs.sh` (referenced **nowhere** under `.github/`); `ruff format` (never invoked in CI; **22 of 77 files** currently drifted). |
+| Cross-refs | **C-70** (its resolution claimed this guard was live — corrected there), C-51 / C-58 (the same "the check exists but is not exercised" family), C-75 (the sibling finding: tests inside the gate that don't test the code), the cross-cutting **verification-completeness** cluster. |
+
+Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh` — including the README-banner-vs-`pyproject` check added *specifically* as C-70's recurrence guard — is not referenced anywhere in `.github/`; it runs only when a maintainer types it. C-70's resolution asserts the opposite ("the narrative epoch-lag pattern **fails validation** instead of accumulating"), so the register itself carried an overstated enforcement claim until this entry (C-70 corrected 2026-07-31). The guard is one `- run:` line from being real. **(2)** `ruff format` is never run in CI, and 22 of 77 files are already drifted from it — harmless today because one person formats deliberately, a noisy-diff generator the moment a second contributor's editor does it automatically.
+
+**Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
+
+**Half done (2026-07-31, Epic #208 / S3 #211).** `ci.yml` now has a `docs` job that runs `bash docs/validate_docs.sh` on every push and pull request to `main` and `development` — so the version-banner check is finally a gate, in time for this epic's own version bump. It is a **separate job rather than a step in the four-version matrix**: the script is bash and grep with no Python involvement, so running it inside the matrix would repeat it four times and couple documentation policy to the list of supported Python versions. **Still open for the formatting half** — `ruff format --check` cannot be turned on until the 22 drifted files are fixed, or it fails every pull request. That is S10 (#218), deliberately sequenced after the release. This entry closes there.
+
+---
+
+**Resolved — both halves are now gates.** `validate_docs.sh` runs as the `docs` job (S3, #211), and `ruff format --check` as the `format` job (S10, #218), each on every push and pull request to `main` and `development`. The formatting half could only be armed after the 18 drifted files were fixed, which is why it came last and why it came after the release: reformatting shifts line numbers and rewrites files, and doing that earlier would have invalidated the documentation citations (S4) and the test files being rewritten (S5/S6) while that work was in flight. Measured after the sweep: **0 citations broken, 14/14 symbol anchors still resolving** — the sequencing worked. Both jobs sit outside the four-version matrix because neither depends on the Python version.
+
+---
 
 ### C-81: the published conformance suite shipped without a CIC, while the CIC index claimed full coverage — RESOLVED
 

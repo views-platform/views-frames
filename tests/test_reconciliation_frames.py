@@ -23,7 +23,10 @@ def fix():
 class TestPgmAdapter:
     def test_satisfies_contract_and_identity(self, fix):
         pf = prediction_frame_from_arrays(
-            fix["pg_time"], fix["pg_unit"], fix["pg__pred_ged_sb"], level=SpatialLevel.PGM
+            fix["pg_time"],
+            fix["pg_unit"],
+            fix["pg__pred_ged_sb"],
+            level=SpatialLevel.PGM,
         )
         assert_frame_contract(pf)
         assert isinstance(pf, PredictionFrame)
@@ -37,7 +40,10 @@ class TestPgmAdapter:
 class TestCmAdapter:
     def test_satisfies_contract_and_country_units(self, fix):
         cf = prediction_frame_from_arrays(
-            fix["cm_time"], fix["cm_unit"], fix["cm__pred_ged_sb"], level=SpatialLevel.CM
+            fix["cm_time"],
+            fix["cm_unit"],
+            fix["cm__pred_ged_sb"],
+            level=SpatialLevel.CM,
         )
         assert_frame_contract(cf)
         assert cf.index.level is SpatialLevel.CM
@@ -64,6 +70,8 @@ class TestBoundaryBehaviour:
     def test_length_mismatch_raises(self, fix):
         with pytest.raises(ValueError, match="length N"):
             prediction_frame_from_arrays(
-                fix["pg_time"][:-1], fix["pg_unit"], fix["pg__pred_ged_sb"],
+                fix["pg_time"][:-1],
+                fix["pg_unit"],
+                fix["pg__pred_ged_sb"],
                 level=SpatialLevel.PGM,
             )

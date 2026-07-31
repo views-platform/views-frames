@@ -22,9 +22,7 @@ from views_frames._typing import IntArray
 REQUIRED_IDENTIFIERS = ("time", "unit")
 
 
-def validate_identifiers(
-    identifiers: dict[str, IntArray], n_rows: int
-) -> None:
+def validate_identifiers(identifiers: dict[str, IntArray], n_rows: int) -> None:
     """Assert identifiers are integer 1-D arrays of length ``n_rows``, complete.
 
     Args:
@@ -42,8 +40,7 @@ def validate_identifiers(
     for key, arr in identifiers.items():
         if not isinstance(arr, np.ndarray):
             raise TypeError(
-                f"Identifier '{key}' must be a numpy array, "
-                f"got {type(arr).__name__}"
+                f"Identifier '{key}' must be a numpy array, got {type(arr).__name__}"
             )
         if not np.issubdtype(arr.dtype, np.integer):
             raise TypeError(
@@ -51,13 +48,10 @@ def validate_identifiers(
                 f"(integers cannot be NaN); got {arr.dtype}"
             )
         if arr.ndim != 1:
-            raise ValueError(
-                f"Identifier '{key}' must be 1-D, got ndim={arr.ndim}"
-            )
+            raise ValueError(f"Identifier '{key}' must be 1-D, got ndim={arr.ndim}")
         if arr.shape[0] != n_rows:
             raise ValueError(
-                f"Identifier '{key}' has length {arr.shape[0]} "
-                f"but expected {n_rows}"
+                f"Identifier '{key}' has length {arr.shape[0]} but expected {n_rows}"
             )
 
 
@@ -98,9 +92,7 @@ def validate_values(values: NDArray[np.float32]) -> None:
             an explicit trailing sample axis (``ndim < 2``).
     """
     if not isinstance(values, np.ndarray):
-        raise TypeError(
-            f"values must be a numpy array, got {type(values).__name__}"
-        )
+        raise TypeError(f"values must be a numpy array, got {type(values).__name__}")
     if values.dtype == np.dtype(object):
         raise ValueError(
             "values must not be object dtype — list-in-cell is banned (README §7)"

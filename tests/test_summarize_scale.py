@@ -43,9 +43,7 @@ def _ref_map(values: NDArray[np.float32], bins: int, zmt: float) -> NDArray[np.f
         centers = (edges[:-1] + edges[1:]) / 2.0
         return float(centers[int(np.argmax(counts))])
 
-    return np.asarray(
-        np.apply_along_axis(m1d, -1, values), dtype=np.float32
-    )
+    return np.asarray(np.apply_along_axis(m1d, -1, values), dtype=np.float32)
 
 
 def _ref_hdi(values: NDArray[np.float32], mass: float) -> NDArray[np.float32]:
@@ -72,8 +70,12 @@ def test_map_estimate_matches_per_row_reference(seed, shape):
     # mix in exact zeros so the zero-mass rule and degenerate-ish rows are exercised
     values = rng.normal(3.0, 2.0, shape).astype(np.float32)
     values[rng.random(shape) < 0.2] = 0.0
-    pf = PredictionFrame(values, _index(shape[0])) if len(shape) == 2 else (
-        FeatureFrame(values, _index(shape[0]), [f"f{i}" for i in range(shape[1])])
+    pf = (
+        PredictionFrame(values, _index(shape[0]))
+        if len(shape) == 2
+        else (
+            FeatureFrame(values, _index(shape[0]), [f"f{i}" for i in range(shape[1])])
+        )
     )
     got = map_estimate(pf, bins=37)
     ref = _ref_map(values, bins=37, zmt=0.3)
@@ -101,8 +103,12 @@ def test_map_estimate_degenerate_rows_match_reference():
 def test_hdi_matches_per_row_reference(seed, mass, shape):
     rng = np.random.default_rng(seed)
     values = rng.normal(0.0, 5.0, shape).astype(np.float32)
-    pf = PredictionFrame(values, _index(shape[0])) if len(shape) == 2 else (
-        FeatureFrame(values, _index(shape[0]), [f"f{i}" for i in range(shape[1])])
+    pf = (
+        PredictionFrame(values, _index(shape[0]))
+        if len(shape) == 2
+        else (
+            FeatureFrame(values, _index(shape[0]), [f"f{i}" for i in range(shape[1])])
+        )
     )
     got = hdi(pf, mass=mass)
     ref = _ref_hdi(values, mass=mass)
