@@ -53,8 +53,10 @@ Contracts must be clear enough that:
 
 Every non-trivial surface across the three shipped packages (`views_frames`,
 `views_frames_summarize`, `views_frames_reconcile`) is governed by an active CIC below.
-New contracts are authored **with** the class/package that introduces them (the
-`Reconcile.md` gap was the last, closed 2026-06-28, register C-64).
+New contracts are authored **with** the class/package that introduces them. Two gaps were
+found after the fact rather than authored alongside: `Reconcile.md` (closed 2026-06-28,
+register C-64) and `Conformance.md` (closed 2026-07-31, register C-81) — the second found
+only because this claim of completeness was audited against the code.
 
 ---
 
@@ -74,6 +76,10 @@ These CICs govern the shipped surface (`src/`, three packages, frozen since v1.0
 - `Reconcile.md` — the `views_frames_reconcile` sibling package (`ReconciliationModule` /
   `reconcile_proportional` / `ReconciliationResult`; pgm→cm top-down proportional
   reconciliation, injected mapping, self-describing mode; ADR-023/ADR-024).
+- `Conformance.md` — the published conformance suite consumers run in **their** CI
+  (`assert_frame_contract` / `assert_frame_envelope` / the alignment, fill and cross-level
+  laws + `CONFORMANCE_FLOOR`); the only surface here whose primary caller is another
+  repository (ADR-016).
 
 The `_validation` helper and the tiny `SpatialLevel` value object are governed primarily by
 tests (and ADR-015 for `SpatialLevel`) rather than a CIC.

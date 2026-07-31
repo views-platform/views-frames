@@ -41,3 +41,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - run: uv build
+
+  # Documentation consistency, including the check that the README's version
+  # banner still matches pyproject.toml. That banner check was added after the
+  # README fell a whole release cycle behind reality (register C-70) — but the
+  # script was never wired into CI, so it only ran when someone typed it
+  # (register C-74). This job is what makes it a gate.
+  #
+  # Its own job on purpose: the script is bash and grep, with no Python
+  # involved, so running it inside the four-version `check` matrix would repeat
+  # it four times and tie a documentation check to the list of Python versions
+  # we support — an unrelated thing to change.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash docs/validate_docs.sh

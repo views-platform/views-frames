@@ -4,6 +4,61 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [1.10.2] — 2026-07-31
+
+**No behaviour change.** This release publishes work on the checks, the tests and the
+documentation. The only change under `src/` is a corrected docstring. `CONFORMANCE_FLOOR`
+stays `1.0.0`, and no public API was added, changed or removed.
+
+If you are upgrading from 1.10.1, nothing in your code needs to change.
+
+### Fixed
+
+- `FeatureFrame.from_2d` was documented as a *"deprecated shim"*. It is not deprecated —
+  it builds a frame from a 2-D `(N, F)` array of unsampled features and adds the trailing
+  sample axis to give `(N, F, 1)`. Since the sample axis is always explicit (ADR-012),
+  that is the ordinary constructor for deterministic features. The method docstring, the
+  module docstring, the constructor's `ValueError` message and the contract file were all
+  corrected — the first pass missed the last two, so the same file contradicted itself for
+  a while (register C-76).
+
+### Changed — checks
+
+- **`docs/validate_docs.sh` now runs in CI.** It checks documentation consistency,
+  including that the README's version banner matches `pyproject.toml`. That banner check
+  had been added specifically to stop version drift recurring, but the script was never
+  wired into CI — it only ran when someone typed it (register C-74, half closed here; the
+  formatting half follows).
+
+### Changed — tests
+
+- **Eleven falsification tests now check the code instead of the README's wording.** They
+  were written before the package existed, when asserting that the design document had
+  *decided* something was the only check available. They had reached the point of failing
+  when someone reworded a paragraph and passing when the code broke. Ten were rewritten
+  against behaviour; one was retired because `test_import_enforcement.py` already enforces
+  it directly (register C-75).
+- Among them, the check that no legacy `priogrid_gid` alias exists now inspects the code
+  rather than the documentation — a guard against something that was actually attempted.
+
+### Changed — documentation
+
+- **New contract document: `docs/CICs/Conformance.md`.** The published conformance suite —
+  the checks consumers run in their own CI — had no contract describing what it guarantees,
+  while the contract index claimed every shipped surface was covered. It now documents each
+  check, what it deliberately does *not* verify, and the failure mode that matters most: a
+  checker must **fail** when handed a frame that misreports itself (register C-81).
+
+- **ADR-027** records the decision to decline issue #113, which asked for a one-line
+  shortcut for building a `PredictionFrame`. Construction stays two-step. The design that
+  had been agreed for it is preserved in the ADR, along with what would justify revisiting
+  it (register C-52, C-53, C-54).
+- The reconciliation production-slice check is closed: the comparison tool and the runbook
+  requirement for it both shipped some time ago (register C-58).
+- Documentation now cites code **by name** rather than by line number
+  (`_validation.py::coerce_values`, not `_validation.py:64`). Line numbers had already
+  drifted unnoticed in two entries.
+
 ## [1.10.1] — 2026-07-28
 
 **`io.arrow.load` now validates the wire-contract row order before reshaping (#199 item 1).**

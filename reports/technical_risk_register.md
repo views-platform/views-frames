@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-07-28                           |
-| Total Concerns    | 69                                   |
-| Open Concerns     | 13                                   |
-| Resolved Concerns | 56                                   |
+| Last Updated      | 2026-07-31                           |
+| Total Concerns    | 78                                   |
+| Open Concerns     | 15                                   |
+| Resolved Concerns | 63                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -20,6 +20,21 @@
 | 2 | High | Structural fragility that will cause failures under realistic change scenarios. |
 | 3 | Medium | Maintainability or coupling issues that increase cost of change. |
 | 4 | Low | Code quality concerns that do not affect correctness or reliability. |
+
+## Status (open concerns)
+
+Tier answers *how bad*; **Status answers *can we act***. At 17 open concerns — 13 of them
+Tier 3 — tier alone stopped discriminating, and "17 open" read as 17 things someone might
+have to do when most cannot be acted on at all. Every open entry carries one:
+
+| Status | Meaning |
+|--------|---------|
+| **actionable** | Nothing blocks it. It can be closed with work available today; the entry says roughly how much. |
+| **awaiting — `<precondition>`** | Cannot be "fixed" — it waits on a MAJOR bump, a consumer receipt, a research result, or another repo. Correct state is *visible and dormant*, not *neglected*. Naming the precondition is mandatory; "awaiting" with no named condition is a bug in the entry. |
+
+Read the register by Status first, Tier second: **Status is the work queue, Tier is the
+ordering within it.** An `awaiting` entry is not a backlog item and must not be treated as
+one — re-auditing it produces the same answer its precondition already gives.
 
 ---
 
@@ -35,37 +50,126 @@
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> The **13 currently open** concerns fall into five clusters plus a cross-cutting theme
-> (and one standalone operational item — **C-71**, the dense-fill grid-scale allocation
-> awareness shipped with ADR-026, 2026-07-27)
-> (detailed under *Causal clusters* in Register Conventions): **(1) summarize-estimator
-> coherence (#89)** — C-32, C-34, C-43, C-57 (the under-determined frozen MAP/bimodality
-> estimators); **(2) reconcile method + governance** — C-58, C-62 (+ D-12): a pragmatic
-> per-draw port with a deferred principled upgrade (ADR-024); the package's missing CIC (C-64)
-> was closed by `Reconcile.md` (epic #179 / S1); **(3)
-> construction-convenience accretion (#113)** — C-52, C-53, C-54 (+ D-09), the `from_arrays`
-> "camel's nose"; **(4) cross-repo coordination** — C-13, C-46 (+ D-04/D-05/D-06); **(5)
-> immutability enforcement** — C-66 (+ resolved C-63): the C-63 contract-correction is done
-> (ADR-025, epic #179 / S2), but the actual `setflags`-enforce on `.values` is a MAJOR and is
-> deferred — **C-66** tracks that enforce-rider so it stays visible in Open. The cross-cutting
-> **verification-completeness** theme now narrows to C-58 (the reconciler's production-slice
-> check); its sibling C-65 (non-finite fail-loud on the blocked path) was pinned with a red
-> test (epic #179 / S3). Earlier clusters are closed:
-> **post-1.1.0 polish** {C-35, C-36, C-37, C-38} by **Epic 7** (2026-06-24) and the 2026-06-22
-> test-review gaps {C-29, C-31} by **Epic 6** — both now in Resolved Concerns. (`map_estimate`'s
-> tower-nesting sibling **C-33** was resolved by ADR-019, 2026-06-23.)
+> **The 15 open concerns are grouped under *Causal clusters* in Register Conventions —
+> that list is the single authority and this preamble deliberately does not restate it**
+> (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
+> {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-62}; **cross-repo coordination** {C-13, C-46};
+> **immutability enforcement** {C-66}; **scale & footprint awareness** {C-71, C-73}; plus the
+> cross-cutting **verification-completeness** theme {C-74, C-75} and the
+> **freeze-as-root-cause** meta-cluster that spans several of them. Read the
+> Conventions entries for *why* each is open — most are waiting on a precondition, not on
+> effort. **The 2026-07-31 pre-release sweep added C-74/C-75/C-76**, and **epic #208 then closed most of
+> what it found**: C-52/C-53/C-54 by declining #113 (ADR-027), C-58 and C-76 by settling two
+> deferred calls, C-75 by rewriting eleven tests to check behaviour instead of README wording,
+> and half of C-74 by putting `validate_docs.sh` into CI (the formatting half closes after the
+> v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
+> cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
+> with nothing closed.
+
+### C-77: resolution text describes the intent, not the result — four instances in one epic
+
+| Field | Value |
+|-------|-------|
+| ID | C-77 |
+| Tier | 3 |
+| Status | **actionable** — the discipline change is free; adopting it costs one extra check per resolution |
+| Source | Pattern across epic #208 (2026-07-31), surfaced by two `/code-review max` passes. |
+| Trigger | **When writing or reviewing a `Resolution` field**, before saving: run the check the resolution implies and paste its output, rather than describing what was done. Specifically — if the resolution says a claim was corrected, grep for the claim's wording everywhere, not just where it was noticed; if it says a guard was added, try to defeat the guard; if it says citations were converted, grep for every form of the old style, not the one you happened to write. |
+| Location | Four confirmed instances, all corrected: **C-70** claimed a CI guard was "failing validation" when the script was never in CI; **C-76** claimed the `from_2d` wording was fixed while the module docstring and a `ValueError` still said "legacy shim"; **C-75** described a guard as stronger than it was, twice — first the evadable `dir(module)` form, then the "nothing to evade" wording; **S4/#212** claimed all line-number citations were converted while `docs/ADRs/025_value_buffer_immutability_by_convention.md` retained three written as approximate line numbers in parentheses, a form the acceptance grep could not match. |
+| Cross-refs | C-70, C-75, C-76, C-78; the cross-cutting **verification-completeness** cluster, of which this is the documentation-side twin. |
+
+Four times in a single epic, a resolution described what the author **meant to do** rather than what was **verifiably done** — and each was caught by someone re-running the check rather than reading the claim. The pattern is not carelessness about the work; the work was correct each time. It is that resolution text gets written while the change is fresh, when intent and result feel identical, and the author's own acceptance check is built from the same mental model that produced the gap. S4's grep is the clearest case: `\.py:[0-9]+` was written by someone thinking in colon-form citations, so it could not see a citation written as an approximate line number in parentheses.
+
+**Tier 3** — no correctness or silent-corruption path; the cost is that the register, the artifact this project reasons with, states things that are not quite true, and every decision built on it inherits the error. It is Tier 3 rather than 4 because this register is load-bearing: entries like C-66 are executable instructions for a future breaking release, and an instruction that overstates its own completeness is worse than one that admits a gap. **Resolved when** three consecutive resolutions pass a re-run of their own stated check by someone other than their author — or when the habit of pasting the check's output into the resolution is visible in the next five entries.
+
+**Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
+
+---
+
+### C-78: the architectural guards have known blind spots — they catch honest regressions, not adversarial ones
+
+| Field | Value |
+|-------|-------|
+| ID | C-78 |
+| Tier | 4 |
+| Status | **awaiting** — a receipted case where an adversarial (rather than honest) regression actually reached the tree |
+| Source | `/code-review max` principles pass (2026-07-31), adversarial agent; each evasion constructed and three verified by execution. |
+| Trigger | **If a regression these guards exist to catch ever reaches `main` anyway**, come back here first: the blind spot is probably already listed below, and the question is whether to deepen the guard or accept that static checks catch honest mistakes only. Also revisit if a contributor other than the maintainer starts writing to `spatial_level.py` or adding modules under `src/views_frames/`. |
+| Location | `tests/test_falsification_spatiallevel_and_metricframe.py::test_falsify_sl_01_the_legacy_identifier_spelling_never_comes_back` (source-text scan); `::test_falsify_mf_01_metricframe_is_not_defined_here` (namespace check); `tests/test_falsification_domain_free_crosslevel.py::test_falsify_cl_03_the_operation_lives_here_and_the_data_does_not` and `::test_falsify_cl_04_the_mapping_is_never_stored_on_the_result` (instance-state checks). |
+| Cross-refs | **C-75** (the rewrite that produced these guards), C-77 (the overstatement that hid these limits), C-18 / ADR-015 (the vocabulary rule `sl_01` protects), ADR-014, ADR-020. |
+
+The falsification guards rewritten in epic #208 are real and catch the regressions they were built for. Their limits are worth writing down so nobody mistakes them for proofs:
+
+1. **The source-text scan reads text, not meaning.** `{"priogrid" + "_gid": "priogrid_id"}` builds the banned key at runtime while the literal never appears contiguously — **verified: the guard passes.** Unicode escapes or `chr()` would work equally well.
+2. **`mf_01` checks the package namespace, not the package.** A full `MetricFrame` in a new `src/views_frames/metric_frame.py` that is never re-exported from `__init__.py` satisfies it.
+3. **`cl_03`/`cl_04` see instance state only.** A module-level cache in `index.py` populated with a *copy* of an injected mapping would hold domain reference data invisibly to both.
+
+None of these is a defect to fix now. Every one requires someone to work around a guard deliberately, and this package has one maintainer whose regressions are honest — the discarded `gid_patch` branch, the case that motivated `sl_01`, made no attempt to hide. **Tier 4** — recorded so the guards are not over-trusted, not because action is needed. Deepening them (AST inspection, package-wide scans, module-state introspection) would buy protection against an adversary this repository does not have, at the cost of tests that are harder to read than the code they guard.
+
+---
+
+### C-79: nothing tests that today's loader can read a file written by an older release
+
+| Field | Value |
+|-------|-------|
+| ID | C-79 |
+| Tier | 4 |
+| Status | **actionable** — freeze one parquet fixture and assert a later version loads it. **Preventive, not corrective:** the gap this closes is currently costing nothing (measured, see below) |
+| Source | test-review (2026-07-31), Kleppmann lens. |
+| Trigger | **Before the next change to `io/arrow.py::save` or `io/arrow.py::load`** — and especially before adding another validation rule to `load`. Write a parquet with the *current* release, commit it as a fixture, and assert a later version still reads it to the same values. The `.npz` fixtures under `tests/fixtures/` already establish the pattern. |
+| Location | `tests/test_io.py` (every arrow test writes and reads in one process at one version); `tests/fixtures/` (holds `reconciliation_parity.npz` and `reconciliation_e2e_parity.npz` — but no parquet); `src/views_frames/io/arrow.py::save` / `::load`. |
+| Cross-refs | **C-72** (the v1.10.1 validation added to `load` — the specific change this gap cannot see), C-73 (the same function's memory residual), **C-46** (adjacent: it already tracks a versioned wire schema, but scoped to the views-evaluation boundary rather than this package's own parquet across its own versions), views-postprocessing ADR-013 (the wire contract), views-faoapi #100. |
+
+Every arrow IO test writes a file and reads it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that actually matters for a data-contract package: that a file written by an earlier release still loads.
+
+**Measured 2026-07-31, before the v1.10.2 tag — the current exposure is zero.** The `save` function was extracted from tag `v1.8.0` and from `HEAD` and diffed: **byte-identical**. The writer has not changed since v1.8.0, so every file any consumer holds was produced by the same code today's checks were derived from. Confirmed empirically as well as structurally: v1.8.0's `save` was loaded from git as its own module, used to write both a 2-D prediction parquet and a 3-D feature parquet, and both were read back by today's `load` with values bit-identical and metadata intact.
+
+So this entry tracks a **missing test**, not a live defect — and the distinction matters, because it was first written as though the two were the same. What remains true: **v1.10.1 added validation to `load`** — three new `ValueError` paths rejecting row orders that violate the written wire contract. Those rules were derived from what `save` writes *today*. Nothing checks that a parquet written by v1.8.0 or v1.10.0 satisfies them, and the consumers on that path (views-postprocessing, views-faoapi #100) hold archived shards written by earlier releases.
+
+**Tier 4, recalibrated from 3 on the evidence above.** It was filed Tier 3 on the reasoning that a consumer's archived data could become unreadable after a routine upgrade. Measurement removed the premise: no such file exists, because the writer never changed. What is left is a genuine but purely preventive test gap — no correctness or reliability impact today, and the failure it would eventually catch is loud (a `ValueError` with a clear message, never a wrong number).
+
+**The trigger is what carries the value here**, not the tier: the moment `save` changes, this stops being preventive. Anyone editing it should commit a fixture written by the previous release first, while an unmodified writer still exists to produce one. **Resolved when** a parquet fixture written by a released version is committed and read by a test.
+
+---
+
+### C-80: the test suite's self-description does not match its contents
+
+| Field | Value |
+|-------|-------|
+| ID | C-80 |
+| Tier | 4 |
+| Status | **actionable** — four small corrections, none requiring new test logic |
+| Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
+| Trigger | **When someone reads the suite to answer "is X covered?"** — most likely a new contributor, or the maintainer at a future audit. Each item below makes that question answerable wrongly. Fix them the next time the relevant file is opened for another reason, rather than as a standalone sweep. |
+| Location | `tests/test_reconcile_head_to_head.py` (collects **0** tests anywhere); the 20 of 36 test files carrying no ADR-005 category marker, and the **zero** 🟨 beige markers suite-wide; `docs/CICs/PredictionFrame.md` §10 (states a memory guarantee pinned by a type check in `tests/test_io.py::test_npz_mmap_returns_memmap`); `docs/CICs/TargetFrame.md` §10 (names no pinning test file, where the other six CICs name one to five). |
+| Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
+
+Four small things, one root cause: **what the suite says about itself is not quite what it does.**
+
+1. **`test_reconcile_head_to_head.py` collects zero tests** — anywhere. It `importorskip`s `views_postprocessing` at module level, and that package is installed neither locally, nor in CI, nor in any dependency group. The file reads as coverage of the bit-identity guarantee against the old implementation; it contributes nothing. The guarantee *is* covered, by the frozen-oracle route in `test_reconciliation_parity.py` and `test_reconciliation_e2e_parity.py` — so nothing is unprotected. What is wrong is that the file implies otherwise.
+2. **The beige category is unmarked suite-wide** — 15 🟩, 26 🟥, **0 🟨**, with 20 of 36 files carrying no marker at all. The CICs *do* specify beige guarantees per class, and most look covered; the taxonomy simply is not applied. A half-applied classification is worse than none, because it implies a system that is being followed.
+3. **A memory guarantee pinned as a type check.** `PredictionFrame` §10 promises *"`mmap` load keeps peak RAM at the working set"*; the tests assert the returned object **is** an `np.memmap` and is read-only. The proxy is defensible — memmap implies lazy paging by definition — but three summarize test files already measure memory, so the capability exists and is simply not pointed here.
+4. **`TargetFrame.md` §10 names no pinning test file**, where the other six CICs name between one and five.
+
+**Tier 4** — nothing is unprotected and no behaviour is at risk; every item is a labelling or wiring correction. Registered because this suite's credibility is the project's main safety argument, and each item degrades the ability to audit it. **Resolved when** the inert file is either wired into CI or removed with its coverage route named, the beige category is applied or dropped from ADR-005, and the two CIC gaps are filled.
+
+---
 
 ### C-13: concentration risk — single point of coordination failure (accepted / monitored)
 
 | Field | Value |
 |-------|-------|
 | ID | C-13 |
-| Tier | 2 |
+| Tier | 3 (recalibrated from 2 on 2026-07-31, `review-rr` strategic) |
+| Status | **awaiting** — the next MAJOR bump (this entry *is* its pre-tag checklist) |
 | Source | expert-review (2026-06-20) |
-| Trigger | A future MAJOR bump to the frozen contract fans out across every consumer at once — when planning one, drive it through the GOVERNANCE coordinated-bump process rather than letting consumers desync. |
+| Trigger | **When a MAJOR bump is opened — before tagging:** confirm every consumer repo has an adoption issue filed and a pinned floor per GOVERNANCE §coordinated-bump, and pair the bump with the **freeze-cluster rider list** (C-66's `setflags` enforce + its red test, C-57's `np.isfinite` guard on `map_estimate`, C-43's shared-binning extraction) — a MAJOR that fans out without carrying its riders spends the coordination budget for nothing. |
 | Location | `README.md` §12 (~12 register items, 3+ repos); `GOVERNANCE.md` (coordinated-bump process) |
+| Cross-refs | D-06 (the WIP-sequencing disagreement, resolved-by-events), C-05 / C-10 (resolved — owner + coordinated-bump process), ADR-018 (the freeze this fans out), the **freeze-as-root-cause** meta-cluster (the rider list). |
 
-The leaf's breadth is both its value and an inherent concentration risk (critique_01 §3.7): it is structurally the single point every consumer pins. **Mitigation shipped** — a minimal, stable, **frozen v1.0.0** (ADR-018) gives consumers a contract that will not churn, and ADR-016 / GOVERNANCE name the owner and the coordinated MAJOR-bump process (C-05, C-10 resolved). **Residual is accepted and monitored:** the fan-out cost of any future MAJOR is irreducible; the control is the GOVERNANCE process, watched as consumers adopt. See also D-06.
+The leaf's breadth is both its value and an inherent concentration risk (critique_01 §3.7): it is structurally the single point every consumer pins. **Mitigation shipped** — a minimal, stable, **frozen v1.0.0** (ADR-018) gives consumers a contract that will not churn, and ADR-016 / GOVERNANCE name the owner and the coordinated MAJOR-bump process (C-05, C-10 resolved). **Residual is accepted and monitored:** the fan-out cost of any future MAJOR is irreducible; the control is the GOVERNANCE process, watched as consumers adopt.
+
+**Tier 3, recalibrated 2026-07-31.** Originally Tier 2, but Tier 2 means *structural fragility that will cause failures under realistic change scenarios* — this entry describes an irreducible **cost** incurred under a process that already exists and has never failed, not a fragility. It is an **accepted standing condition** kept in Open solely so the coordinated-bump discipline stays visible, and its trigger now does real work: it is the pre-tag checklist for the one event that makes concentration bite. See also D-06.
 
 ---
 
@@ -75,9 +179,10 @@ The leaf's breadth is both its value and an inherent concentration risk (critiqu
 |-------|-------|
 | ID | C-32 |
 | Tier | 2 |
+| Status | **awaiting** — #89 estimator redesign (research); `tower_point` is the shipped mitigation |
 | Source | views-faoapi integration spike (2026-06-23) |
-| Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. |
-| Location | `src/views_frames_summarize/point.py:110` (`np.argmax(counts, axis=1)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
+| Trigger | When a consumer adopts `views_frames_summarize.map_estimate` as a drop-in for an existing histogram-MAP (e.g. faoapi's `PosteriorDistributionAnalyzer`), check the tie-break on its real posteriors — on right-skewed, zero-inflated, low-sample (~32-draw) distributions the lowest-index tie-break systematically pulls the mode toward the left tail (zero), shifting published modes downward. **Tier watch (2026-07-31):** the FAO forecast path is now live (faoapi #100/#242 in execution), and the *only* thing holding this at Tier 2 rather than Tier 1 is that the leaf publishes nothing itself. If faoapi (or any consumer) adopts `map_estimate` for **published** modes, the bias stops being latent and this entry becomes Tier 1 — route them to `tower_point` instead. |
+| Location | `src/views_frames_summarize/point.py::_batched_map` (the `np.argmax(counts, axis=1)` tie-break) (`np.argmax(counts, axis=1)` — lowest-index tie-break). Evidence: a views-faoapi integration spike (2026-06-23). |
 
 **Symptom.** At 32 draws in 100 bins the histogram peak is almost always a multi-way tie; `np.argmax` takes the lowest index = leftmost = smallest value, so for a right-skewed, zero-inflated posterior the MAP is dragged toward zero. The faoapi spike measured this against the production estimator: **~21% of active cells diverge one-directionally (NEW MAP ≤ OLD MAP always), up to 7.9 in ln-space** (≈2,700× in count-space). This is the **C-24** portability fix's blind side — C-24 removed the numpy-version *instability* of the `density = count/width` tie-break, but the lowest-index choice it landed on carries a *directional bias* C-24 never weighed.
 
@@ -97,6 +202,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 |-------|-------|
 | ID | C-34 |
 | Tier | 3 |
+| Status | **awaiting** — a genuinely multimodal model regime (#89) |
 | Source | merge-gate review (2026-06-23) |
 | Trigger | When a model change begins producing genuinely multimodal posteriors, watch whether the `bimodality` flag rate rises on those cells. If it stays ~0 while separated modes appear — especially an unequal-weight split, or one mode tall-and-narrow beside a spread mode — the detector is under-flagging and a consumer trusting the single `tower_point` / a single interval will be misled. |
 | Location | `src/views_frames_summarize/bimodality.py` (the coarse-histogram + smoothing + prominence + `min_mass` heuristic). Thresholds (`bimodality_bins`/`prominence`/`min_mass`/`smooth`) now live in `config.TOWER_CONFIG` (C-44 redesign) — still battery-tuned; the trigger is unchanged. |
@@ -111,6 +217,7 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 |-------|-------|
 | ID | C-43 |
 | Tier | 4 |
+| Status | **awaiting** — #89 or a MAJOR; `point.py` is frozen and ulp-sensitive (C-24) |
 | Source | tech-debt-cleanup (2026-06-24) |
 | Trigger | When `map_estimate` is unfrozen or reworked (#89), or the bimodality binning needs to change — at that point extract a shared row-blocked binning helper. It is **not** safely de-dupable now: `point._batched_map` is frozen (ADR-018) and its bin edges are ~1-ulp-sensitive across numpy versions (the C-24 portability saga), so touching it risks a behaviour change to `map_estimate`. |
 | Location | `src/views_frames_summarize/bimodality.py` (`_coarse_counts`); `src/views_frames_summarize/point.py` (`_batched_map`). |
@@ -125,6 +232,7 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 |-------|-------|
 | ID | C-46 |
 | Tier | 2 |
+| Status | **awaiting** — views-evaluation's `MetricFrame` (cross-repo; not resolvable here) |
 | Source | expert-code-review (2026-06-24, GH #109; Kleppmann/Feathers/Nygard lenses) |
 | Trigger | When `views-evaluation` implements `MetricFrame` on the views-frames substrate (Option B, ADR-020), or when the leaf changes its serialisation/round-trip or float32 discipline (`io/`, `_validation.py`) — at that point the envelope invariants (float32 values, round-trip identity, optional-only metadata) exist in two places with no shared check. Re-run a cross-boundary round-trip contract test that calls the leaf's published conformance checker. |
 | Location | Leaf side: `src/views_frames/conformance/__init__.py` (`assert_frame_envelope` / `assert_frame_contract`), `src/views_frames/io/`, `src/views_frames/metadata.py`. Boundary: the (to-be) `MetricFrame` in `views-evaluation`. |
@@ -134,78 +242,19 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 
 ---
 
-### C-52: construction-convenience accretion on the leaf — the "camel's nose" for adapters (ADR-001)
-
-| Field | Value |
-|-------|-------|
-| ID | C-52 |
-| Tier | 3 |
-| Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
-| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — **or adds frame-level serialization/adapter conveniences (`to_parquet`/`from_parquet`, and especially `to_pddf`/`from_pddf`) to the frame classes** — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
-| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py` and against `to_parquet`/`to_pddf`/`from_pddf` accreting onto `src/views_frames/*_frame.py`. |
-| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, **D-11** (serialization-convenience placement — settled off-leaf), C-53, C-54, GH #113. |
-
-ADR-001 (line 17) names accretion as the leaf's existential failure mode — "someone adds an adapter, then grid knowledge … becomes pipeline-core-lite." A construction convenience is the most innocuous possible first step onto that slope. **Tier 3** (recalibrated down from an initial Tier 2 with the pipeline-core owner): under the ratified mitigations the residual risk is boundary-erosion a code-review gate catches, not inherent structural fragility. **Mitigations:** ship the **classmethod** form (a class resists becoming a dumping ground far better than an open `factory.py`); keep it **zero-own-logic**; add a CIC "Construction" **non-goal** that explicitly fences out grid / `value_fn` / inference / adapters. Resolved when `from_arrays` lands with those guards, or closed if #113 is declined.
-
----
-
-### C-53: two frozen `PredictionFrame` construction paths can diverge
-
-| Field | Value |
-|-------|-------|
-| ID | C-53 |
-| Tier | 3 |
-| Source | expert-code-review (2026-06-24, GH #113; Kleppmann lens) |
-| Trigger | When a future **additive identifier** (an optional third id beyond `{time, unit}`, ADR-013) is threaded through `PredictionFrame.__init__` / `SpatioTemporalIndex` but **not** through `PredictionFrame.from_arrays` (or vice-versa) — the two **frozen** (ADR-018) construction signatures then drift, and a consumer on one path silently cannot express what the other can. |
-| Location | (planned) `src/views_frames/prediction_frame.py` (`__init__` + `from_arrays`). |
-| Cross-refs | ADR-013 (optional-additive identifiers), ADR-018 (freeze — both paths are forever), D-09, C-52, GH #113. |
-
-Adding `from_arrays` publishes a **second** construction path that ADR-018 then freezes alongside `__init__`; both must evolve together forever. **Tier 3** — maintainability/coupling, not silent corruption. **Mitigation:** `from_arrays` must carry **zero own logic** — pure delegation to `SpatioTemporalIndex(time, unit, level)` + `__init__(values, index, metadata)` — so a new index identifier flows through `from_arrays` automatically with no signature edit. Resolved when `from_arrays` lands as a zero-logic delegator, or closed if #113 is declined.
-
----
-
-### C-54: #113 DoD overstates scope — "retires the baseline duplicate" would pull a consumer edge into the leaf
-
-| Field | Value |
-|-------|-------|
-| ID | C-54 |
-| Tier | 3 |
-| Source | expert-code-review (2026-06-24, GH #113; cross-repo / views-baseline) |
-| Trigger | When a maintainer reads #113's Definition-of-Done literally ("retires baseline's local `build_prediction_frame`") and moves views-baseline's `value_fn` + entity×time grid loop into the leaf to "finish the job" — importing a domain grid-builder (an ADR-001 non-entity / consumer edge) into the data-contract leaf. |
-| Location | views-baseline `views_baseline/model/helpers.py:110` ↔ the leaf. |
-| Cross-refs | ADR-001 (adapters / grid-builders are consumer edges, not leaf entities), C-52, GH #113, views-baseline #21. |
-
-The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over entity×time to emit `dict[str, PredictionFrame]`), not a thin constructor; the planned `from_arrays` retires only its **innermost** `SpatioTemporalIndex + PredictionFrame` construction line, leaving the grid loop in the engine where it belongs. **Tier 3** — boundary/scope erosion, multi-repo. **Mitigation:** re-scope #113's DoD to "retire the index-construction *line* inside the baseline helper," and keep the helper in views-baseline. Resolved when #113's DoD is corrected.
-
----
-
 ### C-57: `map_estimate` raises an obscure `IndexError` (not a clean error) on ±inf draws
 
 | Field | Value |
 |-------|-------|
 | ID | C-57 |
 | Tier | 3 |
+| Status | **awaiting** — a cross-estimator non-finite hardening pass (additive MINOR) |
 | Source | falsify audit (2026-06-25, P5b — discovered while widening the exceedance/ES guards) |
 | Trigger | When a consumer feeds a frame containing an `inf` draw (a valid float32 the leaf does **not** ban — e.g. an upstream model bug) to the frozen `map_estimate`: the histogram span is `inf`, the bin index divides to `nan`, and the `astype(intp)` cast overflows to the int-min sentinel, so `np.take_along_axis` raises `IndexError: index -9223372036854775808 is out of bounds` instead of a clean `ValueError` or a finite result. |
-| Location | `src/views_frames_summarize/point.py:89-92` (`_batched_map`). |
+| Location | `src/views_frames_summarize/point.py::_batched_map` (the `astype(np.intp)` cast feeding `np.take_along_axis`) (`_batched_map`). |
 | Cross-refs | ADR-018 (frozen v1 surface — behavior is locked), C-50/C-56 (the new estimators now fail loud cleanly on non-finite via `np.isfinite`; `map_estimate` is the frozen sibling that does **not**), ADR-008 (fail-loud posture). |
 
 The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` propagates `inf` (visible), the new `exceedance`/`expected_shortfall` now **fail loud** on it (C-50/C-56), but `map_estimate` **crashes with an obscure `IndexError`** rather than a clean, actionable error. This is **not** silent corruption (it is loud, and `inf` draws are out-of-contract upstream bugs), so it is **not** a publish blocker for v1.6.0 — and `map_estimate`'s behavior is **locked by the ADR-018 freeze**, so it cannot change without an additive hardening pass. **Tier 3** — ungraceful failure on a leaf-permitted input; a future cross-estimator non-finite hardening (a reserved additive MINOR) should give `map_estimate` the same clean `np.isfinite` guard. **Open** — watch-item, no fix shipped in v1.6.0.
-
----
-
-### C-58: a reconciler cutover verified against the oracle but not a live production slice
-
-| Field | Value |
-|-------|-------|
-| ID | C-58 |
-| Tier | 3 |
-| Source | expert-code-review (2026-06-26, #138 cutover review) + the Epic 11 cutover closeout |
-| Trigger | When a future reconciliation cutover repoints a consumer to a new reconciler relying only on the in-repo evidence — the frozen torch-oracle fixtures + the synthetic new-vs-old head-to-head — and **skips a comparison against an actual served production slice** at the repoint. If the in-repo oracle and the live served path have drifted (e.g. an upstream input or mapping change not reflected in the fixtures), the re-baseline of served numbers goes unverified. |
-| Location | The cutover gates (runbook `docs/guides/reconciliation_migration_and_cutover_runbook.md`, Phase 2); mitigation tool `scripts/verify_reconcile_parity.py` (`--compare`). |
-| Cross-refs | ADR-023, Epic 11 `#138`, the cutover postmortem (`reports/postmortems/2026-06_reconciliation_cutover_epic11.md`), views-models #191, views-postprocessing #62. |
-
-The Epic 11 cutover was validated by a sound transitive chain — `new == old vpp copy` (136-case bit-identity) and `old vpp == views-reporting torch oracle` (frozen `.npz`), so `new == torch oracle` — but **no comparison was run against an actual served production parquet** (old path vs new path) at the repoint. The residual risk is low (the oracle *is* the torch path's captured output), so this is **not** silent corruption — it is a missing belt on a sound buckle. **Mitigation shipped:** `verify_reconcile_parity.py --compare OLD.parquet NEW.parquet` makes the production-slice check a one-command gate, and the cutover runbook (Phase 2) now requires it for future cutovers. **Tier 3** — a verification-completeness gap, not a known defect. **Open** — watch-item for the next reconciler change. (The expert review's companion "batched-deploy blast radius" concern did **not** materialize: the Epic 11 cutover landed as phased PRs — repoint #202, then delete #63 — so no separate entry is warranted.)
 
 ---
 
@@ -215,6 +264,7 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 |-------|-------|
 | ID | C-62 |
 | Tier | 3 |
+| Status | **awaiting** — ADR-024's two deferral preconditions (a joint-tail need, or shared draw identity upstream) |
 | Source | expert-method-review lineage + S3 design (#145), 2026-06-27 |
 | Trigger | When a consumer's decision provably needs **calibrated joint** country tails that proportional's per-draw marginal rescale cannot provide, **or** when the country model (views-models) gains a shared draw-identity / coupling that makes principled joint reconciliation buildable — i.e. when ADR-024's two deferral preconditions are met, build the principled sibling module (never by modifying `proportional`). |
 | Location | `src/views_frames_reconcile/proportional.py` (the per-draw method); designed in `docs/ADRs/024_principled_joint_reconciliation_design.md`. |
@@ -230,9 +280,10 @@ The Epic 11 cutover was validated by a sound transitive chain — `new == old vp
 |-------|-------|
 | ID | C-66 |
 | Tier | 3 |
+| Status | **awaiting** — the next MAJOR (the one-line enforce + red test are pre-written) |
 | Source | review-diff + register-risk (2026-06-28, epic #179 / S2) — the residual of the C-63 resolution-by-decision (ADR-025). |
-| Trigger | When a MAJOR bump is opened for **any** reason — add `self._values.setflags(write=False)` after the `self._values = ...` assignment in the three frame constructors (`prediction_frame.py:44`, `target_frame.py:43`, `feature_frame.py:52`) **and** a red test (`frame.values.flags.writeable is False`; mirror `tests/test_properties.py:38`), riding that MAJOR for free. **Or** sooner, if a consumer is found applying an in-place `.values` mutation (`frame.values[mask] = 0`, `*=`, a clamp) on a `with_metadata`/`select` buffer-sharing frame — promote/expedite the enforce then. |
-| Location | `src/views_frames/{prediction_frame.py:44, target_frame.py:43, feature_frame.py:52}` (bare `self._values = values`, no `setflags`); `src/views_frames/_validation.py:64` (`coerce_values` returns float32 without copy); contrast `src/views_frames/index.py:55-56` (the index **is** write-protected). Decision in `docs/ADRs/025_value_buffer_immutability_by_convention.md`. |
+| Trigger | When a MAJOR bump is opened for **any** reason — add `self._values.setflags(write=False)` after the `self._values = ...` assignment in the three frame constructors (`prediction_frame.py::PredictionFrame.__init__`, `target_frame.py::TargetFrame.__init__`, `feature_frame.py::FeatureFrame.__init__`) **and** a red test (`frame.values.flags.writeable is False`; mirror `tests/test_properties.py::test_with_metadata_shares_the_values_buffer`), riding that MAJOR for free. **Or** sooner, if a consumer is found applying an in-place `.values` mutation (`frame.values[mask] = 0`, `*=`, a clamp) on a `with_metadata`/`select` buffer-sharing frame — promote/expedite the enforce then. |
+| Location | the `self._values = values` assignment in each of `src/views_frames/prediction_frame.py::PredictionFrame.__init__`, `target_frame.py::TargetFrame.__init__` and `feature_frame.py::FeatureFrame.__init__` (bare assignment, no `setflags`); `src/views_frames/_validation.py::coerce_values` (`coerce_values` returns float32 without copy); contrast `src/views_frames/index.py::SpatioTemporalIndex.__init__` (the two `setflags(write=False)` calls) (the index **is** write-protected). Decision in `docs/ADRs/025_value_buffer_immutability_by_convention.md`. |
 | Cross-refs | **C-63** (RESOLVED by contract correction — this entry tracks the *deferred enforce* it left open), **ADR-025** (the decision + the exact one-line-per-constructor change), ADR-018 (`values` is frozen-surface, so the enforce is a MAJOR), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), C-07 (the zero-copy reason the buffer is left writeable). |
 
 C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is documented as immutable *by convention* and the docs no longer claim an unenforced guarantee. But the **code** is unchanged — `frame.values.flags.writeable` is still `True`, and `with_metadata` shares the buffer — so the underlying mechanism (an in-place `.values` mutation **silently corrupts every frame sharing the buffer**, the Tier-2 basis of C-63) is **mitigated, not removed**. The mitigation is documentation (three frame CICs §9 + README design principle 3 say it is unsupported) + the empirical fact that **nothing in `src/` or `tests/` mutates `.values`**. The actual write-protection (`setflags(write=False)`) is deliberately deferred because, on the frozen-surface `values`, it is a **MAJOR** (GOVERNANCE/ADR-018) and does not justify a standalone cross-repo coordinated bump. **Tier 3** — this entry tracks the *accepted deferral* of a documented-and-unexercised exposure (the acute silent-corruption path requires a consumer to ignore the published contract); it is a governance/safety-tracking item, not a current defect, and exists so the deferred enforce stays visible in the **Open** section rather than buried in a resolved entry. **Open** — until the enforce rides the next MAJOR.
@@ -245,12 +296,49 @@ C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is 
 |-------|-------|
 | ID | C-71 |
 | Tier | 3 |
+| Status | **awaiting** — a receipted need for bounded-memory densification |
 | Source | expert-code-review (2026-07-27, the #203 design review), Nygard lens; shipped with ADR-026 (v1.10.0). |
 | Trigger | When a consumer densifies at grid scale — a full-pgm `cartesian` target (~259k cells × months ≈ tens of millions of rows) fed to `reindex_fill` on a sampled frame — check the buffer arithmetic first: the dense values buffer is `target.n_rows × (trailing axes) × 4` bytes (at S=1000, hundreds of GB). Same check applies to `cartesian` itself (eager `T × U` identifier allocation). |
 | Location | `src/views_frames/index.py` (`cartesian`); `src/views_frames/{prediction_frame,feature_frame,target_frame}.py` (`reindex_fill` — `np.full` of the full dense shape). |
 | Cross-refs | **ADR-026** (the decision: the leaf documents the cost, never guesses a size guard — that would be policy), C-21 (the uniqueness stance `reindex_fill` inherits and `cartesian`'s duplicate-input `ValueError` protects), C-22/C-25 (the memory-bounded precedent on the *estimator* side — deliberately not applied here: densification's output *is* the allocation). |
 
 The fill primitive makes densification a one-liner, which is the point (#203, faoapi #242) — and also the hazard: the allocation that faoapi's pandas implementation made visible (an explicit `MultiIndex.from_product` + concat) is now behind one method call. The cost is **inherent to densifying** (the output *is* the dense buffer), not an implementation choice, so the leaf's controls are documentation (both docstrings state the cost) and this entry. The failure is **loud** (`MemoryError`/OOM-kill), not silent — hence Tier 3, an operational-awareness item, not a correctness risk. If a consumer legitimately needs bounded-memory densification (block-wise fill-and-stream), that is a future additive design, receipted first.
+
+---
+
+### C-73: `io.arrow.load` is read-all-to-RAM — no mmap or partitioned path on the wire format
+
+| Field | Value |
+|-------|-------|
+| ID | C-73 |
+| Tier | 3 |
+| Status | **awaiting** — a memory-wall receipt (an OOM *despite* per-month sharding) |
+| Source | GH #199 item 2 (ADR-013 §8, views-postprocessing); split out when item 1 shipped as C-72 (2026-07-31) — the residual was recorded only inside the *resolved* C-72 and needed to stay visible in Open. |
+| Trigger | When a consumer loads a **full-S global-reference shard in one call** — i.e. drops or widens the per-month sharding on the FAO/postprocessing ingestion path (views-faoapi #100), or loads several shards concurrently in one process. At that point do the arithmetic before running: `N_rows × S × 4` bytes for the flat table **plus** the same again for the reshaped values (`pq.read_table` materializes the whole table, then `.to_numpy()`/`reshape`/`np.stack` copy it). #199 measures ~1.6 GB transient per full-S month shard at global reference. |
+| Location | `src/views_frames/io/arrow.py::load` (the `pq.read_table` call) (`pq.read_table` — whole-table materialization), `the per-column `.to_numpy().reshape()` / `np.stack` block in the same function` (per-column `.to_numpy().reshape()` + `np.stack` — the second full copy). The npz path already has `mmap=True`; arrow has no equivalent. |
+| Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. |
+
+`arrow` is the platform's **interchange** codec — the format the FAO/postprocessing path actually ships forecasts in — and `load` reads the entire parquet into RAM, then copies it again to reshape. ADR-013 §8 states the mitigation as **per-month sharding** (a consumer-side contract obligation) and names mmap/partitioned reading as the long-term fix while explicitly declaring it **NOT a contract dependency** — so this is deliberately open, not neglected: shipping FAO data does not wait on it. **Tier 3** — the failure mode is a loud `MemoryError`/OOM-kill under a footprint the consumer controls, never a wrong number; the cost is operational, and the mitigation already exists. Deliberately **not designed yet**: the leaf does not guess a streaming API for a wall nobody has hit. The receipt that would change this — a consumer OOM *despite* sharding, or a shard size that cannot be reduced further — is the thing to wait for; a design without it risks a speculative, frozen surface (ADR-018, C-52).
+
+---
+
+### C-74: the CI gate is a strict subset of the local gate — `validate_docs.sh` and `ruff format` run only by habit
+
+| Field | Value |
+|-------|-------|
+| ID | C-74 |
+| Tier | 3 |
+| Status | **actionable** — half shipped in S3 (#211): the `docs` job runs `validate_docs.sh` in CI. Remaining: one `ruff format .` pass over 18 files, then one `- run:` line adding `ruff format --check` to that job. Sequenced after the release (S10 #218). |
+| Source | pre-release repo sweep (2026-07-31), prompted by the ship-readiness review; found while checking what the C-70 "recurrence guard" actually enforces. |
+| Trigger | **At the next MINOR/MAJOR version bump** — the case where the README banner must move — do not rely on CI to catch a stale banner; run `bash docs/validate_docs.sh` locally before tagging, or wire it into `ci.yml` first. Same at the next multi-file contribution: without a `ruff format --check` job, the first contributor whose formatter runs produces a reformat-the-world diff. |
+| Location | `.github/workflows/ci.yml:20-22` (gates `ruff check`, `mypy src/`, `pytest --cov-fail-under=100` — **and nothing else**); `docs/validate_docs.sh` (referenced **nowhere** under `.github/`); `ruff format` (never invoked in CI; **22 of 77 files** currently drifted). |
+| Cross-refs | **C-70** (its resolution claimed this guard was live — corrected there), C-51 / C-58 (the same "the check exists but is not exercised" family), C-75 (the sibling finding: tests inside the gate that don't test the code), the cross-cutting **verification-completeness** cluster. |
+
+Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh` — including the README-banner-vs-`pyproject` check added *specifically* as C-70's recurrence guard — is not referenced anywhere in `.github/`; it runs only when a maintainer types it. C-70's resolution asserts the opposite ("the narrative epoch-lag pattern **fails validation** instead of accumulating"), so the register itself carried an overstated enforcement claim until this entry (C-70 corrected 2026-07-31). The guard is one `- run:` line from being real. **(2)** `ruff format` is never run in CI, and 22 of 77 files are already drifted from it — harmless today because one person formats deliberately, a noisy-diff generator the moment a second contributor's editor does it automatically.
+
+**Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
+
+**Half done (2026-07-31, Epic #208 / S3 #211).** `ci.yml` now has a `docs` job that runs `bash docs/validate_docs.sh` on every push and pull request to `main` and `development` — so the version-banner check is finally a gate, in time for this epic's own version bump. It is a **separate job rather than a step in the four-version matrix**: the script is bash and grep with no Python involvement, so running it inside the matrix would repeat it four times and couple documentation policy to the list of supported Python versions. **Still open for the formatting half** — `ruff format --check` cannot be turned on until the 22 drifted files are fixed, or it fails every pull request. That is S10 (#218), deliberately sequenced after the release. This entry closes there.
 
 ---
 
@@ -351,7 +439,7 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 | ID | D-09 |
 | Source | expert-code-review (2026-06-24, GH #113) + pipeline-core owner exchange |
 | Perspectives | **#113-as-filed / pipeline-core:** add a `build_prediction_frame(...)` **free function** to the leaf. **views-frames owner + all eight expert lenses:** a `@classmethod PredictionFrame.from_arrays(y_pred, *, time, unit, level, metadata=None)` — it matches the leaf's only construction-helper convention (`from_2d` / `load`), single-homes construction (SRP/CCP), is the smaller frozen surface (Ousterhout), resists accretion (Nygard), and is the canonical Python Factory Method (GoF); a free-function alias is **strictly dominated** because every consumer already imports `PredictionFrame`. |
-| Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it is not a blocker. See C-52, C-53, C-54, ADR-011, ADR-018, GH #113. |
+| Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it was not a blocker. **Outcome (2026-07-31, ADR-027):** never implemented, and now **declined** — the engines migrated by constructing `SpatioTemporalIndex` directly, so the settled shape was never needed. D-09's design is **not discarded**: ADR-027 carries it forward verbatim as the form any future construction convenience must take, together with what would reopen the question. This disagreement is therefore settled *twice* — on shape (here) and on whether to build at all (ADR-027). See C-52/C-53/C-54 (resolved), ADR-011, ADR-018, **ADR-027**, GH #113. |
 
 ---
 
@@ -394,6 +482,87 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 
 ## Resolved Concerns
 
+> Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-81: the published conformance suite shipped without a CIC, while the CIC index claimed full coverage — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-81 |
+| Tier | 3 |
+| Resolved | 2026-07-31 (same session — `docs/CICs/Conformance.md` authored) |
+| Source | review-base-docs (2026-07-31), Phase 4 CIC audit. |
+| Resolution | **`docs/CICs/Conformance.md` written**, and `docs/CICs/README.md` corrected. `src/views_frames/conformance/` was the only shipped surface with no contract — 60 statements, five exported assert functions, its own governing ADR (**ADR-016**), and, uniquely here, a module whose *primary caller is another repository*. Four of its exports (`assert_frame_contract`, `assert_frame_envelope`, `assert_cross_level_alignment_law`, `assert_index_alignment_laws`) appeared in no CIC at all; they were documented only incidentally inside ADR-018 and ADR-020. **This is C-64 exactly, one module over** — that entry was *"`views_frames_reconcile` ships without a CIC — the package is contract-less"*, and its fix never generalised into a check that would have caught this one. What made it visible was auditing a claim rather than reading it: the index asserted *"Status: fully contracted … the `Reconcile.md` gap was the last"*, and that sentence was false. The README now names both after-the-fact gaps and says the second was found by auditing the completeness claim itself. **Writing the contract surfaced two of my own overstatements in the draft** — I described `assert_frame_contract` as checking the spatial level and index write-protection (it checks neither) and `assert_index_alignment_laws` as checking the `-1`-for-absent-rows behaviour (it checks `is_superset_of` reflexivity and searchsorted self-identity). Both corrected against the source before the file was committed, per C-77. |
+| Cross-refs | **C-64** (the identical gap for `views_frames_reconcile`, resolved 2026-06-28 — the precedent whose fix was never generalised), **C-77** (the overstatement pattern; this entry is both an instance *of* it — the index's false claim — and an instance of its remedy working, since the draft's own errors were caught by checking), C-80 (the test-suite twin of the same self-description problem), C-10 / C-46 (the cross-repo drift the suite exists to remove), C-67 (the `-O` silent-pass the suite now refuses), ADR-016. |
+
+---
+
+### C-75: falsification tests asserted README *prose* from inside the 100%-coverage gate — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-75 |
+| Resolved | 2026-07-31 (Epic #208 / S5 #213 + S6 #214) |
+| Tier | 3 |
+| Source | pre-release repo sweep (2026-07-31) — stale `TODO` markers whose stated precondition has been satisfied since v0.1.0. |
+| Trigger | **When the README is reworded** (a §11/§13a edit, a banner/chronicle refresh, a design-bible rewrite) these tests go **red for the wrong reason** — the contract is intact, the prose moved. Conversely, when `cross_level_align` / the index API is next changed, they stay **green regardless**. At either moment, replace the regex with an assertion against the actual API (the ADR-014 decision they were waiting on is documented, and `cross_level_align` has existed since v0.1.0). |
+| Location | `tests/test_falsification_domain_free_crosslevel.py` — the four `TODO`s in `test_falsify_cl_01_crosslevel_mapping_home_is_decided`, `..._cl_02_crosslevel_not_expressible_in_declared_numpy_ops`, `..._cl_03_no_internal_contradiction_on_alignment_ownership` and `..._cl_04_stability_contract_survives_the_mapping` (four `# TODO: replace with a real check once the decision is documented` / `once the actual index API exists`). The prose-regex pattern spans four files — `test_falsification_{domain_free_crosslevel,twin_parity,spatiallevel_and_metricframe,immutability_copy}.py` (16 / 19 / 13 / 7 README references respectively). |
+| Cross-refs | **C-51** (the direct precedent: paths that *looked* covered were only transitively asserted — coverage-green ≠ verified), C-58 (verification-realism), C-74 (the sibling gate-completeness finding), ADR-014 (the decision these TODOs were blocked on), ADR-005 (red/beige/green taxonomy). |
+
+These began as legitimate **design-phase** falsification probes: before the code existed, asserting that the README *decided* where the cm↔pgm mapping lives was the only check available. The design phase ended — ADR-014 ratified the injected-mapping protocol and `cross_level_align` shipped in v0.1.0 — but the probes were never upgraded, and their own `TODO`s say so. The result is inverted tests sitting inside the project's strongest gate: they are counted by `--cov-fail-under=100`, they pass, and they are coupled to the wording of a document rather than the behavior of the code. **Tier 3** — no correctness risk (the real contract *is* pinned elsewhere, by the conformance suite and the frame/index test modules), but it is maintainability debt with a false-confidence edge: a reader auditing coverage sees the cross-level contract "tested" when what is tested is a sentence. Resolved when the four TODOs assert against the API, or when the probes are retired as design-phase fossils with that decision recorded. **Half done (2026-07-31, Epic #208 / S5 #213):** all five probes in `test_falsification_domain_free_crosslevel.py` now assert against `SpatioTemporalIndex::cross_level_align` — that it refuses to guess a mapping, that it remaps correctly when one is supplied, that the index holds no mapping state, that a result retains no reference to the mapping it was built from, and that the `(time, unit)` key genuinely matters (a moving border must produce two different answers for the same unit). **Both directions were verified by hand, not assumed:** the file no longer references the README at all, and two deliberate sabotages of `cross_level_align` — silently fabricating a mapping when none is given, and keying on `unit` alone — were each caught. None of the probes needed retiring; every one had a real behavioural equivalent. **Completed 2026-07-31 (Epic #208 / S6 #214)** for the remaining six probes across `test_falsification_{twin_parity,spatiallevel_and_metricframe,immutability_copy}.py`. Five were rewritten against behaviour; **one was retired** — `tp_01` checked that the design document acknowledged the original implementation's pandas dependency, which is now enforced directly and far more strongly by `tests/test_import_enforcement.py::test_package_dependency_dag`, so re-checking it here would have duplicated that test without adding anything. The retirement is recorded in the file itself, naming the covering test. **The highest-value outcome is `sl_01`:** it now checks that no `priogrid_gid` alias or spelling-normalisation helper exists, which is a guard against something that was actually attempted — the discarded 2026-07-27 branch added exactly that alias table and helper (see C-18). **Guard strengthened 2026-07-31 after a code review showed it was evadable:** it originally walked the module's attributes looking for a `dict` holding the old spelling, plus a name containing `normalize_entity` — too specific to the shape of the single attempt we had seen. A function named `priogrid_gid_to_id`, a `frozenset` of pairs, or a dict nested in a class all passed. It now scans the module's **source text** (comments excluded), since the spelling has no legitimate use there; all three shapes are now caught. **The "nothing to evade" wording was itself an overstatement** (found by the 2026-07-31 principles review): `{"priogrid" + "_gid": ...}` reconstructs the banned key at runtime while never appearing contiguously in source, and the guard passes. It catches every *honest* reintroduction — which is what the discarded branch was — and no static check survives a determined bad-faith author. Limits now tracked in **C-78**. Sabotage-tested in both directions: reintroducing the alias, reversing the index tuple to entity-first, making `with_metadata` copy the buffer, and dropping the index write-protection were each caught, and `src/` was verified unchanged afterwards. One assumption of mine was wrong and the code was right: `select` **copies** rather than sharing (fancy indexing always materialises), which its docstring and CIC both already stated — the test now pins that documented distinction instead of overclaiming zero-copy for all structural operations.
+
+---
+
+### C-58: a reconciler cutover verified against the oracle but not a live production slice — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-58 |
+| Resolved | 2026-07-31 (Epic #208 / S2 #210) |
+| Resolution | **Both things this entry asked for have shipped, and were verified present before closing.** (1) The check itself is a single command — `scripts/verify_reconcile_parity.py --compare OLD.parquet NEW.parquet` (`run_compare`), which aligns two served forecast parquets on their identity columns and reports drift against `rtol=1e-5/atol=1e-6`. (2) The cutover runbook now *requires* it: `docs/guides/reconciliation_migration_and_cutover_runbook.md` Phase 2 gives the exact invocation and says **stop and investigate** if it diverges, and the runbook's gate table lists "Production slice" as a required row. The original gap — a cutover validated only by the frozen oracle chain, with no comparison against a file production actually served — is therefore closed by tooling plus a written requirement. **What is left is process compliance, not a technical gap:** someone could still skip a step the runbook tells them to run. That is not a defect this register can hold open, and it is the same trust the other runbook gates rest on. |
+
+---
+
+### C-76: `FeatureFrame.from_2d` was documented "deprecated" on the frozen surface — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-76 |
+| Resolved | 2026-07-31 (Epic #208 / S2 #210) |
+| Resolution | **The docstring was simply wrong, and the fix was to correct it — the method is not deprecated and there is no reason to remove it.** Reading the code settled this: `from_2d` builds a frame from a 2-D `(N, F)` array of *unsampled* features and adds the trailing sample axis to give `(N, F, 1)`. Because ADR-012 makes the sample axis always explicit, that is the ordinary constructor for deterministic features — not a shim for a superseded API. It is exercised by two tests (`tests/test_frames.py`, `tests/test_construction_red.py`) and documented in the FeatureFrame contract. The words "legacy" and "(deprecated shim)" were leftover framing from when the sample axis was introduced. Docstring rewritten to describe what the method does; `docs/CICs/FeatureFrame.md` updated to match and to say explicitly that it is ordinary supported surface. **Completed 2026-07-31 after a code review found the first pass incomplete:** the same file still said *"legacy 2D … `from_2d` shim"* in its module docstring and *"Use FeatureFrame.from_2d to lift a **legacy** (N, F) array"* in the constructor's `ValueError`. A user hitting that error at runtime was told the opposite of what the method's own docstring said three lines below. Both corrected. The lesson is the one this register keeps relearning: fixing the place a claim is *documented* is not the same as fixing every place it is *stated*. **No MAJOR-removal rider is recorded** — the earlier assumption that one was needed came from believing the docstring rather than the code. |
+
+---
+
+### C-52: construction-convenience accretion on the leaf — the "camel's nose" for adapters (ADR-001) — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-52 |
+| Resolved | 2026-07-31 (**ADR-027**, Epic #208 / S1 #209) |
+| Resolution | **ADR-027 declines #113** — no `build_prediction_frame`, no `PredictionFrame.from_arrays`, no `factory.py`. The concern guarded an addition that will not be made, so the slope it feared has no first step. Its substance is **preserved, not discarded**: ADR-027 records the binding constraints any future construction convenience must satisfy (classmethod, zero own logic, singular, no `factory.py`) and names what would reopen the decision (a receipted site where two steps are genuinely inadequate — verbosity alone is not a receipt). Future accretion requests close by citing ADR-027 rather than re-litigating. The **serialization** half of this entry's trigger (`to_parquet`/`to_pddf` on the frame classes) was already settled off-leaf by **D-11**. |
+
+---
+
+### C-53: two frozen `PredictionFrame` construction paths can diverge — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-53 |
+| Resolved | 2026-07-31 (**ADR-027**, Epic #208 / S1 #209) |
+| Resolution | **ADR-027 declines #113** — the second construction path is never created, so there is nothing to diverge from `__init__`. (Had it shipped, D-09's **zero-own-logic** constraint was the mitigation: pure delegation means a future additive identifier per ADR-013 flows through without a signature edit. ADR-027 records that constraint for any future reconsideration.) |
+
+---
+
+### C-54: #113 DoD overstates scope — "retires the baseline duplicate" would pull a consumer edge into the leaf — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-54 |
+| Resolved | 2026-07-31 (**ADR-027**, Epic #208 / S1 #209) |
+| Resolution | **ADR-027 declines #113**, so its Definition-of-Done is moot and cannot be misread. ADR-027 states explicitly that views-baseline's helper is a **domain grid-builder** (a `value_fn` looped over entity×time) — an ADR-001 consumer edge that **stays in views-baseline**, and that only its innermost two-line construction was ever in scope. No cross-repo action follows for any sibling repo. |
+
+---
+
 ### C-72: `arrow.load` trusted the parquet row order it never checked — silent sample-slot corruption on out-of-order input — RESOLVED
 
 | Field | Value |
@@ -416,10 +585,10 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 | Tier | 3 |
 | Source | four-axis audit 2026-07-02 (review-base-docs Phase 2 + test-review Phase 3) |
 | Trigger | The next docs or tests PR — fold this bundle in rather than letting the narrative lag compound (a new contributor/agent onboarding from `CLAUDE.md` today is told a two-package v0.1.0 architecture). |
-| Location | **Docs:** `CLAUDE.md` (epoch-stale: "Two packages", "Status: v0.1.0", no `views_frames_reconcile`); `README.md:7` (banner says v1.7.0; chronicle ends at 1.7.0); `docs/ADRs/013_*.md` (claims `feature_names` lives in `FrameMetadata` — it is a `FeatureFrame` constructor arg, `feature_frame.py:32`); `docs/CICs/{PredictionFrame,TargetFrame,FeatureFrame}.md` §5 (say `y_pred/y_true/y_features.npy` — actual artifact is `values.npy`, `io/npz.py:34`); `PredictionFrame.md` §6 ("TypeError on non-float32" — float64 is *coerced*, object dtype raises *ValueError*); `docs/CICs/README.md:52-56` ("no contracts yet" contradicting its own Active list); `docs/ADRs/README.md:6-55` (design-bible framing, "011–016", "six decisions"); `Reconcile.md` §10 (blanket "each §6 mode maps to a red test" — the missing-map-entry mode is pinned only at the leaf); stale `Last reviewed` dates on 3 frame CICs. **Tests:** a share-proportionality *law* test (the method's essence is otherwise pinned only by the frozen oracle; the falsify F5 probe proved the law holds — commit it); an mmap read-only pin (`frame.values.flags.writeable is False` after `load(mmap=True)` — F2 proved it); a reconcile-suite test for the missing-`(time,gid)`-mapping-entry raise. |
+| Location | **Docs:** `CLAUDE.md` (epoch-stale: "Two packages", "Status: v0.1.0", no `views_frames_reconcile`); `README.md:7` (banner says v1.7.0; chronicle ends at 1.7.0); `docs/ADRs/013_*.md` (claims `feature_names` lives in `FrameMetadata` — it is a `FeatureFrame` constructor arg, `feature_frame.py::FeatureFrame.__init__`); `docs/CICs/{PredictionFrame,TargetFrame,FeatureFrame}.md` §5 (say `y_pred/y_true/y_features.npy` — actual artifact is `values.npy`, `io/npz.py::save`); `PredictionFrame.md` §6 ("TypeError on non-float32" — float64 is *coerced*, object dtype raises *ValueError*); `docs/CICs/README.md:52-56` ("no contracts yet" contradicting its own Active list); `docs/ADRs/README.md:6-55` (design-bible framing, "011–016", "six decisions"); `Reconcile.md` §10 (blanket "each §6 mode maps to a red test" — the missing-map-entry mode is pinned only at the leaf); stale `Last reviewed` dates on 3 frame CICs. **Tests:** a share-proportionality *law* test (the method's essence is otherwise pinned only by the frozen oracle; the falsify F5 probe proved the law holds — commit it); an mmap read-only pin (`frame.values.flags.writeable is False` after `load(mmap=True)` — F2 proved it); a reconcile-suite test for the missing-`(time,gid)`-mapping-entry raise. |
 | Cross-refs | The systemic pattern: all doc drift is in narrative text `validate_docs.sh` does not check (banners, framing, filenames), while every mechanically-validated element is current. C-46 (the "verification surface depends on usage" family), C-58 (test-realism, registered), resolved C-67/C-68/C-69 (the fixed half of the same audit). |
 
-The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Resolved** (2026-07-02, the option-3 cleanup): the tests half by PR #195 (share-proportionality law, mmap read-only pin, missing-map-entry raise); the docs half in the follow-up docs PR (CLAUDE.md rewritten for the three-package released reality; README banner → v1.8.0 + chronicle; ADR-013 as-built amendment; the three CIC §5 filenames → `values.npy`; PredictionFrame §6 coercion wording; SpatioTemporalIndex §6 NaN-via-dtype wording; CICs/ADRs README framing refreshed; `Last reviewed` dates bumped; Reconcile.md §10 updated to name the actual pinning files). Plus a **recurrence guard**: `validate_docs.sh` now checks the README banner's MAJOR.MINOR against `pyproject.toml`, so the narrative epoch-lag pattern fails validation instead of accumulating.
+The 2026-07 four-axis audit found the code↔contract agreement strong (30/30 public symbols CIC-covered, 15/16 project ADRs accurate, ~57/60 CIC guarantee items pinned) but the **narrative documentation an epoch behind** and three cheap test additions open. None affects correctness; the CLAUDE.md/ADR-013 items are the material ones (they misinform onboarding). **Tier 3** — maintainability/onboarding accuracy, multiple contributors affected via CLAUDE.md. **Resolved** (2026-07-02, the option-3 cleanup): the tests half by PR #195 (share-proportionality law, mmap read-only pin, missing-map-entry raise); the docs half in the follow-up docs PR (CLAUDE.md rewritten for the three-package released reality; README banner → v1.8.0 + chronicle; ADR-013 as-built amendment; the three CIC §5 filenames → `values.npy`; PredictionFrame §6 coercion wording; SpatioTemporalIndex §6 NaN-via-dtype wording; CICs/ADRs README framing refreshed; `Last reviewed` dates bumped; Reconcile.md §10 updated to name the actual pinning files). Plus a **recurrence guard**: `validate_docs.sh` now checks the README banner's MAJOR.MINOR against `pyproject.toml`, so the narrative epoch-lag pattern fails validation instead of accumulating. **Correction (2026-07-31, see C-74):** that last clause overstated the guard — `validate_docs.sh` is **not referenced in `.github/`**, so it fails validation only when a maintainer runs it locally, never in CI. The check exists and passes; it is simply not armed. Tracked as **C-74**; C-70 itself stays resolved (its docs+tests remediation did land).
 
 ---
 
@@ -491,7 +660,7 @@ The non-finite guard (reject NaN/±inf draws) lives **inside** `_exceed`/`_expec
 | Tier | 2 |
 | Source | repo-assimilation (2026-06-27), empirically verified; confirmed + extended by test-review (2026-06-27) |
 | Trigger | When a consumer applies an in-place numpy mutation to `frame.values` (a natural idiom — e.g. `frame.values[mask] = 0`, `frame.values *= scale`, a clamp/normalise in place) on a frame obtained from `with_metadata`/`select`'s buffer-sharing path. |
-| Location | `src/views_frames/_validation.py:64` (`coerce_values` returns a float32 input **without copy** and without `setflags(write=False)`); contrast `src/views_frames/index.py:55-56` (the index arrays **are** write-protected); `with_metadata` (`prediction_frame.py`/`target_frame.py`/`feature_frame.py`) shares the buffer; `tests/test_properties.py:38` pins only the *sharing*, not read-only-ness. **Contract side:** the three frame CICs §9 + README design principle 3 (now corrected). |
+| Location | `src/views_frames/_validation.py::coerce_values` (`coerce_values` returns a float32 input **without copy** and without `setflags(write=False)`); contrast `src/views_frames/index.py::SpatioTemporalIndex.__init__` (the two `setflags(write=False)` calls) (the index arrays **are** write-protected); `with_metadata` (`prediction_frame.py`/`target_frame.py`/`feature_frame.py`) shares the buffer; `tests/test_properties.py::test_with_metadata_shares_the_values_buffer` pins only the *sharing*, not read-only-ness. **Contract side:** the three frame CICs §9 + README design principle 3 (now corrected). |
 | Cross-refs | ADR-025 (the resolving decision + the deferred-enforce MAJOR-rider), C-07 (copy-vs-view / structural-sharing semantics — RESOLVED), ADR-013 + README design principle 3 (immutable value objects), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), ADR-018 (`values` is frozen-surface). |
 
 The leaf advertised **immutable value objects**, but the guarantee was enforced only for the *index* (`time`/`unit` are stored `setflags(write=False)`), not for the *value block*: `frame.values.flags.writeable` is **True**, `with_metadata` shares the buffer, so an in-place mutation of `frame.values` would **silently corrupt every frame sharing it**, with no error signal. **Tier 2** (silent-corruption potential + structural fragility with a realistic trigger), not Tier 1 — the system itself never mutates `.values` (the audit found **zero** in-place `.values`/`_values` mutations in `src/` or `tests/`). **Resolved** (2026-06-28, epic #179 / S2 #181, **ADR-025**): the enforce — `setflags(write=False)` on `.values` — is a **MAJOR** under `GOVERNANCE.md` ("tightening an invariant" on the frozen-surface `values`, ADR-018), triggering the cross-repo coordinated-bump process; disproportionate for an unexercised hole. So the contract was **corrected to match the code** instead: the value buffer is immutable **by convention** (writeable on purpose, to preserve zero-copy / `mmap`; mutating it in place is unsupported and may corrupt shares), the **index** is the enforced one. Corrected in the three frame CICs §9/§3 + README design principle 3; ADR-025 records the decision **and** the `setflags`-enforce as a **deferred MAJOR-rider** (added free on the next MAJOR — the exact one-line-per-constructor change + a red test). **Resolution carries a residual:** the value buffer is still writeable, so a careless in-place mutation is still *possible* until the deferred enforce lands — mitigated by the documented unsupported-status and the absence of any such mutation in the ecosystem.
@@ -643,7 +812,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 | ID | C-41 |
 | Tier | 4 |
 | Resolved | 2026-06-24 (ultrareview follow-up) |
-| Resolution | Both `nit`-severity ultrareview findings fixed; no shipped-package behaviour change. (a) Reworded the `_pin` docstring (`tower.py`) — was "the fixed grid produces no exact distance ties" (false; e.g. `0.075` is equidistant from `0.05`/`0.10`), now "`argmin` breaks ties on the lowest index, so a midpoint mass pins **down** to the lower floor" — matching the tested invariant `test_beige_pinning_is_deterministic_on_ties`. (b) Fixed `research/map_hdi/audit.py:79` stale 3-tuple unpack → `obs, _ref, _modes, meta = battery.load()` to match the 4-tuple `battery.load()` returns (and the four sibling scripts). ruff + 100% coverage green. See C-39 (the earlier doc↔code drift cluster). |
+| Resolution | Both `nit`-severity ultrareview findings fixed; no shipped-package behaviour change. (a) Reworded the `_pin` docstring (`tower.py`) — was "the fixed grid produces no exact distance ties" (false; e.g. `0.075` is equidistant from `0.05`/`0.10`), now "`argmin` breaks ties on the lowest index, so a midpoint mass pins **down** to the lower floor" — matching the tested invariant `test_beige_pinning_is_deterministic_on_ties`. (b) Fixed `research/map_hdi/audit.py::collect_cells` stale 3-tuple unpack → `obs, _ref, _modes, meta = battery.load()` to match the 4-tuple `battery.load()` returns (and the four sibling scripts). ruff + 100% coverage green. See C-39 (the earlier doc↔code drift cluster). |
 
 ---
 
@@ -778,7 +947,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 |-------|-------|
 | ID | C-31 |
 | Resolved | 2026-06-23 (Epic 6, I2 #82) |
-| Resolution | Added `tests/test_frame_parity.py` — a builder fixture parametrizing the shared frame surface (`reindex`/`select`/`with_metadata`/`save`-`load`) over **all three** frame types, filling the Feature/TargetFrame `reindex` gap (`feature_frame.py:150-155`, `target_frame.py:109-114`) and locking parity so a future twin divergence fails CI. The construction red-gaps + green laws/getters the same test-review flagged were closed alongside (Epic 6 I3/I4); leaf + summarize are now at **100%** coverage. See C-16 (twins are separate siblings), ADR-005. |
+| Resolution | Added `tests/test_frame_parity.py` — a builder fixture parametrizing the shared frame surface (`reindex`/`select`/`with_metadata`/`save`-`load`) over **all three** frame types, filling the Feature/TargetFrame `reindex` gap (`feature_frame.py::FeatureFrame.reindex`, `target_frame.py::TargetFrame.reindex`) and locking parity so a future twin divergence fails CI. The construction red-gaps + green laws/getters the same test-review flagged were closed alongside (Epic 6 I3/I4); leaf + summarize are now at **100%** coverage. See C-16 (twins are separate siblings), ADR-005. |
 
 ---
 
@@ -888,13 +1057,16 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 
 ---
 
-### C-18: relocating `SpatialLevel` ports C-65 + a gid/id inconsistency — RESOLVED
+### C-18: relocating `SpatialLevel` ports the entity-first tuple + a gid/id inconsistency — RESOLVED
 
 | Field | Value |
 |-------|-------|
 | ID | C-18 |
 | Resolved | 2026-06-22 |
-| Resolution | ADR-015 (fix-don't-port) — the leaf's `spatial_level.py` ships the time-first index and a consistent identifier vocabulary; the reversed (entity-first) tuple (C-65) and the `priogrid_gid`/`priogrid_id` inconsistency were fixed, not ported. (Subsumes the original C-04 "SpatialLevel slippery slope".) |
+| Resolution | ADR-015 (fix-don't-port) — the leaf's `spatial_level.py` ships the time-first index and a consistent identifier vocabulary; the reversed (entity-first) tuple (**pipeline-core's C-65** — *not* this register's C-65, see Register Conventions → foreign ids) and the `priogrid_gid`/`priogrid_id` inconsistency were fixed, not ported. (Subsumes the original C-04 "SpatialLevel slippery slope".) |
+| Recurrence guard | **Resolved-by-decision — the trigger now protects the decision.** Re-opens if anyone adds an alias/normalization layer for the legacy identifier spelling to `spatial_level.py`; the answer is ADR-015 (the leaf carries one canonical vocabulary) + the rename belongs upstream in pipeline-core (its ADR-034). |
+
+**2026-07-27 — first live recurrence, discarded.** An unmerged remote branch (`gid_patch`, ~19 real lines plus an accidental 9,984-line dump) added exactly the ported inconsistency this entry resolved: `_ENTITY_ALIASES = {"priogrid_gid": "priogrid_id"}` plus a `SpatialLevel.normalize_entity_column` helper, with the *calling* half already merged in a sibling repo — i.e. a cross-repo change whose two halves landed 26 seconds apart, only one of which was reviewed here. Discarded on ratified grounds (ADR-015 fix-don't-port; ADR-018 freeze — an unratified addition to the frozen surface; C-52 accretion guard), branch deleted, and the legitimate follow-up (the upstream rename) tracked in views-r2darts2#24 with a SHA breadcrumb. Recorded here because it demonstrates the guard is load-bearing, not historical: the pressure to re-port the alias comes from consumers, arrives via feature branch, and can be pre-satisfied in another repo before the leaf ever reviews it.
 
 ---
 
@@ -1062,15 +1234,22 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
-- **Causal clusters** (assigned by `review-rr`, last reviewed 2026-06-27):
+- **Foreign ADR references:** an unqualified `ADR-xxx` always means *this* repository's ADR. A sibling repo's ADR must name the repo ("views-datafactory's ADR-044 **there**"). Three currently referenced numbers — **ADR-034** (pipeline-core), **ADR-044** (views-datafactory), **ADR-055** (paired with a `D-29` that does not exist here) — have no file in `docs/ADRs/`, which is correct, but only one of the three said so plainly. Same rule as the concern-id convention below.
+- **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
+- **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
+  - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-57, C-66, the C-32 residual, + resolved C-53, C-76, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
+  - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
-  - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
-  - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
+  - **reconcile method + governance** = {C-62, + D-12; resolved C-58, C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) **closed 2026-07-31** once the production-slice check existed as a one-command tool *and* the runbook required it — leaving C-62, the method limitation itself, as the only open member. The mode-reporting decision is recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
+  - **construction-convenience accretion (#113)** = {resolved C-52, C-53, C-54, + D-09} — **CLOSED 2026-07-31 by ADR-027** (Epic #208 / S1 #209). The planned `PredictionFrame.from_arrays` factory was the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), a DoD overstating scope (C-54) — all three guarding an addition that was **never made and is now declined**. The cluster is instructive rather than dead: it is the register's clearest case of concerns that existed *only* because a proposal sat undecided. Thirteen months open, zero code written, three entries consuming review attention every cycle — and the resolution was a decision, not an implementation. **The guard survives as a written precedent:** ADR-027 records the binding constraints any future construction convenience must satisfy and what would reopen the question, so the next such request is closed by citation instead of re-argued. The lesson generalises to the `awaiting` Status class: an undecided proposal is not free.
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {C-66, + resolved C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
-  - cross-cutting **verification-completeness** = {C-58, resolved C-65} — a guard or path is structurally correct but not adversarially pinned: the reconciler's production-slice check (C-58, still open). Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
+  - cross-cutting **verification-completeness** = {**C-74**, **C-79**, **C-80**, resolved C-51, C-58, C-65, C-75} — **the register's most persistent pattern: a check exists, passes, and does not actually exercise the thing it appears to guard.** The reconciler's production-slice check was never run (C-58 — **closed 2026-07-31**, the tool and the requirement both now exist); `validate_docs.sh` and `ruff format` are treated as gates but are absent from CI (C-74); four falsification tests inside the 100%-coverage gate assert README prose rather than the API (C-75); and the precedent — `assert_frame_envelope`'s rejection paths were "covered" only transitively (C-51, resolved by direct adversarial tests). The recurring lesson is that **coverage-green and gate-green are not the same as verified**, and the failure is always *false confidence*, never a wrong number — which is why this cluster is uniformly Tier 3 yet keeps producing entries. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
   - **post-1.1.0 polish** = {C-35, C-36, C-37, C-38} — **resolved by Epic 7 (2026-06-24)**. Low-severity doc/test-completeness items from the 2026-06-24 repo-assimilation + test-review; closed before the v1.1.0 `main` merge, no `src/` behaviour change.
   - **test-coverage debt** = {C-29, C-31} — **resolved by Epic 6 (2026-06-23)**. Fail-loud / parity paths that existed in code but lacked tests (root cause: the v1.0.0 suite optimized happy-path coverage over failure/parity branches); now closed with a CI 100%-coverage gate.
+- **Tier 4 in Open — the scheduled-trigger rule** (adopted 2026-07-31, `review-rr` strategic): a Tier 4 concern earns a place in **Open** only if its trigger is an **event it must ride** — otherwise it is a chore, not a risk, and belongs in an issue. **C-43** (extract the shared binning when `map_estimate` is unfrozen) and **C-76** (decide `from_2d`'s deprecated-but-frozen status at the next MAJOR) both qualify: each is a *decision that must not be rediscovered* at the moment it becomes possible. This rule was written after the register briefly held both a recommendation to demote C-43 for being cosmetic and a fresh registration of C-76 with the same profile — the two are the same case and are now handled the same way.
+- **Citing code — name things, never line numbers.** Write `` `path/to/file.py::function_name` ``, never a path followed by a colon and a line number. Where the point of interest is *inside* a function, name the function and describe the part in words ("the `astype(intp)` cast in `point.py::_batched_map`"). **Reason:** this register is the most durable artifact in the repository — permanent IDs, entries never deleted, resolutions kept for years — and a line number is the least durable way to point at code. Any edit above a cited line silently invalidates it, and nothing checks. **This had already happened before the convention was written:** C-63 and C-66 both pointed at `index.py` lines 55 and 56 for the index write-protection, which has actually been at lines **53 and 54** for some time. Nobody noticed, because nothing was looking. Names survive reformatting, reordering and inserted imports; line numbers survive nothing. **Exception:** citations into *other* repositories keep their line numbers (ADR-014 and ADR-026 cite views-reporting and views-faoapi). They are frozen historical evidence about code we do not control and cannot verify from here, so re-anchoring them would be guesswork.
+- **Field order:** `ID`, `Tier`, `Status` (open only), `Source`, `Trigger`, `Location`, `Cross-refs`. Resolved entries compress to `ID`, `Resolved`, `Resolution` (some retain `Tier` where the severity is part of the record).
 - **Sources:** `repo-assimilation`, `expert-review`, `test-review`, `falsification-audit`, `persona-critique`, `clean-architecture-review`, `pr-review`, `tech-debt-audit`, `incident`, `manual`.
 - **Resolution:** Move to "Resolved Concerns" with resolution date and summary when addressed.
 - **Header counts:** Manually maintained — update whenever a concern is added or resolved.
