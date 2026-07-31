@@ -18,7 +18,18 @@ These tests were written before any code existed, so they originally asserted
 against the wording of the design document. The code has existed since v0.1.0, so
 they now assert against the behaviour instead (2026-07-31, epic #208 / S5 #213). Each one
 fails if the resolution stops holding — which is what a falsification test is for.
+
+**Overlap with `tests/test_index.py` is deliberate.** That file tests `cross_level_align`
+as a unit — the same injected-mapping refusal (`test_cross_level_align_requires_mapping`)
+and the same time-varying key (`test_cross_level_align_is_time_varying`), using the same
+example mapping. These probes assert the same behaviour for a different reason: they guard
+the *architectural claim* that this package stays domain-free, not the method's contract.
+Both are kept on purpose (WET before DRY). If the behaviour changes, expect both to fail,
+and treat `test_index.py` as authoritative on the method and these probes as authoritative
+on the boundary.
 """
+
+from collections.abc import Mapping
 
 import numpy as np
 import pytest
@@ -96,15 +107,23 @@ def test_falsify_cl_03_the_operation_lives_here_and_the_data_does_not():
     assert callable(index.cross_level_align)
     assert callable(index.cross_level_align_arrays)
 
-    # The data side: nothing the index holds is a mapping table. Its entire state is
-    # the two identifier arrays plus a level label.
-    held = dict(vars(index))
-    assert set(held) == {"_time", "_unit", "_level"}, (
-        f"the index gained state beyond its identifiers and level: {sorted(held)}"
+    # The data side: nothing the index holds is a mapping table. Its entire state
+    # is two identifier arrays plus a level label.
+    #
+    # Check the shape of what is held, not the private attribute names. Naming
+    # them would make a harmless rename fail a guard that is about domain data,
+    # giving this test a second reason to fail that has nothing to do with the
+    # boundary it exists to protect.
+    held = list(vars(index).values())
+    assert len(held) == 3, (
+        f"the index gained state beyond its identifiers and level: {sorted(vars(index))}"
     )
-    assert isinstance(held["_time"], np.ndarray)
-    assert isinstance(held["_unit"], np.ndarray)
-    assert isinstance(held["_level"], SpatialLevel)
+    assert sum(isinstance(v, np.ndarray) for v in held) == 2
+    assert sum(isinstance(v, SpatialLevel) for v in held) == 1
+    assert not any(isinstance(v, Mapping) for v in held), (
+        "the index is holding a mapping — the geography belongs to the caller, "
+        "and this package must never store it (ADR-014)"
+    )
 
 
 def test_falsify_cl_04_the_mapping_is_never_stored_on_the_result():
@@ -128,7 +147,11 @@ def test_falsify_cl_04_the_mapping_is_never_stored_on_the_result():
 
     country = index.cross_level_align(mapping, SpatialLevel("cm"))
 
-    assert set(vars(country)) == {"_time", "_unit", "_level"}
+    held = list(vars(country).values())
+    assert len(held) == 3
+    assert not any(isinstance(v, Mapping) for v in held), (
+        "the remapped index retained the mapping it was built from (ADR-014)"
+    )
 
     # Mutating the caller's mapping afterwards cannot change an existing result —
     # the values were read, not retained.

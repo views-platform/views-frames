@@ -16,6 +16,14 @@ mapping possible — and mutating it in place is documented as unsupported (ADR-
 
 This originally asserted against the wording of the design document. It now asserts
 against the behaviour (2026-07-31, epic #208 / S6 #214).
+
+**Overlap with the buffer-sharing tests elsewhere is deliberate.**
+`tests/test_properties.py::test_with_metadata_shares_the_values_buffer` and
+`tests/test_frame_parity.py::test_with_metadata_shares_buffer_parity` (the strongest form —
+parametrised over all three frame types) pin the same sharing behaviour. This probe keeps it
+because the *claim* it falsifies is about whether immutability is affordable at scale, not
+about one method's contract. Kept on purpose (WET before DRY); `test_frame_parity.py` is
+authoritative on the behaviour, this file on the claim.
 """
 
 import numpy as np
