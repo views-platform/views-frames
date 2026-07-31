@@ -17,8 +17,10 @@ If you are upgrading from 1.10.1, nothing in your code needs to change.
 - `FeatureFrame.from_2d` was documented as a *"deprecated shim"*. It is not deprecated —
   it builds a frame from a 2-D `(N, F)` array of unsampled features and adds the trailing
   sample axis to give `(N, F, 1)`. Since the sample axis is always explicit (ADR-012),
-  that is the ordinary constructor for deterministic features. Docstring and contract file
-  corrected (register C-76).
+  that is the ordinary constructor for deterministic features. The method docstring, the
+  module docstring, the constructor's `ValueError` message and the contract file were all
+  corrected — the first pass missed the last two, so the same file contradicted itself for
+  a while (register C-76).
 
 ### Changed — checks
 
@@ -40,6 +42,12 @@ If you are upgrading from 1.10.1, nothing in your code needs to change.
   rather than the documentation — a guard against something that was actually attempted.
 
 ### Changed — documentation
+
+- **New contract document: `docs/CICs/Conformance.md`.** The published conformance suite —
+  the checks consumers run in their own CI — had no contract describing what it guarantees,
+  while the contract index claimed every shipped surface was covered. It now documents each
+  check, what it deliberately does *not* verify, and the failure mode that matters most: a
+  checker must **fail** when handed a frame that misreports itself (register C-81).
 
 - **ADR-027** records the decision to decline issue #113, which asked for a one-line
   shortcut for building a `PredictionFrame`. Construction stays two-step. The design that
