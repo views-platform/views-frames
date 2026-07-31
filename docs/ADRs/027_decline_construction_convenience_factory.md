@@ -3,110 +3,154 @@
 **Status:** Accepted
 **Date:** 2026-07-31
 **Deciders:** VIEWS platform maintainers
-**Consulted:** expert-code-review (2026-06-24, GH #113, all eight lenses); pipeline-core owner exchange; `review-rr prioritize` (2026-07-31, Epic #208 / S1 #209)
+**Consulted:** the 2026-06-24 design review of issue #113; the pipeline-core maintainer
 **Informed:** views-pipeline-core, views-baseline, views-hydranet, views-datafactory
 
 ---
 
-## Context
+## In short
 
-Constructing a `PredictionFrame` takes two steps: build the index, then build the frame.
+Someone asked us to add a shortcut for building a `PredictionFrame` — one line instead of two.
+**We decided not to add it.**
+
+Nothing changes for anyone. Code that builds frames today keeps working exactly as it does now.
+
+---
+
+## What was asked for
+
+Building a `PredictionFrame` takes two steps today. First you describe *which rows your numbers
+belong to*, then you attach the numbers:
 
 ```python
 index = SpatioTemporalIndex(time=months, unit=grid_cells, level=SpatialLevel("pgm"))
 frame = PredictionFrame(predictions, index)
 ```
 
-**#113** (filed 2026-06-24, during the platform-wide views-frames adoption) asked the leaf to
-collapse that into one step — a free function `build_prediction_frame(y_pred, time, unit, level,
-metadata=None)` — so engine repos would not each have to know that a separate index object exists,
-and so views-baseline's local duplicate (`views_baseline/model/helpers.py`) could be retired.
+Issue **#113** asked us to collapse that into one step:
 
-The **shape** was settled and the **need** was not. Register disagreement **D-09** rejected the
-free-function form in favour of a `@classmethod PredictionFrame.from_arrays(...)` — matching the
-leaf's only construction-helper convention (`from_2d`, `load`), single-homing construction, the
-smaller frozen surface, the canonical Factory Method — and recorded the free-function alias as
-*strictly dominated*. Implementation was then deprioritized behind the engine migration
-(views-hydranet #137, views-baseline #21) and never happened.
+```python
+frame = PredictionFrame.from_arrays(predictions, time=months, unit=grid_cells, level="pgm")
+```
 
-Thirteen months of evidence accumulated in the meantime:
+The motivation was reasonable. A model repository does this at the end of every model run. With the
+two-step form, every repository that produces predictions has to know that a separate "index" object
+exists and how to build it. The one-step version would hide that.
 
-- **Nobody was blocked.** #113's own text states engines *"can migrate today by constructing
-  `SpatioTemporalIndex` directly (the hydranet/baseline issues do this)"* — and they did.
-- **The cost of the two-step form is one line and one import**, at the end of a model run. It is not
-  a correctness hazard, a performance cost, or an ergonomics cliff.
-- **The cost of the one-step form is permanent.** Under **ADR-018** the v1 surface is frozen:
-  anything added can only be removed by a platform-wide MAJOR. A convenience method is a permanent
-  commitment bought with a transient inconvenience.
-- **Three register concerns existed solely to guard a thing that was never built** — C-52
-  (construction-convenience accretion, the "camel's nose" ADR-001 names as this leaf's #1 existential
-  failure mode), C-53 (two frozen construction paths can diverge), C-54 (#113's Definition-of-Done,
-  read literally, pulls views-baseline's `value_fn` + entity×time grid loop — an ADR-001 consumer
-  edge — into the leaf). All three read *"awaiting the #113 decision"*.
+### Two terms this decision depends on
 
-A decision of this kind — *should the frozen public surface gain a new permanent method* — belongs in
-an ADR. Until now it lived only as a disagreement entry in the risk register, which is why it could
-sit undecided: nothing forced it to conclude.
+**"The leaf"** is this package, `views-frames`. It sits at the bottom of the platform: every other
+repository depends on it, and it depends on none of them. That position is why changes here are
+expensive — they ripple outward to everyone.
+
+**"The frozen surface"** means that since v1.0.0 we promised not to change or remove anything public
+(ADR-018). We can *add*, but we can never take back. So every public method we add is permanent
+unless we coordinate a breaking release across every repository that uses us.
+
+## What actually happened to the request
+
+The request was filed in June 2026 and never built. That turns out to be the most useful evidence we
+have.
+
+**Nobody was blocked.** Issue #113 said so itself: engines *"can migrate today by constructing
+`SpatioTemporalIndex` directly"* — and that is what they did. The engine repositories migrated
+thirteen months ago using the two-step form and have been fine since. No one came back asking again.
+
+**The shape was already agreed; only the need was missing.** An earlier review settled *how* it would
+look if we built it — a method on the class rather than a standalone function. That design was never
+in dispute. What never arrived was a case where the two-step form actually caused a problem.
+
+**Meanwhile it cost us anyway.** Three entries in our risk register existed purely to watch this
+unbuilt thing: one worried the shortcut would grow beyond a shortcut, one worried two ways of
+building the same object would drift apart, and one worried the request's wording would pull
+domain-specific code into this package. All three were reviewed every cycle for thirteen months, and
+all three were guarding something that did not exist.
 
 ## Decision
 
-**Decline #113. Frame construction stays two-step.** No `build_prediction_frame`, no
-`PredictionFrame.from_arrays`, no `src/views_frames/factory.py`. The frozen surface does not grow.
+**Frame construction stays two-step.** We will not add `build_prediction_frame`,
+`PredictionFrame.from_arrays`, or a `factory.py` module.
 
-`SpatioTemporalIndex` is not an implementation detail to be hidden — it is the identifier contract,
-and constructing it explicitly is the caller stating which rows their values correspond to. That is
-the one thing a data-contract leaf should make callers say out loud (**ADR-003**: declaration over
-inference).
+The reasoning is a trade of costs:
 
-**The design survives this decision.** If the need is ever receipted, the answer is already worked
-out and does not need re-litigating — D-09's form, under binding constraints:
+- **The two-step form costs one extra line and one extra import.** It is not slow, not error-prone,
+  and not confusing once seen. It is simply longer.
+- **The one-step form would cost us permanently.** Because the surface is frozen, adding it is a
+  commitment we cannot walk back. We would be buying a small, temporary convenience with a permanent
+  obligation.
 
-- a `@classmethod` on `PredictionFrame`, **never** a free function and **never** a `factory.py`;
-- **zero own logic** — pure delegation to `SpatioTemporalIndex(...)` + `__init__`, so a future
-  additive identifier (ADR-013) flows through without a signature edit (this is what neutralises C-53);
-- **singular** — `PredictionFrame` only; no reflexive symmetry onto `Feature`/`TargetFrame`
-  (ISP/CRP, and ADR-011's honesty-over-symmetry);
-- keyword-only `time`/`unit`/`level`; no alias.
+There is also a positive reason, not just a cost argument. **`SpatioTemporalIndex` is not clutter to
+be hidden — it is the point.** It is how a caller states which rows their numbers describe. Making
+that explicit is exactly what a data-contract package should force people to say out loud, rather
+than guess at. Hiding it would make the package more convenient and less clear.
 
-**What would reopen this:** a consumer presenting a concrete site where the two-step form is
-genuinely inadequate — not merely longer. Verbosity alone is not a receipt. This mirrors the
-receipt-first posture ADR-026 took on bounded-memory densification and ADR-024 on principled
-reconciliation.
+### If we ever change our minds
 
-## Alternatives considered
+The design is already worked out, so a future request does not restart the argument. It would be:
 
-- **Ship `PredictionFrame.from_arrays` now** (D-09's settled form) — rejected on cost/benefit, not on
-  design: the design is sound, the need is absent. Shipping it would add a permanent symbol, make the
-  pending release a functional MINOR rather than a patch, and leave C-52's accretion pressure live
-  (the first follow-up request — accept a dict, infer the level, take a DataFrame — is what the guard
-  exists for). Declining is **reversible**; shipping is not.
-- **Ship the free function `build_prediction_frame`** (#113 as filed) — rejected already by D-09 and
-  rejected again here: it does not single-home construction, it is the larger frozen surface, and
-  every consumer already imports `PredictionFrame`.
-- **A `src/views_frames/factory.py` collecting construction helpers** — rejected permanently. C-52's
-  trigger names this file explicitly; an open module accretes loosely-related helpers in a way a
-  classmethod does not (ADR-001's "convenience abstractions that hide meaning" non-entity).
-- **Leave #113 open and undecided** — rejected. This is the status quo that produced three register
-  entries in indefinite limbo. An undecided proposal is not free: it consumes governance attention on
-  every review cycle and makes the register report work that will never happen.
-- **Retire views-baseline's local helper into the leaf** (#113's DoD read literally) — rejected;
-  that helper is a **domain grid-builder** (loops a `value_fn` over entity×time), an ADR-001 consumer
-  edge. It stays in views-baseline. Only its innermost two-line construction was ever in scope, and
-  that is exactly what is being declined.
+- a **method on `PredictionFrame`** — never a standalone function, and never a `factory.py` module;
+- **no logic of its own** — it just calls the two existing steps, so anything we add to the index
+  later flows through automatically without changing this method;
+- **only on `PredictionFrame`** — not copied onto the other two frame types unless they need it too;
+- named arguments only, and no second alias for the same thing.
+
+**What would reopen this:** someone showing a real place where two steps genuinely do not work — not
+just where they would prefer one. *Being longer is not, by itself, a reason.* This matches how we
+handle other deferred work: we wait for a concrete case rather than guessing at one.
+
+## Alternatives we considered
+
+**Build it now, as designed.** Rejected on cost, not on design — the design is fine, the need is
+absent. Building it would add a permanent method, turn a small documentation release into a feature
+release, and immediately invite follow-ups ("can it also accept a dictionary? guess the level? take a
+DataFrame?"). Declining can be undone; shipping cannot.
+
+**Build it as originally requested, as a standalone function.** Rejected earlier and again here.
+Everyone already imports `PredictionFrame`, so a separate function adds a second way to do one thing
+without adding reach.
+
+**Create a `factory.py` module for construction helpers.** Rejected permanently. A module with a
+general name attracts loosely-related helpers over time in a way a single method does not. This is
+the specific slope our risk register was set up to watch.
+
+**Leave the request open and undecided.** Rejected — this was the status quo, and it is what produced
+three register entries sitting in limbo for over a year. An undecided proposal is not free: it
+consumes attention at every review and makes our own tracking report work that will never happen.
+
+**Move views-baseline's local helper into this package.** Rejected. That helper loops a
+caller-supplied function over entities and time to build many frames at once. That is model-specific
+work and belongs in the model repository, not in a shared data-contract package. Only its innermost
+two lines were ever in scope here — and those are what we are declining.
 
 ## Consequences
 
-- **Consumers keep the two-line form.** No migration, no deprecation, no consumer action of any kind —
-  the outcome is that nothing changes.
-- **Register C-52, C-53 and C-54 resolve** (2026-07-31, this ADR). The concerns were guards on an
-  unbuilt thing; with the thing declined, the guards have nothing to guard. C-52's *trigger* survives
-  in spirit through this ADR's "what would reopen this" clause.
-- **The frozen surface does not grow**, and the accretion pressure ADR-001 warns about is answered
-  with a written precedent rather than a case-by-case judgment. Future construction-convenience
-  requests can be closed by citing this ADR.
-- **views-baseline keeps its helper.** Cross-repo, owner-only; nothing in this decision obliges any
-  sibling repo to change (D-04's boundary discipline).
-- **The decision is now findable.** It was previously reachable only through a register disagreement
-  entry; a contributor asking "why can't I build a frame in one line?" now gets an answer from the
-  ADR index instead of rediscovering the debate.
-- Docs-only; no `src/` change; `CONFORMANCE_FLOOR` stays `1.0.0`.
+**What changes: nothing.** No migration, no deprecation, no action for any repository. Code that
+builds frames today keeps working. views-baseline keeps its own helper.
+
+**What we gain:**
+
+- Three risk-register entries close (C-52, C-53, C-54). They were guards on an unbuilt thing.
+- The public surface does not grow, and it did not grow for a reason we can point at.
+- The next similar request has an answer to cite instead of an argument to repeat.
+- The decision is findable. Until now it lived only in the risk register, which is why it could sit
+  undecided for a year — nothing forced it to conclude. Someone asking *"why can't I build a frame in
+  one line?"* will now find this document.
+
+**What we accept:** if a real need appears, we will have spent a little time re-reading this page
+before building the thing we already designed. That is a cheap price for not carrying a permanent
+method we did not need.
+
+This is documentation only — no code changed, and the conformance floor stays at `1.0.0`.
+
+---
+
+## References
+
+- **Issue #113** — the original request. Closed by this ADR.
+- **ADR-018** — the v1 API freeze: additions are permanent, removals require a coordinated major release.
+- **ADR-003** — prefer explicit declaration over inference.
+- **ADR-001** — what belongs in this package and what does not; names accretion as its main long-term risk.
+- **ADR-011** — the three frame types are separate siblings; symmetry is not assumed.
+- **ADR-013** — identifiers may be added later, which is why any future helper must carry no logic of its own.
+- **Risk register** — resolves C-52, C-53 and C-54; records the outcome of disagreement D-09.
+- Delivered as story S1 (#209) of epic #208, via PR #220.
