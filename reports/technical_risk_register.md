@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-07-31                           |
-| Total Concerns    | 77                                   |
+| Total Concerns    | 78                                   |
 | Open Concerns     | 15                                   |
-| Resolved Concerns | 62                                   |
+| Resolved Concerns | 63                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -483,6 +483,19 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-81: the published conformance suite shipped without a CIC, while the CIC index claimed full coverage — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-81 |
+| Tier | 3 |
+| Resolved | 2026-07-31 (same session — `docs/CICs/Conformance.md` authored) |
+| Source | review-base-docs (2026-07-31), Phase 4 CIC audit. |
+| Resolution | **`docs/CICs/Conformance.md` written**, and `docs/CICs/README.md` corrected. `src/views_frames/conformance/` was the only shipped surface with no contract — 60 statements, five exported assert functions, its own governing ADR (**ADR-016**), and, uniquely here, a module whose *primary caller is another repository*. Four of its exports (`assert_frame_contract`, `assert_frame_envelope`, `assert_cross_level_alignment_law`, `assert_index_alignment_laws`) appeared in no CIC at all; they were documented only incidentally inside ADR-018 and ADR-020. **This is C-64 exactly, one module over** — that entry was *"`views_frames_reconcile` ships without a CIC — the package is contract-less"*, and its fix never generalised into a check that would have caught this one. What made it visible was auditing a claim rather than reading it: the index asserted *"Status: fully contracted … the `Reconcile.md` gap was the last"*, and that sentence was false. The README now names both after-the-fact gaps and says the second was found by auditing the completeness claim itself. **Writing the contract surfaced two of my own overstatements in the draft** — I described `assert_frame_contract` as checking the spatial level and index write-protection (it checks neither) and `assert_index_alignment_laws` as checking the `-1`-for-absent-rows behaviour (it checks `is_superset_of` reflexivity and searchsorted self-identity). Both corrected against the source before the file was committed, per C-77. |
+| Cross-refs | **C-64** (the identical gap for `views_frames_reconcile`, resolved 2026-06-28 — the precedent whose fix was never generalised), **C-77** (the overstatement pattern; this entry is both an instance *of* it — the index's false claim — and an instance of its remedy working, since the draft's own errors were caught by checking), C-80 (the test-suite twin of the same self-description problem), C-10 / C-46 (the cross-repo drift the suite exists to remove), C-67 (the `-O` silent-pass the suite now refuses), ADR-016. |
+
+---
 
 ### C-75: falsification tests asserted README *prose* from inside the 100%-coverage gate — RESOLVED
 
@@ -1221,6 +1234,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 
 - **ID format:** `C-xx` for concerns, `D-xx` for disagreements. IDs are permanent — gaps in numbering indicate merged or resolved entries.
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
+- **Foreign ADR references:** an unqualified `ADR-xxx` always means *this* repository's ADR. A sibling repo's ADR must name the repo ("views-datafactory's ADR-044 **there**"). Three currently referenced numbers — **ADR-034** (pipeline-core), **ADR-044** (views-datafactory), **ADR-055** (paired with a `D-29` that does not exist here) — have no file in `docs/ADRs/`, which is correct, but only one of the three said so plainly. Same rule as the concern-id convention below.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
 - **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
   - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-57, C-66, the C-32 residual, + resolved C-53, C-76, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
