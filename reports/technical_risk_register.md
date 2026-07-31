@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-07-31                           |
 | Total Concerns    | 73                                   |
-| Open Concerns     | 17                                   |
-| Resolved Concerns | 56                                   |
+| Open Concerns     | 14                                   |
+| Resolved Concerns | 59                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -50,11 +50,10 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> **The 17 open concerns are grouped under *Causal clusters* in Register Conventions —
+> **The 14 open concerns are grouped under *Causal clusters* in Register Conventions —
 > that list is the single authority and this preamble deliberately does not restate it**
 > (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
-> {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-58, C-62}; **construction
-> convenience accretion (#113)** {C-52, C-53, C-54}; **cross-repo coordination** {C-13, C-46};
+> {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-58, C-62}; **cross-repo coordination** {C-13, C-46};
 > **immutability enforcement** {C-66}; **scale & footprint awareness** {C-71, C-73}; plus the
 > cross-cutting **verification-completeness** theme {C-58, C-74, C-75} and the
 > **freeze-as-root-cause** meta-cluster {…, C-76} that spans several of them. Read the
@@ -147,54 +146,6 @@ Both functions implement per-row histogram binning over a row-block. `_coarse_co
 | Cross-refs | C-01 (resolved — the home decision: leaf defines only the index/key protocol the eval types conform to), ADR-016 (conformance floor), ADR-020 (the B ratification), GH #109, views-evaluation#21. |
 
 Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-evaluation` and reuses the views-frames *substrate* — `FrameMetadata` plus the conformance/IO **patterns**. The float32 discipline and the serialise→load round-trip are therefore guaranteed in the leaf (`assert_frame_contract`) but only **re-asserted by convention** in `views-evaluation`. There is no single schema authority for the shared "frame-like envelope" across the two repos, so the two can drift — a quiet deserialisation or precision mismatch discovered late at the emit→consume boundary, not an outage. **Tier 2** — structural fragility with a clear future trigger; the leaf publishes nothing itself, but the boundary it underwrites can silently mismatch. **Mitigation (recorded in ADR-020):** publish the leaf's conformance/round-trip checks as a reusable, consumer-runnable checker (the conformance suite is already a public artifact, ADR-016) plus an explicit, versioned wire schema (a `schema_version` marker) that both emit and consume validate against — converting "agree by convention" into "validate against one written contract." **Partially mitigated (v1.4.0):** the reusable checker shipped as `assert_frame_envelope` — the shared envelope (float32, trailing axis, round-trip) factored out as one written authority a non-spatiotemporal `MetricFrame` validates against. **Remaining (stays Open):** the explicit versioned wire schema (`schema_version`) and the cross-repo emit→consume round-trip contract test that calls the checker — both live at the boundary / in `views-evaluation`. Resolved when those land.
-
----
-
-### C-52: construction-convenience accretion on the leaf — the "camel's nose" for adapters (ADR-001)
-
-| Field | Value |
-|-------|-------|
-| ID | C-52 |
-| Tier | 3 |
-| Status | **awaiting** — the #113 decision (D-09 settled the shape; implementation deprioritized) |
-| Source | expert-code-review (2026-06-24, GH #113 `build_prediction_frame` / `PredictionFrame.from_arrays`); pipeline-core owner calibration |
-| Trigger | When a future PR extends the planned `PredictionFrame.from_arrays` with a `value_fn` / `from_grid` / dtype-guessing parameter, or adds a new `src/views_frames/factory.py` that accretes loosely-related construction helpers — **or adds frame-level serialization/adapter conveniences (`to_parquet`/`from_parquet`, and especially `to_pddf`/`from_pddf`) to the frame classes** — pulling consumer-edge responsibility (ADR-001 non-entities: adapters, "convenience abstractions") into the data-contract leaf. |
-| Location | (planned) `src/views_frames/prediction_frame.py` (`from_arrays`); guard against a future `src/views_frames/factory.py` and against `to_parquet`/`to_pddf`/`from_pddf` accreting onto `src/views_frames/*_frame.py`. |
-| Cross-refs | ADR-001 (ontology / explicit non-entities / accretion = the leaf's #1 failure mode), ADR-011, D-09, **D-11** (serialization-convenience placement — settled off-leaf), C-53, C-54, GH #113. |
-
-ADR-001 (line 17) names accretion as the leaf's existential failure mode — "someone adds an adapter, then grid knowledge … becomes pipeline-core-lite." A construction convenience is the most innocuous possible first step onto that slope. **Tier 3** (recalibrated down from an initial Tier 2 with the pipeline-core owner): under the ratified mitigations the residual risk is boundary-erosion a code-review gate catches, not inherent structural fragility. **Mitigations:** ship the **classmethod** form (a class resists becoming a dumping ground far better than an open `factory.py`); keep it **zero-own-logic**; add a CIC "Construction" **non-goal** that explicitly fences out grid / `value_fn` / inference / adapters. Resolved when `from_arrays` lands with those guards, or closed if #113 is declined.
-
----
-
-### C-53: two frozen `PredictionFrame` construction paths can diverge
-
-| Field | Value |
-|-------|-------|
-| ID | C-53 |
-| Tier | 3 |
-| Status | **awaiting** — #113 landing as a zero-logic delegator |
-| Source | expert-code-review (2026-06-24, GH #113; Kleppmann lens) |
-| Trigger | When a future **additive identifier** (an optional third id beyond `{time, unit}`, ADR-013) is threaded through `PredictionFrame.__init__` / `SpatioTemporalIndex` but **not** through `PredictionFrame.from_arrays` (or vice-versa) — the two **frozen** (ADR-018) construction signatures then drift, and a consumer on one path silently cannot express what the other can. |
-| Location | (planned) `src/views_frames/prediction_frame.py` (`__init__` + `from_arrays`). |
-| Cross-refs | ADR-013 (optional-additive identifiers), ADR-018 (freeze — both paths are forever), D-09, C-52, GH #113. |
-
-Adding `from_arrays` publishes a **second** construction path that ADR-018 then freezes alongside `__init__`; both must evolve together forever. **Tier 3** — maintainability/coupling, not silent corruption. **Mitigation:** `from_arrays` must carry **zero own logic** — pure delegation to `SpatioTemporalIndex(time, unit, level)` + `__init__(values, index, metadata)` — so a new index identifier flows through `from_arrays` automatically with no signature edit. Resolved when `from_arrays` lands as a zero-logic delegator, or closed if #113 is declined.
-
----
-
-### C-54: #113 DoD overstates scope — "retires the baseline duplicate" would pull a consumer edge into the leaf
-
-| Field | Value |
-|-------|-------|
-| ID | C-54 |
-| Tier | 3 |
-| Status | **awaiting** — the #113 DoD correction (cross-repo: views-baseline) |
-| Source | expert-code-review (2026-06-24, GH #113; cross-repo / views-baseline) |
-| Trigger | When a maintainer reads #113's Definition-of-Done literally ("retires baseline's local `build_prediction_frame`") and moves views-baseline's `value_fn` + entity×time grid loop into the leaf to "finish the job" — importing a domain grid-builder (an ADR-001 non-entity / consumer edge) into the data-contract leaf. |
-| Location | views-baseline `views_baseline/model/helpers.py:110` ↔ the leaf. |
-| Cross-refs | ADR-001 (adapters / grid-builders are consumer edges, not leaf entities), C-52, GH #113, views-baseline #21. |
-
-The views-baseline helper is a **domain grid-builder** (loops a `value_fn` over entity×time to emit `dict[str, PredictionFrame]`), not a thin constructor; the planned `from_arrays` retires only its **innermost** `SpatioTemporalIndex + PredictionFrame` construction line, leaving the grid loop in the engine where it belongs. **Tier 3** — boundary/scope erosion, multi-repo. **Mitigation:** re-scope #113's DoD to "retire the index-construction *line* inside the baseline helper," and keep the helper in views-baseline. Resolved when #113's DoD is corrected.
 
 ---
 
@@ -441,7 +392,7 @@ A one-word contradiction with a governance tail: the docstring calls `from_2d` a
 | ID | D-09 |
 | Source | expert-code-review (2026-06-24, GH #113) + pipeline-core owner exchange |
 | Perspectives | **#113-as-filed / pipeline-core:** add a `build_prediction_frame(...)` **free function** to the leaf. **views-frames owner + all eight expert lenses:** a `@classmethod PredictionFrame.from_arrays(y_pred, *, time, unit, level, metadata=None)` — it matches the leaf's only construction-helper convention (`from_2d` / `load`), single-homes construction (SRP/CCP), is the smaller frozen surface (Ousterhout), resists accretion (Nygard), and is the canonical Python Factory Method (GoF); a free-function alias is **strictly dominated** because every consumer already imports `PredictionFrame`. |
-| Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it is not a blocker. See C-52, C-53, C-54, ADR-011, ADR-018, GH #113. |
+| Resolution | **Settled — Option B:** classmethod `PredictionFrame.from_arrays`, **singular** (PredictionFrame only; defer Feature/Target per CRP + ADR-011 honesty-over-symmetry), **zero own logic**, keyword-only `time`/`unit`/`level`, in `prediction_frame.py`, **no alias**. Additive/MINOR; `CONFORMANCE_FLOOR` stays `1.0.0`. **Implementation deprioritized behind the engine migration** (views-hydranet #137 / views-baseline #21) — it was not a blocker. **Outcome (2026-07-31, ADR-027):** never implemented, and now **declined** — the engines migrated by constructing `SpatioTemporalIndex` directly, so the settled shape was never needed. D-09's design is **not discarded**: ADR-027 carries it forward verbatim as the form any future construction convenience must take, together with what would reopen the question. This disagreement is therefore settled *twice* — on shape (here) and on whether to build at all (ADR-027). See C-52/C-53/C-54 (resolved), ADR-011, ADR-018, **ADR-027**, GH #113. |
 
 ---
 
@@ -483,6 +434,38 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ---
 
 ## Resolved Concerns
+
+> Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-52: construction-convenience accretion on the leaf — the "camel's nose" for adapters (ADR-001) — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-52 |
+| Resolved | 2026-07-31 (**ADR-027**, Epic #208 / S1 #209) |
+| Resolution | **ADR-027 declines #113** — no `build_prediction_frame`, no `PredictionFrame.from_arrays`, no `factory.py`. The concern guarded an addition that will not be made, so the slope it feared has no first step. Its substance is **preserved, not discarded**: ADR-027 records the binding constraints any future construction convenience must satisfy (classmethod, zero own logic, singular, no `factory.py`) and names what would reopen the decision (a receipted site where two steps are genuinely inadequate — verbosity alone is not a receipt). Future accretion requests close by citing ADR-027 rather than re-litigating. The **serialization** half of this entry's trigger (`to_parquet`/`to_pddf` on the frame classes) was already settled off-leaf by **D-11**. |
+
+---
+
+### C-53: two frozen `PredictionFrame` construction paths can diverge — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-53 |
+| Resolved | 2026-07-31 (**ADR-027**, Epic #208 / S1 #209) |
+| Resolution | **ADR-027 declines #113** — the second construction path is never created, so there is nothing to diverge from `__init__`. (Had it shipped, D-09's **zero-own-logic** constraint was the mitigation: pure delegation means a future additive identifier per ADR-013 flows through without a signature edit. ADR-027 records that constraint for any future reconsideration.) |
+
+---
+
+### C-54: #113 DoD overstates scope — "retires the baseline duplicate" would pull a consumer edge into the leaf — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-54 |
+| Resolved | 2026-07-31 (**ADR-027**, Epic #208 / S1 #209) |
+| Resolution | **ADR-027 declines #113**, so its Definition-of-Done is moot and cannot be misread. ADR-027 states explicitly that views-baseline's helper is a **domain grid-builder** (a `value_fn` looped over entity×time) — an ADR-001 consumer edge that **stays in views-baseline**, and that only its innermost two-line construction was ever in scope. No cross-repo action follows for any sibling repo. |
+
+---
 
 ### C-72: `arrow.load` trusted the parquet row order it never checked — silent sample-slot corruption on out-of-order input — RESOLVED
 
@@ -1157,11 +1140,11 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
 - **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
-  - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-53, C-57, C-66, **C-76**, the C-32 residual, + D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
+  - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-57, C-66, **C-76**, the C-32 residual, + resolved C-53, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
   - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
   - **reconcile method + governance** = {C-58, C-62, + D-12; resolved C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) is the remaining governance debt, with the mode-reporting decision recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
-  - **construction-convenience accretion (#113)** = {C-52, C-53, C-54, + D-09} — the planned `PredictionFrame.from_arrays` factory is the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), and a DoD that overstates scope (C-54). Gated on the #113 decision (D-09).
+  - **construction-convenience accretion (#113)** = {resolved C-52, C-53, C-54, + D-09} — **CLOSED 2026-07-31 by ADR-027** (Epic #208 / S1 #209). The planned `PredictionFrame.from_arrays` factory was the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), a DoD overstating scope (C-54) — all three guarding an addition that was **never made and is now declined**. The cluster is instructive rather than dead: it is the register's clearest case of concerns that existed *only* because a proposal sat undecided. Thirteen months open, zero code written, three entries consuming review attention every cycle — and the resolution was a decision, not an implementation. **The guard survives as a written precedent:** ADR-027 records the binding constraints any future construction convenience must satisfy and what would reopen the question, so the next such request is closed by citation instead of re-argued. The lesson generalises to the `awaiting` Status class: an undecided proposal is not free.
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {C-66, + resolved C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
   - cross-cutting **verification-completeness** = {C-58, **C-74**, **C-75**, resolved C-51, C-65} — **the register's most persistent pattern: a check exists, passes, and does not actually exercise the thing it appears to guard.** The reconciler's production-slice check was never run (C-58); `validate_docs.sh` and `ruff format` are treated as gates but are absent from CI (C-74); four falsification tests inside the 100%-coverage gate assert README prose rather than the API (C-75); and the precedent — `assert_frame_envelope`'s rejection paths were "covered" only transitively (C-51, resolved by direct adversarial tests). The recurring lesson is that **coverage-green and gate-green are not the same as verified**, and the failure is always *false confidence*, never a wrong number — which is why this cluster is uniformly Tier 3 yet keeps producing entries. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`. Its sibling — the non-finite fail-loud on the blocked/multi-block path (C-65) — was **resolved by a red test (2026-06-28, epic #179 / S3)** placing a non-finite draw in a non-first block via `block_rows`.
