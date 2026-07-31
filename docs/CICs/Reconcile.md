@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-28
+**Last reviewed:** 2026-07-31
 **Related ADRs:** ADR-002, ADR-003, ADR-006, ADR-008, ADR-014, ADR-020, ADR-023, ADR-024
 
 > The `views_frames_reconcile` package — forecast reconciliation as a `views_frames`
