@@ -96,9 +96,9 @@ layers = [
 #
 # NOTE: `io` sits *below* the frames because that is what the code does — `io/npz` and
 # `io/arrow` are flat array codecs importing only `_typing`, and the frames call them.
-# ADR-002 describes the inverse (io on top, importing the frames) and lists "a frame
-# importing io/" as a forbidden pattern. The ADR is out of date, not the code; see the
-# PR that added this file's contracts.
+# `Persistable` puts `save`/`load` on the frame, so the frame is what reaches the
+# serializer. ADR-002 described the inverse until its 2026-08-17 amendment (register
+# C-82); it now matches this contract.
 [[tool.importlinter.contracts]]
 name = "The leaf's internal layering runs one way"
 type = "layers"

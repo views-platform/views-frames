@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-06-24
+**Last reviewed:** 2026-08-17
 **Related ADRs:** ADR-001, ADR-006, ADR-009, ADR-011, ADR-012, ADR-013, ADR-017
 
 > Note: defined in `src/views_frames/protocols.py`. The protocols are the published
@@ -40,6 +40,10 @@ surface so no consumer depends on methods it does not use: a reconciler needs on
 - `Persistable`: `save(directory)` and `load(directory, mmap)`; `mmap` propagates so
   peak RAM stays the working set (register C-07). Round-trips frame-declared state
   (a `__frame_state__`-style contract) so `io/` carries no per-frame schema (C-09).
+  **This protocol is why the frames depend on `io/` and not the reverse.** Placing
+  `save`/`load` on the frame means the frame is what reaches the serializer; `io/npz`
+  and `io/arrow` take raw arrays and never import a frame class. ADR-002 originally
+  described the opposite direction and was corrected on 2026-08-17 (register C-82).
 - `Frame`: the minimal `values` + index + `n_rows` composition.
 
 ---

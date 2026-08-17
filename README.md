@@ -436,9 +436,13 @@ Layout rules (these *are* the screaming-architecture requirements):
 
 - **One main class/concept per file.** Multiple classes in a file is the
   exception, allowed only for genuinely inseparable units.
-- **Serialization is not the frame's job.** I/O adapters live under `io/`, import
-  the frame, and change for *their own* reasons (a new store format) — not when
-  the frame's schema changes (SRP + CCP). `PredictionFrameConverter`
+- **Serialization logic does not live in a frame file.** The codecs under `io/`
+  take **raw arrays** — `npz.save` is handed `values`, `time`, `unit`, `level`
+  and `metadata` separately — and change for *their own* reasons (a new store
+  format), not when a frame's schema changes (SRP + CCP). They never import a
+  frame; a frame's `save`/`load` are thin delegations *down* into them, because
+  `Persistable` places those methods on the frame (ADR-002, amended 2026-08-17,
+  register C-82). `PredictionFrameConverter`
   (PF↔list-in-cell DataFrame, a pipeline-core boundary format) **stays in
   pipeline-core**; it is an adapter, not a frame concern.
 - **No dumping grounds.** A file accumulating loose helpers/types/constants/

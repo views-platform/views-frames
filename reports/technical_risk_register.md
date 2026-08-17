@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-17                           |
 | Total Concerns    | 82                                   |
-| Open Concerns     | 18                                   |
-| Resolved Concerns | 64                                   |
+| Open Concerns     | 17                                   |
+| Resolved Concerns | 65                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -65,34 +65,6 @@ one — re-auditing it produces the same answer its precondition already gives.
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
 > with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
-
-### C-82: ADR-002's intra-package layering is inverted against the code, and a CI contract is about to enforce the code's side
-
-| Field | Value |
-|-------|-------|
-| ID | C-82 |
-| Tier | 3 |
-| Status | **actionable** — one section of ADR-002, no code change |
-| Source | repo-assimilation (2026-08-17), Phase 2 (dependency graph, measured with `grimp`). |
-| Trigger | **When someone acts on ADR-002's Forbidden Patterns list or the physical-architecture standard's Circular Dependency Guard** — most likely an agent told to "fix the forbidden pattern," or a contributor adding a module and consulting either document for where it belongs. Acting on them as written means deleting the frames' `npz` imports, which breaks `save`/`load`. Also check before merging PR #239, which turns the opposite claim into a CI gate. |
-| Location | `docs/ADRs/002_topology_and_dependency_rules.md` §Decision (intra-package bullet 3), §Layering Principle, §Forbidden Patterns (bullet 3); **`docs/standards/physical_architecture_standard.md:48-49` and `:67`** (the same claim restated as an operational standard); `src/views_frames/io/npz.py`, `src/views_frames/io/arrow.py`; `src/views_frames/feature_frame.py:21`, `src/views_frames/prediction_frame.py:20`, `src/views_frames/target_frame.py:18`; `pyproject.toml` `[tool.importlinter]` contract 2. |
-| Cross-refs | **C-09** (resolved 2026-06-21 — the decision that produced today's shape: `io/` operates on a generic state dict and carries no per-frame schema; ADR-002 was never updated to match), **C-78** (architectural guards and their blind spots — this is a guard about to enforce what the constitution denies), C-39 / C-23 (resolved — the same doc-lags-code disease in CICs), **ADR-000** (§"Relationship to Code": *"If code and ADRs disagree, the ADR is the source of truth"*), ADR-003 (declarations are authoritative over inference), ADR-007 (agents as untrusted contributors reading these documents; it cites ADR-002 as *"enforced topology"* though no test enforces the `io/` direction), ADR-018 (the freeze that makes the code side immovable), GH #238 / #239. |
-
-ADR-002 §Decision states that `io/` *"sits at the top, imports the frames to serialize them"* and *"Nothing lower may import `io/`"*, and §Forbidden Patterns lists *"a frame importing `io/`"* as an architectural violation. The code is the inverse: `io/npz.py` and `io/arrow.py` import only `_typing`, and all three frames import `io` and call `npz.save`/`npz.load`. The pattern the ADR forbids is used in three of the leaf's core files.
-
-The binding *principle* is not violated — the graph is acyclic (verified exhaustively with `grimp`: 36 modules, 89 dependencies, zero mutual-import pairs) and nothing lower imports higher. What is wrong is the ADR's factual claim about which way `io/` runs. The code's direction is forced by a decision recorded elsewhere: `Persistable` (`protocols.py:62`) puts `save`/`load` **on the frame**, so the frame must reach the serializer. And it satisfies ADR-002's stated *goal* better than its own prescription would — `io/` never importing a frame is stronger decoupling than `io/` importing three of them. **C-09 is the causal origin**: resolving it in v0.1.0 moved `io/` to a generic state-dict contract and inverted the dependency; the ADR was not amended.
-
-The ADR's layer list is also **incomplete**. It names `index`, `spatial_level`, `protocols`, `_validation` as the lowest layer and omits four modules — including `_typing`, which at fan-in 8 is the most-depended-on module in the leaf.
-
-**It is two documents, not one** (added 2026-08-17 by the graphify pass). `docs/standards/physical_architecture_standard.md:48-49` restates the claim verbatim — *"`io/` sits on top and imports the frames. Nothing lower may import `io/`; a frame must not know how it is serialized"* — and `:67` turns it into an operational **Circular Dependency Guard**: *"no core module may import `io/`."* So a contributor checking whether the repo satisfies its own circular-dependency guard would conclude, from the standard, that the code violates it. Meanwhile the three frame CICs (§5 in each) describe `save` writing `values.npy` + `identifiers.npz` — the code's side. **Three documents describe what the code does; two describe the inverse.**
-
-**And the constitution says the two win.** ADR-000 §"Relationship to Code" states: *"If code and ADRs disagree, the ADR is the source of truth — or a new ADR is required."* That is the sentence which converts this from a stale paragraph into a live instruction, and it is also the sentence that names the fix: a new or amended ADR, not a code change.
-
-**Tier 3, not 2 — the failure is loud.** The realistic bad change (deleting the frames' `io` imports) breaks `test_io.py` immediately under the 100% gate; nothing reaches a consumer. What it costs is a wasted change, a wasted review, and a contributor misdirected by the one document that is supposed to be authoritative about topology. That cost lands on multiple developers and on every agent handed these documents, which is what puts it above Tier 4. **Correcting the code instead of the ADR is not available**: `save`/`load` are frozen v1 surface (ADR-018), so it would be a MAJOR bump to fix a documentation error.
-
-**Resolved when** ADR-002's intra-package section describes `io/` as a low-level array codec the frames call, states why (`Persistable` places persistence on the frame; C-09 made `io/` schema-generic), removes the stale Forbidden Patterns bullet, and names all ten leaf modules in its layer list.
-
----
 
 ### C-83: `examples/` is advertised as runnable and executed by nothing
 
@@ -172,11 +144,15 @@ Four separate documents each enumerate a surface and each enumeration has fallen
 | Source | Pattern across epic #208 (2026-07-31), surfaced by two `/code-review max` passes. |
 | Trigger | **When writing or reviewing a `Resolution` field**, before saving: run the check the resolution implies and paste its output, rather than describing what was done. Specifically — if the resolution says a claim was corrected, grep for the claim's wording everywhere, not just where it was noticed; if it says a guard was added, try to defeat the guard; if it says citations were converted, grep for every form of the old style, not the one you happened to write. |
 | Location | Four confirmed instances, all corrected: **C-70** claimed a CI guard was "failing validation" when the script was never in CI; **C-76** claimed the `from_2d` wording was fixed while the module docstring and a `ValueError` still said "legacy shim"; **C-75** described a guard as stronger than it was, twice — first the evadable `dir(module)` form, then the "nothing to evade" wording; **S4/#212** claimed all line-number citations were converted while `docs/ADRs/025_value_buffer_immutability_by_convention.md` retained three written as approximate line numbers in parentheses, a form the acceptance grep could not match. |
-| Cross-refs | C-70, C-75, C-76, C-78; the cross-cutting **verification-completeness** cluster, of which this is the documentation-side twin. |
+| Cross-refs | C-70, C-75, C-76, C-78, **C-82** (the 2026-08-17 instance below), **C-67** (the same shape in code — a conformance suite that reported green while `python -O` stripped its assertions); the cross-cutting **verification-completeness** cluster and the *unchecked completeness claims* cluster, of which this is the documentation-side twin. |
 
 Four times in a single epic, a resolution described what the author **meant to do** rather than what was **verifiably done** — and each was caught by someone re-running the check rather than reading the claim. The pattern is not carelessness about the work; the work was correct each time. It is that resolution text gets written while the change is fresh, when intent and result feel identical, and the author's own acceptance check is built from the same mental model that produced the gap. S4's grep is the clearest case: `\.py:[0-9]+` was written by someone thinking in colon-form citations, so it could not see a citation written as an approximate line number in parentheses.
 
 **Tier 3** — no correctness or silent-corruption path; the cost is that the register, the artifact this project reasons with, states things that are not quite true, and every decision built on it inherits the error. It is Tier 3 rather than 4 because this register is load-bearing: entries like C-66 are executable instructions for a future breaking release, and an instruction that overstates its own completeness is worse than one that admits a gap. **Resolved when** three consecutive resolutions pass a re-run of their own stated check by someone other than their author — or when the habit of pasting the check's output into the resolution is visible in the next five entries.
+
+**Refinement (2026-08-17, from C-82 — pasting evidence is necessary, not sufficient).** The C-82 resolution followed this entry's rule exactly: it ran a check and pasted the real output of a real command, rather than describing what was done. It still asserted something false. The check was `grep` over `docs/ README.md CLAUDE.md` for **four fixed literal phrases**, and two occurrences of the inverted claim survived *inside that same search path* — `README.md` said *"I/O adapters live under `io/`, **import the frame**"* (different wording, wrapped across two lines) and `docs/ADRs/README.md:23` carried a pre-amendment one-line summary of the very ADR being corrected. A `/code-review` pass found both; the entry had already been moved to Resolved.
+
+**So the rule needs a second half.** Pasting output proves a command ran; it does not prove the command *could have failed* on the thing being claimed. A check built from fixed phrases can only find the phrasings its author already thought of — which are, by construction, the ones they just finished editing. Where a resolution claims *absence* ("every stale claim is gone", "no test does X", "nothing references Y"), prefer a check that matches the **shape** of the thing rather than its wording, and where practical, **mutate something to confirm the check goes red** before trusting it green. That is the same lesson as C-67, where the published conformance suites reported green under `python -O` while checking nothing, and the same as the mutation testing the import contracts got in #239.
 
 **Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
 
@@ -560,6 +536,53 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-82: ADR-002's intra-package layering was inverted against the code — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-82 |
+| Tier | 3 |
+| Resolved | 2026-08-17 (Epic #240 / S1 #241) |
+| Resolution | ADR-002 amended, and the same claim corrected in `docs/standards/physical_architecture_standard.md`. See the verification below. |
+| Source | repo-assimilation (2026-08-17), Phase 2 (dependency graph, measured with `grimp`). |
+| Cross-refs | **C-09** (the origin — resolving it in v0.1.0 moved `io/` onto a generic state-dict contract and inverted the dependency; ADR-002 was never amended), **C-84** (the rest of the physical-architecture standard's staleness, same cluster), C-78, C-39 / C-23, ADR-000 §"Relationship to Code", ADR-003, ADR-007, ADR-018, GH #238 / #239 / #240 / #241. |
+
+ADR-002 stated that `io/` *"sits at the top, imports the frames to serialize them"*, that *"Nothing lower may import `io/`"*, and listed *"a frame importing `io/`"* under **Forbidden Patterns**. `docs/standards/physical_architecture_standard.md:48-49` restated it and `:67` made it a Circular Dependency Guard. The code is the inverse: `io/npz` and `io/arrow` import only `_typing`, and all three frames import `io` and call `npz.save` / `npz.load`.
+
+The **decision** was never wrong — direction is one-way and acyclic. The ADR's factual claim about *which* way was. `Persistable` (`protocols.py:62`) places `save`/`load` on the frame, so the frame reaches the serializer; those methods are frozen v1 surface (ADR-018), so correcting the code would have been a MAJOR cross-repo bump to fix a documentation error.
+
+**Verification (2026-08-17).**
+
+*The first verification of this entry was insufficient, and that is worth recording.* It used four literal phrases (`"sits at the top"`, `"imports the frames to serialize"`, ``"a frame importing `io/`"``, `"no core module may import"`) and reported the claim clean. A `/code-review` pass then found **two surviving occurrences inside that same search path**: `README.md` §layout rules said *"I/O adapters live under `io/`, **import the frame**"* — different wording, and wrapped across two lines — and `docs/ADRs/README.md:23` summarised ADR-002 with the pre-amendment direction, so the corrected ADR was fronted by an uncorrected one-line summary of itself. C-77's discipline is to paste evidence rather than describe it; this entry did paste real output from a real command. **The command was the weak part.** Pasting evidence is necessary and not sufficient — the check has to be capable of failing.
+
+The replacement check matches *any* line pairing `io` with a frame in an import or arrow relation, rather than four fixed phrases:
+
+```
+$ grep -rniE "io/?[^a-z]*(import|→|->)[^.]*frame|frame[^.]*(import|→|->)[^.]*\bio\b|imports the frame|import the frame|→ *io\b|-> *io\b" \
+      docs/ README.md CLAUDE.md GOVERNANCE.md
+docs/ADRs/README.md:23           (the corrected index summary: `_validation`/`io` → `index` → …)
+docs/ADRs/002_...md:11,105,138   (amendment text + the corrected Layering Principle and Forbidden Patterns)
+docs/CICs/Reconcile.md:178       (unrelated: the reconcile sibling's own `frames` module, "array→frame IO")
+```
+
+Every remaining hit is either the corrected text or unrelated. Nothing asserts the inverted direction.
+
+All eleven leaf modules are now named in ADR-002's intra-package section (it previously named four, omitting `_typing` — the highest fan-in in the leaf at 8 — plus `metadata`, `io` and `conformance`). Checked against `find src/views_frames -name '*.py'`: `_typing`, `metadata`, `spatial_level`, `_validation`, `io`, `index`, `protocols`, `feature_frame`, `prediction_frame`, `target_frame`, `conformance` — all present, none missing. The section no longer states a module *count* beside the list, because a count is the same drift-prone form (C-85).
+
+```
+$ uv run lint-imports
+The core does not depend on its consumers KEPT
+The leaf's internal layering runs one way KEPT
+Contracts: 2 kept, 0 broken.
+
+$ bash docs/validate_docs.sh
+=== PASSED: no issues found ===
+```
+
+Also corrected in the same change: `docs/standards/physical_architecture_standard.md` (the layering paragraph and the Circular Dependency Guard — its stale *directory tree* is C-84), `docs/ADRs/README.md` (the index summary), `README.md` §layout rules, `docs/CICs/Protocols.md` (which now records that `Persistable` is *why* the frames depend on `io/`; `Last reviewed` moved from 2026-06-24, the oldest CIC, to 2026-08-17), the `[tool.importlinter]` comment in `pyproject.toml`, and the `[Unreleased]` CHANGELOG entry, which had said correcting the ADR was *"left to a separate change"* — this is that change, in the same unreleased section.
+
+---
 
 ### C-74: the CI gate was a strict subset of the local gate — `validate_docs.sh` and `ruff format` ran only by habit — RESOLVED
 
