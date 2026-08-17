@@ -44,6 +44,24 @@ changed or removed.
   and `docs/CICs/Protocols.md`, which now records that `Persistable` is *why* the
   dependency runs the way it does.
 
+- **The physical-architecture standard's directory tree now matches the repository**
+  (register C-84, epic #240 / S2). Its §2 tree was a pre-implementation sketch that had
+  never been revised: it showed one of the three shipped packages, omitted `metadata.py`,
+  `_typing.py` and the whole `conformance/` subpackage, listed two files that were never
+  written, and still marked `target_frame.py` as "anticipated" — it shipped in v1.0.0.
+  The tree now covers all three packages and all 36 modules, and the document carries a
+  `Last reviewed` date so the next drift is visible.
+
+  Added `scripts/check_arch_tree.py`, which diffs that tree against `src/**/*.py` in both
+  directions — a module missing from the tree, and a module named in the tree that does
+  not exist. It is a standalone tool, not a CI gate; wiring it in is issue #246.
+
+  §1 and §3 were corrected in the same change, because making the tree complete exposed
+  them: §1's naming rule now says module names are read package-qualified
+  (`ReconciliationModule` in `views_frames_reconcile/module.py` reads as
+  `reconcile.module`), and §3 records why `_typing.py` and `_common.py` are focused
+  modules rather than the dumping grounds their names resemble.
+
 ### Changed — governance
 
 - **Four concerns registered from a full assimilation sweep** (`repo-assimilation`,

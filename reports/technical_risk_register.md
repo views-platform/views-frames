@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-17                           |
 | Total Concerns    | 82                                   |
-| Open Concerns     | 17                                   |
-| Resolved Concerns | 65                                   |
+| Open Concerns     | 16                                   |
+| Resolved Concerns | 66                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -23,9 +23,11 @@
 
 ## Status (open concerns)
 
-Tier answers *how bad*; **Status answers *can we act***. At 17 open concerns — 13 of them
-Tier 3 — tier alone stopped discriminating, and "17 open" read as 17 things someone might
-have to do when most cannot be acted on at all. Every open entry carries one:
+Tier answers *how bad*; **Status answers *can we act***. This class was introduced on
+**2026-07-31**, when the register stood at 17 open concerns — 13 of them Tier 3 — and tier
+alone had stopped discriminating: "17 open" read as 17 things someone might have to do,
+when most could not be acted on at all. (Those two numbers describe that moment, not today;
+the header above is the current count.) Every open entry carries one:
 
 | Status | Meaning |
 |--------|---------|
@@ -84,31 +86,6 @@ README §quickstart links both scripts and tells a reader to run them. No workfl
 
 ---
 
-### C-84: the physical-architecture standard describes a repository that no longer exists
-
-| Field | Value |
-|-------|-------|
-| ID | C-84 |
-| Tier | 3 |
-| Status | **actionable** — rewrite one 78-line document; no code change |
-| Source | review-base-docs (2026-08-17). |
-| Trigger | **When a contributor consults the standard to decide where a new module goes**, or when the ADR-002 amendment in C-82 is written — that edit touches `:48-49` and `:67` of this same file, and is the moment to fix the rest of it rather than leave a half-corrected document. |
-| Location | `docs/standards/physical_architecture_standard.md` (78 lines, undated, unversioned): the directory tree at `:30-44`, the layering paragraph at `:48-49`, the Circular Dependency Guard at `:67`. |
-| Cross-refs | **C-82** (the layering claim in this same file — that half is tracked there; this entry is everything else), C-39 / C-23 / C-70 (resolved — the same doc-lags-code disease in CICs and the README), **C-85** (the sibling finding: governance documents asserting coverage nothing checks). |
-
-The standard is the operational companion to ADR-002 — it draws the authoritative directory tree and states the one-concept-per-file rule. It was written before the package was built and never revised, so its tree describes a design that only partly shipped:
-
-- **Three shipped modules are missing**: `metadata.py`, `_typing.py`, and the whole `conformance/` subpackage — the last being the one surface whose primary caller is another repository (ADR-016).
-- **Two modules that never shipped are present**: `weight_frame.py` and `mask_frame.py`, both marked "(anticipated)".
-- **`target_frame.py` is still marked "(anticipated)"** — it shipped in v1.0.0 and has its own CIC.
-- **Two of the three packages are absent entirely.** The wheel ships `views_frames`, `views_frames_summarize` and `views_frames_reconcile`; this document knows only the first.
-
-Eight of thirteen real modules, one of three packages, two phantom files. **Tier 3, not 2** — nothing here can produce a wrong number, and a contributor who follows the tree and adds a file in the wrong place is caught by `tests/test_import_enforcement.py`'s one-concept-per-file check and by review. The cost is that the document a new contributor is pointed at for "where does this go" is wrong about the shape of the repository, which lands on every newcomer and every agent (ADR-007). It is also **undated and unversioned**, so its staleness is not detectable by inspection — unlike the CICs, which all carry a `Last reviewed` line and are all current.
-
-**Resolved when** the tree lists the three packages and thirteen real modules, the phantom entries are gone, `target_frame.py` is no longer "anticipated", and the document carries a date or review marker so the next drift is visible.
-
----
-
 ### C-85: four governance documents assert coverage that nothing checks
 
 | Field | Value |
@@ -153,6 +130,10 @@ Four times in a single epic, a resolution described what the author **meant to d
 **Refinement (2026-08-17, from C-82 — pasting evidence is necessary, not sufficient).** The C-82 resolution followed this entry's rule exactly: it ran a check and pasted the real output of a real command, rather than describing what was done. It still asserted something false. The check was `grep` over `docs/ README.md CLAUDE.md` for **four fixed literal phrases**, and two occurrences of the inverted claim survived *inside that same search path* — `README.md` said *"I/O adapters live under `io/`, **import the frame**"* (different wording, wrapped across two lines) and `docs/ADRs/README.md:23` carried a pre-amendment one-line summary of the very ADR being corrected. A `/code-review` pass found both; the entry had already been moved to Resolved.
 
 **So the rule needs a second half.** Pasting output proves a command ran; it does not prove the command *could have failed* on the thing being claimed. A check built from fixed phrases can only find the phrasings its author already thought of — which are, by construction, the ones they just finished editing. Where a resolution claims *absence* ("every stale claim is gone", "no test does X", "nothing references Y"), prefer a check that matches the **shape** of the thing rather than its wording, and where practical, **mutate something to confirm the check goes red** before trusting it green. That is the same lesson as C-67, where the published conformance suites reported green under `python -O` while checking nothing, and the same as the mutation testing the import contracts got in #239.
+
+**Second refinement (2026-08-17, from C-84 — evidence has to be re-runnable).** The C-84 resolution pasted the output of a tree-diffing script, and mutation-tested it in both directions, which satisfies the first refinement above. But the script lived in a scratchpad and was not committed, so the only artifact proving the tree was correct was a transcript nobody else could execute. A `/code-review` pass named it: a claim backed by an unreproducible transcript is the same shape as a claim backed by nothing, one review cycle later. Fixed by committing it as `scripts/check_arch_tree.py`, beside the other standalone tools there.
+
+**So the rule has three parts, and S10 (#250) should write all three down somewhere durable:** demonstrate rather than describe; use a check that could actually have failed; and leave the check where the next person can run it.
 
 **Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
 
@@ -536,6 +517,46 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-84: the physical-architecture standard described a repository that no longer existed — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-84 |
+| Tier | 3 |
+| Resolved | 2026-08-17 (Epic #240 / S2 #242) |
+| Resolution | The §2 tree rewritten to the three shipped packages and all 36 modules, verified mechanically in both directions. The document now carries a `Last reviewed` date and a note saying the tree is perishable. See the verification below. |
+| Source | review-base-docs (2026-08-17). |
+| Cross-refs | **C-82** (the layering claim in the same file, resolved in S1 #241 — this entry was the rest of it), C-39 / C-23 / C-70 (resolved — the same doc-lags-code disease elsewhere), **C-85** (the sibling: governance documents asserting coverage nothing checks), **C-77** (whose 2026-08-17 refinement is the reason this resolution mutation-tests its own check). |
+
+The standard's §2 directory tree was a pre-implementation design sketch, never revised after the package was built: it showed **one of three packages**, omitted `metadata.py`, `_typing.py` and the whole `conformance/` subpackage, listed two files that never shipped (`weight_frame.py`, `mask_frame.py`), and still marked `target_frame.py` as "(anticipated)" — it shipped in v1.0.0 with its own CIC. The document was also undated, so its staleness was invisible to inspection.
+
+**Verification (2026-08-17).** Following C-77's refinement, the check was written to match the *shape* of the claim rather than a fixed phrase, and **mutation-tested in both directions before being trusted**:
+
+The check is committed as **`scripts/check_arch_tree.py`**, beside the other standalone dev tools there (`verify_reconcile_parity.py`, the fixture generators). It parses the fenced tree out of §2 and diffs it against `src/**/*.py` in both directions. It is deliberately **not** wired into CI: `docs/validate_docs.sh` is the documentation gate and is bash-and-grep by design — its job installs no Python — so whether this belongs there, and how to express it without Python, is S6's call (#246). Pasting a transcript of a script nobody could re-run would have been the very pattern C-77 exists to flag.
+
+```
+$ uv run python scripts/check_arch_tree.py   # parses the §2 fence, diffs it against src/**/*.py
+source modules: 36
+missing from tree: none
+in tree but absent from src/: none
+packages absent from tree: none
+exit=0
+
+$ # mutation 1 — reinstate a phantom module in the tree
+in tree but absent from src/: ['weight_frame.py']          exit=1
+
+$ # mutation 2 — hide a real module from the tree
+missing from tree: ['views_frames/metadata.py']            exit=1
+```
+
+All 36 modules across all three packages appear; nothing in the tree is absent from `src/`. The check catches both failure directions — a phantom entry and a missing one — which is what makes the green run meaningful.
+
+Two contradictions surfaced by extending the tree to three packages were fixed in the same change rather than left: §3 forbids `utils`/`helpers`/`common` dumping grounds while the newly-visible `views_frames_summarize/_common.py` and `_typing.py` carry exactly such names — §3 now states why each is a focused module (two functions, one responsibility; two type aliases) and that a third unrelated concern is the signal to split rather than to widen the exception. §5 said compliance would be audited *"once the leaf is stood up"*; it now names the two rules that are machine-enforced (`test_one_concept_per_file` for §1, the `import-linter` contracts and `test_package_dependency_dag` for §4) and states plainly that **the tree itself is not machine-checked** — it is kept current by the review note at the top.
+
+**Follow-on, deliberately not done here:** this `treecheck` logic is a natural fourth assertion for `docs/validate_docs.sh`, alongside the three in S6 (#246). It is not added here because the script is bash-and-grep by design (the `docs` CI job installs no Python), and parsing a fenced tree is the one check of the four that plausibly cannot be done in bash. Recorded on #246 for that story to decide.
+
+---
 
 ### C-82: ADR-002's intra-package layering was inverted against the code — RESOLVED
 
@@ -1361,7 +1382,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Foreign ADR references:** an unqualified `ADR-xxx` always means *this* repository's ADR. A sibling repo's ADR must name the repo ("views-datafactory's ADR-044 **there**"). Three currently referenced numbers — **ADR-034** (pipeline-core), **ADR-044** (views-datafactory), **ADR-055** (paired with a `D-29` that does not exist here) — have no file in `docs/ADRs/`, which is correct, but only one of the three said so plainly. Same rule as the concern-id convention below.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
 - **Causal clusters** (assigned by `review-rr`, last reviewed **2026-08-17**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
-  - **doc↔code topology drift** = {C-82, C-84; + resolved C-09 as the origin, C-39, C-23, C-70} — **the documents that describe the system's *shape* were never re-verified against it.** ADR-002 and `docs/standards/physical_architecture_standard.md` both describe an intended structure that the code moved past: `io/` on top importing the frames (the code is the inverse), a directory tree missing three shipped modules and containing two that never shipped, and one of three packages. The origin is datable — **C-09**, resolved 2026-06-21, moved `io/` onto a generic state-dict contract and inverted the dependency; neither topology document was amended, and `Persistable` (which puts `save`/`load` on the frame) makes the code's direction the only one available under the ADR-018 freeze. **The two entries are one editing session**: the C-82 amendment touches `physical_architecture_standard.md:48-49,:67`, which is exactly where C-84's rewrite starts. Doing them separately means editing the same file twice and leaving it half-corrected in between. Distinguished from the cluster below by *what* is unverified: here it is a claim about structure, there it is a claim about coverage.
+  - **doc↔code topology drift** = {resolved C-82, C-84; + resolved C-09 as the origin, C-39, C-23, C-70} — **CLOSED 2026-08-17 by Epic #240 (S1 #241 + S2 #242).** *The documents that describe the system's shape were never re-verified against it.* ADR-002 and `docs/standards/physical_architecture_standard.md` both describe an intended structure that the code moved past: `io/` on top importing the frames (the code is the inverse), a directory tree missing three shipped modules and containing two that never shipped, and one of three packages. The origin is datable — **C-09**, resolved 2026-06-21, moved `io/` onto a generic state-dict contract and inverted the dependency; neither topology document was amended, and `Persistable` (which puts `save`/`load` on the frame) makes the code's direction the only one available under the ADR-018 freeze. **The two entries were one editing session**, and were sequenced as one: the C-82 amendment touched `physical_architecture_standard.md:48-49,:67`, exactly where C-84's rewrite started, so S2 was blocked on S1 rather than run beside it. The standard now carries a `Last reviewed` date, a perishability note, and `scripts/check_arch_tree.py`, which makes the next drift detectable in one command. Distinguished from the cluster below by *what* is unverified: here it is a claim about structure, there it is a claim about coverage.
   - **unchecked completeness claims** = {C-85, C-77, C-80; + resolved C-64, C-74, C-75, C-81, C-51, C-67} — **an artifact asserts something about its own coverage or result, and nothing checks the assertion.** `docs/CICs/README.md` has claimed "fully contracted" wrongly three times (C-64 `Reconcile.md`, C-81 `Conformance.md`, now `FrameMetadata` in C-85); `GOVERNANCE.md` names three of six published conformance exports; ADR-018 inventories a frozen surface that omits `feature_names`; resolution fields described intent rather than result four times in one epic (C-77); the test suite's self-description does not match its contents (C-80). C-81's own resolution text is the tell: it was *"found only because this claim of completeness was audited against the code."* **The remedy is one mechanical change, not five edits:** `docs/validate_docs.sh` already runs in CI (C-74) and already checks placeholders, dangling references and the version banner — it checks no enumeration. Three assertions would have caught four of these findings automatically (every `__all__` name appears in its CIC; every public class has a CIC or a listed exemption; `GOVERNANCE.md`'s conformance names match `conformance.__all__`). Correcting the lists without the script edit schedules the fourth instance. **Tier within this cluster follows who reads the claim:** an external reader (a consumer running the floor, a future maintainer executing C-66's MAJOR instructions) → Tier 3; an internal auditor → Tier 4. That is why C-85 and C-77 are 3 while C-80 is 4, and the rule should be applied to any entry joining this cluster.
   - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-57, C-66, the C-32 residual, + resolved C-53, C-76, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
   - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
