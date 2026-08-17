@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-07-31                           |
-| Total Concerns    | 78                                   |
-| Open Concerns     | 14                                   |
+| Last Updated      | 2026-08-17                           |
+| Total Concerns    | 82                                   |
+| Open Concerns     | 18                                   |
 | Resolved Concerns | 64                                   |
 | Disagreements     | 12                                   |
 
@@ -50,7 +50,7 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> **The 14 open concerns are grouped under *Causal clusters* in Register Conventions —
+> **The open concerns are grouped under *Causal clusters* in Register Conventions —
 > that list is the single authority and this preamble deliberately does not restate it**
 > (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
 > {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-62}; **cross-repo coordination** {C-13, C-46};
@@ -64,7 +64,103 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and half of C-74 by putting `validate_docs.sh` into CI (the formatting half closes after the
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
-> with nothing closed.
+> with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
+
+### C-82: ADR-002's intra-package layering is inverted against the code, and a CI contract is about to enforce the code's side
+
+| Field | Value |
+|-------|-------|
+| ID | C-82 |
+| Tier | 3 |
+| Status | **actionable** — one section of ADR-002, no code change |
+| Source | repo-assimilation (2026-08-17), Phase 2 (dependency graph, measured with `grimp`). |
+| Trigger | **When someone acts on ADR-002's Forbidden Patterns list or the physical-architecture standard's Circular Dependency Guard** — most likely an agent told to "fix the forbidden pattern," or a contributor adding a module and consulting either document for where it belongs. Acting on them as written means deleting the frames' `npz` imports, which breaks `save`/`load`. Also check before merging PR #239, which turns the opposite claim into a CI gate. |
+| Location | `docs/ADRs/002_topology_and_dependency_rules.md` §Decision (intra-package bullet 3), §Layering Principle, §Forbidden Patterns (bullet 3); **`docs/standards/physical_architecture_standard.md:48-49` and `:67`** (the same claim restated as an operational standard); `src/views_frames/io/npz.py`, `src/views_frames/io/arrow.py`; `src/views_frames/feature_frame.py:21`, `src/views_frames/prediction_frame.py:20`, `src/views_frames/target_frame.py:18`; `pyproject.toml` `[tool.importlinter]` contract 2. |
+| Cross-refs | **C-09** (resolved 2026-06-21 — the decision that produced today's shape: `io/` operates on a generic state dict and carries no per-frame schema; ADR-002 was never updated to match), **C-78** (architectural guards and their blind spots — this is a guard about to enforce what the constitution denies), C-39 / C-23 (resolved — the same doc-lags-code disease in CICs), **ADR-000** (§"Relationship to Code": *"If code and ADRs disagree, the ADR is the source of truth"*), ADR-003 (declarations are authoritative over inference), ADR-007 (agents as untrusted contributors reading these documents; it cites ADR-002 as *"enforced topology"* though no test enforces the `io/` direction), ADR-018 (the freeze that makes the code side immovable), GH #238 / #239. |
+
+ADR-002 §Decision states that `io/` *"sits at the top, imports the frames to serialize them"* and *"Nothing lower may import `io/`"*, and §Forbidden Patterns lists *"a frame importing `io/`"* as an architectural violation. The code is the inverse: `io/npz.py` and `io/arrow.py` import only `_typing`, and all three frames import `io` and call `npz.save`/`npz.load`. The pattern the ADR forbids is used in three of the leaf's core files.
+
+The binding *principle* is not violated — the graph is acyclic (verified exhaustively with `grimp`: 36 modules, 89 dependencies, zero mutual-import pairs) and nothing lower imports higher. What is wrong is the ADR's factual claim about which way `io/` runs. The code's direction is forced by a decision recorded elsewhere: `Persistable` (`protocols.py:62`) puts `save`/`load` **on the frame**, so the frame must reach the serializer. And it satisfies ADR-002's stated *goal* better than its own prescription would — `io/` never importing a frame is stronger decoupling than `io/` importing three of them. **C-09 is the causal origin**: resolving it in v0.1.0 moved `io/` to a generic state-dict contract and inverted the dependency; the ADR was not amended.
+
+The ADR's layer list is also **incomplete**. It names `index`, `spatial_level`, `protocols`, `_validation` as the lowest layer and omits four modules — including `_typing`, which at fan-in 8 is the most-depended-on module in the leaf.
+
+**It is two documents, not one** (added 2026-08-17 by the graphify pass). `docs/standards/physical_architecture_standard.md:48-49` restates the claim verbatim — *"`io/` sits on top and imports the frames. Nothing lower may import `io/`; a frame must not know how it is serialized"* — and `:67` turns it into an operational **Circular Dependency Guard**: *"no core module may import `io/`."* So a contributor checking whether the repo satisfies its own circular-dependency guard would conclude, from the standard, that the code violates it. Meanwhile the three frame CICs (§5 in each) describe `save` writing `values.npy` + `identifiers.npz` — the code's side. **Three documents describe what the code does; two describe the inverse.**
+
+**And the constitution says the two win.** ADR-000 §"Relationship to Code" states: *"If code and ADRs disagree, the ADR is the source of truth — or a new ADR is required."* That is the sentence which converts this from a stale paragraph into a live instruction, and it is also the sentence that names the fix: a new or amended ADR, not a code change.
+
+**Tier 3, not 2 — the failure is loud.** The realistic bad change (deleting the frames' `io` imports) breaks `test_io.py` immediately under the 100% gate; nothing reaches a consumer. What it costs is a wasted change, a wasted review, and a contributor misdirected by the one document that is supposed to be authoritative about topology. That cost lands on multiple developers and on every agent handed these documents, which is what puts it above Tier 4. **Correcting the code instead of the ADR is not available**: `save`/`load` are frozen v1 surface (ADR-018), so it would be a MAJOR bump to fix a documentation error.
+
+**Resolved when** ADR-002's intra-package section describes `io/` as a low-level array codec the frames call, states why (`Persistable` places persistence on the frame; C-09 made `io/` schema-generic), removes the stale Forbidden Patterns bullet, and names all ten leaf modules in its layer list.
+
+---
+
+### C-83: `examples/` is advertised as runnable and executed by nothing
+
+| Field | Value |
+|-------|-------|
+| ID | C-83 |
+| Tier | 4 |
+| Status | **actionable** — one CI job modelled on `notebooks.yml`, or drop the README claim |
+| Source | repo-assimilation (2026-08-17), Phase 6. |
+| Trigger | **Before the next change to a frozen constructor signature or to `cross_level_align`'s arguments** — those are what the two scripts call, and nothing would report their breakage. Alternatively, when a new consumer reports that the quickstart does not run. |
+| Location | `examples/quickstart.py`, `examples/cross_level.py`; `README.md:60-61,89` (presents both as runnable, `uv run examples/quickstart.py`); `.github/workflows/notebooks.yml` (the pattern already solved for the sibling artifact). |
+| Cross-refs | **C-74** (resolved — the identical shape: a check that existed but was never wired into CI), C-70 (resolved — README drifting from what the code does), C-80 (the adjacent "what an artifact claims vs what it does" theme). |
+
+README §quickstart links both scripts and tells a reader to run them. No workflow does. The repo already solved exactly this for `notebooks/`, where `notebooks.yml` runs the showcase notebooks end-to-end under `nbmake` as a deliberately `continue-on-error` drift check — so the tooling, the precedent and the rationale all exist, and `examples/` was simply not included. The asymmetry looks like oversight rather than decision: `research/` and `scripts/` are explicitly declared un-gated in `pyproject.toml`, `examples/` is not.
+
+**Tier 4** — nothing in the package is at risk and any breakage is loud. The cost is a broken first impression discovered by a new consumer rather than by CI, in the two files most likely to be a consumer's first contact with the package. **Resolved when** either a job executes both scripts, or README stops presenting them as runnable.
+
+---
+
+### C-84: the physical-architecture standard describes a repository that no longer exists
+
+| Field | Value |
+|-------|-------|
+| ID | C-84 |
+| Tier | 3 |
+| Status | **actionable** — rewrite one 78-line document; no code change |
+| Source | review-base-docs (2026-08-17). |
+| Trigger | **When a contributor consults the standard to decide where a new module goes**, or when the ADR-002 amendment in C-82 is written — that edit touches `:48-49` and `:67` of this same file, and is the moment to fix the rest of it rather than leave a half-corrected document. |
+| Location | `docs/standards/physical_architecture_standard.md` (78 lines, undated, unversioned): the directory tree at `:30-44`, the layering paragraph at `:48-49`, the Circular Dependency Guard at `:67`. |
+| Cross-refs | **C-82** (the layering claim in this same file — that half is tracked there; this entry is everything else), C-39 / C-23 / C-70 (resolved — the same doc-lags-code disease in CICs and the README), **C-85** (the sibling finding: governance documents asserting coverage nothing checks). |
+
+The standard is the operational companion to ADR-002 — it draws the authoritative directory tree and states the one-concept-per-file rule. It was written before the package was built and never revised, so its tree describes a design that only partly shipped:
+
+- **Three shipped modules are missing**: `metadata.py`, `_typing.py`, and the whole `conformance/` subpackage — the last being the one surface whose primary caller is another repository (ADR-016).
+- **Two modules that never shipped are present**: `weight_frame.py` and `mask_frame.py`, both marked "(anticipated)".
+- **`target_frame.py` is still marked "(anticipated)"** — it shipped in v1.0.0 and has its own CIC.
+- **Two of the three packages are absent entirely.** The wheel ships `views_frames`, `views_frames_summarize` and `views_frames_reconcile`; this document knows only the first.
+
+Eight of thirteen real modules, one of three packages, two phantom files. **Tier 3, not 2** — nothing here can produce a wrong number, and a contributor who follows the tree and adds a file in the wrong place is caught by `tests/test_import_enforcement.py`'s one-concept-per-file check and by review. The cost is that the document a new contributor is pointed at for "where does this go" is wrong about the shape of the repository, which lands on every newcomer and every agent (ADR-007). It is also **undated and unversioned**, so its staleness is not detectable by inspection — unlike the CICs, which all carry a `Last reviewed` line and are all current.
+
+**Resolved when** the tree lists the three packages and thirteen real modules, the phantom entries are gone, `target_frame.py` is no longer "anticipated", and the document carries a date or review marker so the next drift is visible.
+
+---
+
+### C-85: four governance documents assert coverage that nothing checks
+
+| Field | Value |
+|-------|-------|
+| ID | C-85 |
+| Tier | 3 |
+| Status | **actionable** — three small doc edits plus ~20 lines in `validate_docs.sh`; the script edit is what stops recurrence |
+| Source | review-base-docs (2026-08-17). |
+| Trigger | **When the next public name is added** — a conformance law, a frame accessor, an estimator. Every instance below was created by exactly that act: something shipped, and the document enumerating it was not updated. Check `GOVERNANCE.md`, ADR-018's additive forward pointer, and the CIC index at the same time. |
+| Location | `GOVERNANCE.md:15-17` (names 3 of the 6 `views_frames.conformance.__all__` exports); `docs/ADRs/018_api_freeze_v1.md:36-44` (frozen-frame bullet, omits `feature_names`) and `:54-63` (the "Additive since v1.0.0" forward pointer, omits the ADR-026 dense-fill family and `assert_frame_envelope`); `docs/CICs/README.md:52-58` ("Status: fully contracted" + a two-item exemption list that omits `FrameMetadata`); `src/views_frames/feature_frame.py:105` (`n_features` — in no protocol, no ADR-018 bullet, no CIC); `docs/validate_docs.sh` (the script that checks none of this). |
+| Cross-refs | **C-81** and **C-64** (resolved — the two prior instances of the CIC index claiming completeness it lacked; C-81's resolution text already says it was *"found only because this claim of completeness was audited against the code"*), **C-80** (the same disease in the test suite rather than the governance docs), **C-74** (resolved — the precedent for the fix: a check that existed but was never wired into CI), C-27 (resolved — conformance-floor staleness), C-46 (the envelope-drift risk the un-named `assert_frame_envelope` was shipped to mitigate). |
+
+Four separate documents each enumerate a surface and each enumeration has fallen behind. They are registered together because they share one cause, one trigger and one durable fix.
+
+1. **`GOVERNANCE.md:15-17` tells consumers the published conformance suite is `assert_frame_contract`, `assert_index_alignment_laws`, `assert_cross_level_alignment_law`.** `conformance.__all__` exports six names — those three plus `CONFORMANCE_FLOOR`, **`assert_frame_envelope`** and **`assert_reindex_fill_law`**. This is the document that tells a consumer what to run in its own CI, which is ADR-016's entire mechanism. A consumer following it literally runs three of five checks, and the two it skips are the shipped mitigation for C-46 and the law pinning ADR-026.
+2. **ADR-018 never mentions `feature_names`.** It is `FeatureFrame`'s defining public attribute, a ratified consumer requirement, and thoroughly contracted in `FeatureFrame.md` — but absent from the document a consumer reads to decide what is safe to pin.
+3. **ADR-018's "Additive since v1.0.0" forward pointer skips two shipped additions** — the ADR-026 dense-grid family (`cartesian`, `reindex_fill`, `assert_reindex_fill_law`) and `assert_frame_envelope` (v1.4.0) — while carefully recording the tower, exceedance and expected-shortfall additions. The section exists precisely to track post-freeze growth.
+4. **`FrameMetadata` has no CIC and no stated exemption.** `docs/CICs/README.md:52` declares *"Status: fully contracted — every non-trivial surface … is governed by an active CIC"*, and exempts exactly two things by name: `_validation` and `SpatialLevel`. `FrameMetadata` is exported in `views_frames.__all__`, listed in ADR-018's frozen surface, and its literal name appears in only one CIC — `Reconcile.md`, a *sibling package's* contract. A related orphan: **`n_features`** is a public property on a frozen class that appears in no protocol, no ADR-018 bullet and no CIC (`n_rows` is at least transitively frozen via the `Frame` protocol; `n_features` has no home at all).
+
+**Tier 3.** No correctness or reliability impact — every gap is an omission from a list, not a wrong statement about behaviour, and the CICs themselves are accurate and current. What it costs is the credibility of the coverage claims, which is load-bearing here: a consumer trusts `GOVERNANCE.md` to tell it what to run, and a contributor trusts the CIC index to tell it what is contracted.
+
+**The fix that matters is the fourth one.** Items 1–4 are three small edits and one CIC; left there, the same drift returns with the next public name. `docs/validate_docs.sh` already runs in CI (C-74) and already checks placeholders, dangling cross-references and the README version banner — it checks nothing about whether an enumeration is complete. Three cheap assertions would have caught all four mechanically: every name in a package's `__all__` appears in its CIC; every public class has a CIC or an entry in the exemption list; the conformance names in `GOVERNANCE.md` match `conformance.__all__`. This repository has learned this lesson once already — C-74's fix was wiring an existing check into CI. **Resolved when** the four documents are corrected *and* `validate_docs.sh` asserts the completeness claims it currently takes on trust.
+
+---
 
 ### C-77: resolution text describes the intent, not the result — four instances in one epic
 
@@ -140,8 +236,8 @@ So this entry tracks a **missing test**, not a live defect — and the distincti
 | Tier | 4 |
 | Status | **actionable** — four small corrections, none requiring new test logic |
 | Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
-| Trigger | **When someone reads the suite to answer "is X covered?"** — most likely a new contributor, or the maintainer at a future audit. Each item below makes that question answerable wrongly. Fix them the next time the relevant file is opened for another reason, rather than as a standalone sweep. |
-| Location | `tests/test_reconcile_head_to_head.py` (collects **0** tests anywhere); the 20 of 36 test files carrying no ADR-005 category marker, and the **zero** 🟨 beige markers suite-wide; `docs/CICs/PredictionFrame.md` §10 (states a memory guarantee pinned by a type check in `tests/test_io.py::test_npz_mmap_returns_memmap`); `docs/CICs/TargetFrame.md` §10 (names no pinning test file, where the other six CICs name one to five). |
+| Trigger | **Before the next test-review or coverage audit, and whenever one of the five named files is opened for another reason** — each item makes "is X covered?" answerable wrongly, so an audit that trusts the suite's self-description will draw a wrong conclusion about what is protected. Fix them opportunistically rather than as a standalone sweep; the audit is the deadline. |
+| Location | `tests/test_reconcile_head_to_head.py` (collects **0** tests anywhere); `tests/test_packaging.py:17` (collects 0 tests on the 3.10 leg); the 20 of 36 test files carrying no ADR-005 category marker, and the **zero** 🟨 beige markers suite-wide; `docs/CICs/PredictionFrame.md` §10 (states a memory guarantee pinned by a type check in `tests/test_io.py::test_npz_mmap_returns_memmap`); `docs/CICs/TargetFrame.md` §10 (names no pinning test file, where the other six CICs name one to five). |
 | Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
 
 Four small things, one root cause: **what the suite says about itself is not quite what it does.**
@@ -150,8 +246,9 @@ Four small things, one root cause: **what the suite says about itself is not qui
 2. **The beige category is unmarked suite-wide** — 15 🟩, 26 🟥, **0 🟨**, with 20 of 36 files carrying no marker at all. The CICs *do* specify beige guarantees per class, and most look covered; the taxonomy simply is not applied. A half-applied classification is worse than none, because it implies a system that is being followed.
 3. **A memory guarantee pinned as a type check.** `PredictionFrame` §10 promises *"`mmap` load keeps peak RAM at the working set"*; the tests assert the returned object **is** an `np.memmap` and is read-only. The proxy is defensible — memmap implies lazy paging by definition — but three summarize test files already measure memory, so the capability exists and is simply not pointed here.
 4. **`TargetFrame.md` §10 names no pinning test file**, where the other six CICs name between one and five.
+5. **`test_packaging.py` collects zero tests on the 3.10 leg** (added 2026-08-17 by repo-assimilation — the same disease as item 1, one matrix leg rather than everywhere). It `importorskip`s `tomllib`, which is 3.11+, so the packaging assertions never run at the **declared floor** — the version a conservative consumer is most likely to pin, and the only version the `floor` job exists to scrutinise. They do run on 3.11–3.13, so exposure is low; what is wrong is that a four-version matrix implies four-version coverage here and gives three. The assertions guard the Trove classifiers added under C-40. Fix by parsing the two asserted fields without `tomllib`, or adding `tomli` to the dev group.
 
-**Tier 4** — nothing is unprotected and no behaviour is at risk; every item is a labelling or wiring correction. Registered because this suite's credibility is the project's main safety argument, and each item degrades the ability to audit it. **Resolved when** the inert file is either wired into CI or removed with its coverage route named, the beige category is applied or dropped from ADR-005, and the two CIC gaps are filled.
+**Tier 4** — nothing is unprotected and no behaviour is at risk; every item is a labelling or wiring correction. Registered because this suite's credibility is the project's main safety argument, and each item degrades the ability to audit it. **Resolved when** the inert file is either wired into CI or removed with its coverage route named, `test_packaging.py` runs on every matrix leg, the beige category is applied or dropped from ADR-005, and the two CIC gaps are filled.
 
 ---
 
@@ -1240,7 +1337,9 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Foreign ADR references:** an unqualified `ADR-xxx` always means *this* repository's ADR. A sibling repo's ADR must name the repo ("views-datafactory's ADR-044 **there**"). Three currently referenced numbers — **ADR-034** (pipeline-core), **ADR-044** (views-datafactory), **ADR-055** (paired with a `D-29` that does not exist here) — have no file in `docs/ADRs/`, which is correct, but only one of the three said so plainly. Same rule as the concern-id convention below.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
-- **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
+- **Causal clusters** (assigned by `review-rr`, last reviewed **2026-08-17**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
+  - **doc↔code topology drift** = {C-82, C-84; + resolved C-09 as the origin, C-39, C-23, C-70} — **the documents that describe the system's *shape* were never re-verified against it.** ADR-002 and `docs/standards/physical_architecture_standard.md` both describe an intended structure that the code moved past: `io/` on top importing the frames (the code is the inverse), a directory tree missing three shipped modules and containing two that never shipped, and one of three packages. The origin is datable — **C-09**, resolved 2026-06-21, moved `io/` onto a generic state-dict contract and inverted the dependency; neither topology document was amended, and `Persistable` (which puts `save`/`load` on the frame) makes the code's direction the only one available under the ADR-018 freeze. **The two entries are one editing session**: the C-82 amendment touches `physical_architecture_standard.md:48-49,:67`, which is exactly where C-84's rewrite starts. Doing them separately means editing the same file twice and leaving it half-corrected in between. Distinguished from the cluster below by *what* is unverified: here it is a claim about structure, there it is a claim about coverage.
+  - **unchecked completeness claims** = {C-85, C-77, C-80; + resolved C-64, C-74, C-75, C-81, C-51, C-67} — **an artifact asserts something about its own coverage or result, and nothing checks the assertion.** `docs/CICs/README.md` has claimed "fully contracted" wrongly three times (C-64 `Reconcile.md`, C-81 `Conformance.md`, now `FrameMetadata` in C-85); `GOVERNANCE.md` names three of six published conformance exports; ADR-018 inventories a frozen surface that omits `feature_names`; resolution fields described intent rather than result four times in one epic (C-77); the test suite's self-description does not match its contents (C-80). C-81's own resolution text is the tell: it was *"found only because this claim of completeness was audited against the code."* **The remedy is one mechanical change, not five edits:** `docs/validate_docs.sh` already runs in CI (C-74) and already checks placeholders, dangling references and the version banner — it checks no enumeration. Three assertions would have caught four of these findings automatically (every `__all__` name appears in its CIC; every public class has a CIC or a listed exemption; `GOVERNANCE.md`'s conformance names match `conformance.__all__`). Correcting the lists without the script edit schedules the fourth instance. **Tier within this cluster follows who reads the claim:** an external reader (a consumer running the floor, a future maintainer executing C-66's MAJOR instructions) → Tier 3; an internal auditor → Tier 4. That is why C-85 and C-77 are 3 while C-80 is 4, and the rule should be applied to any entry joining this cluster.
   - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-57, C-66, the C-32 residual, + resolved C-53, C-76, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
   - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
