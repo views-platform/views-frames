@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-27
+**Last reviewed:** 2026-08-18
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from

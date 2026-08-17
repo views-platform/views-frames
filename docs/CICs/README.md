@@ -53,13 +53,13 @@ Contracts must be clear enough that:
 
 Every non-trivial surface across the three shipped packages (`views_frames`,
 `views_frames_summarize`, `views_frames_reconcile`) is governed by an active CIC below.
-New contracts are authored **with** the class/package that introduces them. **Three** gaps were
-found after the fact rather than authored alongside: `Reconcile.md` (closed 2026-06-28,
+New contracts are authored **with** the class/package that introduces them. Gaps have been found
+after the fact rather than authored alongside: `Reconcile.md` (closed 2026-06-28,
 register C-64), `Conformance.md` (closed 2026-07-31, register C-81) and `FrameMetadata.md`
 (closed 2026-08-18, register C-85) — each found only because this claim of completeness was
 audited against the code, and each time the audit was the *only* thing that found it.
 
-**Do not read this heading as evidence.** It has been wrong three times. What makes it true is
+**Do not read this heading as evidence.** It has been wrong every time it was audited. What makes it true is
 the assertion S6 (#246) adds to `docs/validate_docs.sh`: every public class has a CIC or an
 entry in the exemption below.
 
@@ -89,7 +89,10 @@ These CICs govern the shipped surface (`src/`, three packages, frozen since v1.0
   repository (ADR-016).
 
 The `_validation` helper and the tiny `SpatialLevel` value object are governed primarily by
-tests (and ADR-015 for `SpatialLevel`) rather than a CIC.
+tests (and ADR-015 for `SpatialLevel`) rather than a CIC. **This holds even though ADR-018
+freezes `SpatialLevel` alongside `FrameMetadata`**, which does have one: being frozen and
+needing a contract are different obligations. `SpatialLevel` is a two-member enum with no
+behaviour to contract; `FrameMetadata` carries a codec with a silent-drop failure mode.
 
 ---
 
