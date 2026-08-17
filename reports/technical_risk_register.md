@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-17                           |
 | Total Concerns    | 82                                   |
-| Open Concerns     | 17                                   |
-| Resolved Concerns | 65                                   |
+| Open Concerns     | 16                                   |
+| Resolved Concerns | 66                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -81,31 +81,6 @@ one — re-auditing it produces the same answer its precondition already gives.
 README §quickstart links both scripts and tells a reader to run them. No workflow does. The repo already solved exactly this for `notebooks/`, where `notebooks.yml` runs the showcase notebooks end-to-end under `nbmake` as a deliberately `continue-on-error` drift check — so the tooling, the precedent and the rationale all exist, and `examples/` was simply not included. The asymmetry looks like oversight rather than decision: `research/` and `scripts/` are explicitly declared un-gated in `pyproject.toml`, `examples/` is not.
 
 **Tier 4** — nothing in the package is at risk and any breakage is loud. The cost is a broken first impression discovered by a new consumer rather than by CI, in the two files most likely to be a consumer's first contact with the package. **Resolved when** either a job executes both scripts, or README stops presenting them as runnable.
-
----
-
-### C-84: the physical-architecture standard describes a repository that no longer exists
-
-| Field | Value |
-|-------|-------|
-| ID | C-84 |
-| Tier | 3 |
-| Status | **actionable** — rewrite one 78-line document; no code change |
-| Source | review-base-docs (2026-08-17). |
-| Trigger | **When a contributor consults the standard to decide where a new module goes**, or when the ADR-002 amendment in C-82 is written — that edit touches `:48-49` and `:67` of this same file, and is the moment to fix the rest of it rather than leave a half-corrected document. |
-| Location | `docs/standards/physical_architecture_standard.md` (78 lines, undated, unversioned): the directory tree at `:30-44`, the layering paragraph at `:48-49`, the Circular Dependency Guard at `:67`. |
-| Cross-refs | **C-82** (the layering claim in this same file — that half is tracked there; this entry is everything else), C-39 / C-23 / C-70 (resolved — the same doc-lags-code disease in CICs and the README), **C-85** (the sibling finding: governance documents asserting coverage nothing checks). |
-
-The standard is the operational companion to ADR-002 — it draws the authoritative directory tree and states the one-concept-per-file rule. It was written before the package was built and never revised, so its tree describes a design that only partly shipped:
-
-- **Three shipped modules are missing**: `metadata.py`, `_typing.py`, and the whole `conformance/` subpackage — the last being the one surface whose primary caller is another repository (ADR-016).
-- **Two modules that never shipped are present**: `weight_frame.py` and `mask_frame.py`, both marked "(anticipated)".
-- **`target_frame.py` is still marked "(anticipated)"** — it shipped in v1.0.0 and has its own CIC.
-- **Two of the three packages are absent entirely.** The wheel ships `views_frames`, `views_frames_summarize` and `views_frames_reconcile`; this document knows only the first.
-
-Eight of thirteen real modules, one of three packages, two phantom files. **Tier 3, not 2** — nothing here can produce a wrong number, and a contributor who follows the tree and adds a file in the wrong place is caught by `tests/test_import_enforcement.py`'s one-concept-per-file check and by review. The cost is that the document a new contributor is pointed at for "where does this go" is wrong about the shape of the repository, which lands on every newcomer and every agent (ADR-007). It is also **undated and unversioned**, so its staleness is not detectable by inspection — unlike the CICs, which all carry a `Last reviewed` line and are all current.
-
-**Resolved when** the tree lists the three packages and thirteen real modules, the phantom entries are gone, `target_frame.py` is no longer "anticipated", and the document carries a date or review marker so the next drift is visible.
 
 ---
 
@@ -536,6 +511,44 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-84: the physical-architecture standard described a repository that no longer existed — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-84 |
+| Tier | 3 |
+| Resolved | 2026-08-17 (Epic #240 / S2 #242) |
+| Resolution | The §2 tree rewritten to the three shipped packages and all 36 modules, verified mechanically in both directions. The document now carries a `Last reviewed` date and a note saying the tree is perishable. See the verification below. |
+| Source | review-base-docs (2026-08-17). |
+| Cross-refs | **C-82** (the layering claim in the same file, resolved in S1 #241 — this entry was the rest of it), C-39 / C-23 / C-70 (resolved — the same doc-lags-code disease elsewhere), **C-85** (the sibling: governance documents asserting coverage nothing checks), **C-77** (whose 2026-08-17 refinement is the reason this resolution mutation-tests its own check). |
+
+The standard's §2 directory tree was a pre-implementation design sketch, never revised after the package was built: it showed **one of three packages**, omitted `metadata.py`, `_typing.py` and the whole `conformance/` subpackage, listed two files that never shipped (`weight_frame.py`, `mask_frame.py`), and still marked `target_frame.py` as "(anticipated)" — it shipped in v1.0.0 with its own CIC. The document was also undated, so its staleness was invisible to inspection.
+
+**Verification (2026-08-17).** Following C-77's refinement, the check was written to match the *shape* of the claim rather than a fixed phrase, and **mutation-tested in both directions before being trusted**:
+
+```
+$ python3 treecheck.py                       # parses the §2 fence, diffs it against src/**/*.py
+source modules: 36
+missing from tree: none
+in tree but absent from src/: none
+packages absent from tree: none
+exit=0
+
+$ # mutation 1 — reinstate a phantom module in the tree
+in tree but absent from src/: ['weight_frame.py']          exit=1
+
+$ # mutation 2 — hide a real module from the tree
+missing from tree: ['views_frames/metadata.py']            exit=1
+```
+
+All 36 modules across all three packages appear; nothing in the tree is absent from `src/`. The check catches both failure directions — a phantom entry and a missing one — which is what makes the green run meaningful.
+
+Two contradictions surfaced by extending the tree to three packages were fixed in the same change rather than left: §3 forbids `utils`/`helpers`/`common` dumping grounds while the newly-visible `views_frames_summarize/_common.py` and `_typing.py` carry exactly such names — §3 now states why each is a focused module (two functions, one responsibility; two type aliases) and that a third unrelated concern is the signal to split rather than to widen the exception. §5 said compliance would be audited *"once the leaf is stood up"*; it now names the two rules that are machine-enforced (`test_one_concept_per_file` for §1, the `import-linter` contracts and `test_package_dependency_dag` for §4) and states plainly that **the tree itself is not machine-checked** — it is kept current by the review note at the top.
+
+**Follow-on, deliberately not done here:** this `treecheck` logic is a natural fourth assertion for `docs/validate_docs.sh`, alongside the three in S6 (#246). It is not added here because the script is bash-and-grep by design (the `docs` CI job installs no Python), and parsing a fenced tree is the one check of the four that plausibly cannot be done in bash. Recorded on #246 for that story to decide.
+
+---
 
 ### C-82: ADR-002's intra-package layering was inverted against the code — RESOLVED
 
