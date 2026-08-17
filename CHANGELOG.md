@@ -22,11 +22,27 @@ changed or removed.
   `pyarrow` outside `io/`). The duplication is deliberate — the same contract is landing
   across the platform's cycle-free repos, so it is written the same way here (issue #238).
 
-  Writing the contracts surfaced that **ADR-002's intra-package layering is out of date**:
-  it describes `io/` as the top layer importing the frames, and lists "a frame importing
+  Writing the contracts surfaced that **ADR-002's intra-package layering was out of date**:
+  it described `io/` as the top layer importing the frames, and listed "a frame importing
   `io/`" as a forbidden pattern. The code is the inverse — `io/npz` and `io/arrow` are
   flat array codecs importing only `_typing`, and all three frames call them. The
-  contract records the code. Correcting the ADR is left to a separate change.
+  contract records the code, and **the documents were corrected immediately after** — see
+  *Changed — architecture record* below.
+
+### Changed — architecture record
+
+- **ADR-002 amended: `io/` is a codec the frames call, not a layer above them** (register
+  C-82, epic #240 / S1). The decision never changed — dependency direction is still
+  one-way and acyclic — but the ADR's factual claim about *which way* `io/` runs was
+  wrong, and had been since C-09's resolution in v0.1.0 moved `io/` onto a generic
+  frame-state contract. `Persistable` places `save`/`load` on the frame, and those are
+  frozen v1 surface, so the documents moved rather than the code.
+
+  Corrected in the same change: `docs/standards/physical_architecture_standard.md`
+  (which restated the claim as a Circular Dependency Guard), `docs/ADRs/README.md` (the
+  index summarised ADR-002 with the pre-amendment direction), `README.md` §layout rules,
+  and `docs/CICs/Protocols.md`, which now records that `Persistable` is *why* the
+  dependency runs the way it does.
 
 ### Changed — governance
 

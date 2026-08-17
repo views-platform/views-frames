@@ -550,15 +550,21 @@ The **decision** was never wrong — direction is one-way and acyclic. The ADR's
 
 **Verification (2026-08-17).**
 
-Every stale claim is gone; the only remaining occurrences are inside the amendment text that explains the correction:
+*The first verification of this entry was insufficient, and that is worth recording.* It used four literal phrases (`"sits at the top"`, `"imports the frames to serialize"`, ``"a frame importing `io/`"``, `"no core module may import"`) and reported the claim clean. A `/code-review` pass then found **two surviving occurrences inside that same search path**: `README.md` §layout rules said *"I/O adapters live under `io/`, **import the frame**"* — different wording, and wrapped across two lines — and `docs/ADRs/README.md:23` summarised ADR-002 with the pre-amendment direction, so the corrected ADR was fronted by an uncorrected one-line summary of itself. C-77's discipline is to paste evidence rather than describe it; this entry did paste real output from a real command. **The command was the weak part.** Pasting evidence is necessary and not sufficient — the check has to be capable of failing.
+
+The replacement check matches *any* line pairing `io` with a frame in an import or arrow relation, rather than four fixed phrases:
 
 ```
-$ grep -rn "sits at the top\|imports the frames to serialize\|a frame importing \`io/\`\|no core module may import" docs/ README.md CLAUDE.md
-docs/ADRs/002_topology_and_dependency_rules.md:8:> the top, imports the frames to serialize them"*, that *"nothing lower may import `io/`"*,
-docs/ADRs/002_topology_and_dependency_rules.md:9:> and it listed *"a frame importing `io/`"* under **Forbidden Patterns**. **The code runs the
+$ grep -rniE "io/?[^a-z]*(import|→|->)[^.]*frame|frame[^.]*(import|→|->)[^.]*\bio\b|imports the frame|import the frame|→ *io\b|-> *io\b" \
+      docs/ README.md CLAUDE.md GOVERNANCE.md
+docs/ADRs/README.md:23           (the corrected index summary: `_validation`/`io` → `index` → …)
+docs/ADRs/002_...md:11,105,138   (amendment text + the corrected Layering Principle and Forbidden Patterns)
+docs/CICs/Reconcile.md:178       (unrelated: the reconcile sibling's own `frames` module, "array→frame IO")
 ```
 
-All eleven leaf modules are now named in the intra-package section (it previously named four, omitting `_typing` — the highest fan-in in the leaf — plus `metadata`, `io` and `conformance`). Checked against `find src/views_frames -name '*.py'`: `_typing`, `metadata`, `spatial_level`, `_validation`, `io`, `index`, `protocols`, `feature_frame`, `prediction_frame`, `target_frame`, `conformance` — all OK, none missing.
+Every remaining hit is either the corrected text or unrelated. Nothing asserts the inverted direction.
+
+All eleven leaf modules are now named in ADR-002's intra-package section (it previously named four, omitting `_typing` — the highest fan-in in the leaf at 8 — plus `metadata`, `io` and `conformance`). Checked against `find src/views_frames -name '*.py'`: `_typing`, `metadata`, `spatial_level`, `_validation`, `io`, `index`, `protocols`, `feature_frame`, `prediction_frame`, `target_frame`, `conformance` — all present, none missing. The section no longer states a module *count* beside the list, because a count is the same drift-prone form (C-85).
 
 ```
 $ uv run lint-imports
@@ -570,7 +576,7 @@ $ bash docs/validate_docs.sh
 === PASSED: no issues found ===
 ```
 
-Also corrected in the same change: `docs/CICs/Protocols.md` now records that `Persistable` is *why* the frames depend on `io/` (and its `Last reviewed` moved from 2026-06-24, the oldest CIC, to 2026-08-17), and the `[tool.importlinter]` comment in `pyproject.toml` no longer says the ADR is out of date.
+Also corrected in the same change: `docs/standards/physical_architecture_standard.md` (the layering paragraph and the Circular Dependency Guard — its stale *directory tree* is C-84), `docs/ADRs/README.md` (the index summary), `README.md` §layout rules, `docs/CICs/Protocols.md` (which now records that `Persistable` is *why* the frames depend on `io/`; `Last reviewed` moved from 2026-06-24, the oldest CIC, to 2026-08-17), the `[tool.importlinter]` comment in `pyproject.toml`, and the `[Unreleased]` CHANGELOG entry, which had said correcting the ADR was *"left to a separate change"* — this is that change, in the same unreleased section.
 
 ---
 
