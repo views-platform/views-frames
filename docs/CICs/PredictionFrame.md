@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-27
+**Last reviewed:** 2026-08-18
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from
@@ -52,6 +52,11 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
   `views_frames_summarize` (ADR-017). The frame exposes the structural `sample_count`/
   `is_sample` only.
 - Carries a typed, optional-extensible `metadata` header (provenance; ADR-013).
+- **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
+  `metadata`, `n_rows`, `sample_count`, `is_sample`. `values`, `index` and `metadata`
+  return the stored objects with no copy. **`identifiers` builds a fresh `{time, unit}` dict
+  on every call** — the *arrays* inside it are shared and write-protected, but the wrapper is
+  not free, so do not call it in a hot loop.
 
 ---
 

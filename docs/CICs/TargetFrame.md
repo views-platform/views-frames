@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-27
+**Last reviewed:** 2026-08-18
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/target_frame.py`). This contract governs
@@ -45,6 +45,11 @@ boundary array-native, replacing the pandas actuals the eval adapter takes today
   `sample_count == 1`, `is_sample == False`.
 - The role (ground truth, single realized value) is explicit so line-graph / eval code
   can treat it distinctly from sampled frames.
+- **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
+  `metadata`, `n_rows`, `sample_count`, `is_sample`. `values`, `index` and `metadata`
+  return the stored objects with no copy. **`identifiers` builds a fresh `{time, unit}` dict
+  on every call** — the *arrays* inside it are shared and write-protected, but the wrapper is
+  not free, so do not call it in a hot loop.
 
 ---
 
