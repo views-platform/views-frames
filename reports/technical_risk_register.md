@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 88                                   |
-| Open Concerns     | 19                                   |
+| Total Concerns    | 89                                   |
+| Open Concerns     | 20                                   |
 | Resolved Concerns | 69                                   |
 | Disagreements     | 12                                   |
 
@@ -95,6 +95,42 @@ arrow raises: Object of type datetime is not JSON serializable
 **Tier 4.** No consumer is known to set a non-JSON metadata value, all six fields are typed `str | int | None`, and `mypy --strict` catches it at any typed call site. It is registered because the divergence is **invisible until it bites**, it sits in the published IO surface (ADR-016), and a silently-stringified field is precisely what a same-version round-trip test cannot see (C-79).
 
 **Resolved when** both codecs treat a non-JSON header value the same way, and `docs/CICs/FrameMetadata.md` §6 records the chosen behaviour as one row rather than two.
+
+---
+
+### C-92: no branch protection exists, so every "gate" in this repository is advisory
+
+| Field | Value |
+|-------|-------|
+| ID | C-92 |
+| Tier | 3 |
+| Status | **actionable** — a repository setting, not a code change; needs the maintainer's decision on which checks to require |
+| Status-note | Not resolvable by a contributor: changing branch protection needs admin rights on the GitHub repository. |
+| Source | code-review (2026-08-18), during S7 of epic #240. |
+| Trigger | **Before the next release, and before relying on any check to have prevented something.** Also whenever a new gate is added — each one is currently a red X a merge can walk past, so "we added a gate" means less than it reads. |
+| Location | GitHub repository settings for `views-platform/views-frames` (`main`, `development`); the eleven CI checks in `.github/workflows/ci.yml` and `notebooks.yml` that this makes advisory. |
+| Cross-refs | **C-74** (resolved — *"a check that does not run is worse than no check at all"*; this entry is the other half: a check that runs but enforces nothing), **C-85** / **C-89** (the completeness checks S6 armed), **C-83** (the examples job whose "blocking" description prompted this), ADR-005, GOVERNANCE.md §cross-repo MAJOR-bump process. |
+
+Measured 2026-08-18:
+
+```
+$ gh api repos/views-platform/views-frames/branches/main/protection
+{"message":"Branch not protected", …}
+$ gh api repos/views-platform/views-frames/branches/development/protection
+{"message":"Branch not protected", …}
+$ gh api repos/views-platform/views-frames/rulesets
+[]
+```
+
+**Neither branch is protected and there are no rulesets.** Eleven CI checks run on every pull request — the four-version matrix, the numpy floor, build, docs, format, examples, imports, nbmake — and **not one of them is required**. A red check is a red X next to a merge button that still works.
+
+This does not mean the checks are worthless: they are read, and this epic's own history shows them catching real defects. But it changes what several documents claim. C-74's resolution says wiring `validate_docs.sh` into CI is *"what makes it a gate"*; it makes it a **signal**. The same wording appears around the format check, the import contracts, and the examples job registered under C-83.
+
+**Tier 3, not 2.** Nothing is currently broken by it — this is a small, careful team and the checks are watched. It is registered because it silently weakens a claim made in at least four places, because the cost of fixing it is a settings change rather than work, and because the register's own C-74 lesson — *a check that does not run is worse than no check at all* — has an obvious second half that nobody had written down: **a check that runs but cannot block is worth less than its documentation says.**
+
+**Deliberately not fixed here.** Enabling required checks is an admin action with immediate consequences for everyone merging, including choosing *which* of the eleven are required (the `nbmake` job is `continue-on-error` by design and must not be). That is a maintainer decision, not a documentation story's.
+
+**Resolved when** either required status checks are configured and the documents describing gates are corrected to match, or a deliberate decision to keep them advisory is recorded and the word "gate" is softened wherever it overstates.
 
 ---
 
@@ -792,7 +828,7 @@ A CI gate whose check turns itself off when its inputs move is not a gate. Fixed
 | ID | C-83 |
 | Tier | 4 |
 | Resolved | 2026-08-18 (Epic #240 / S7 #247) |
-| Resolution | A **blocking** `examples` job in `ci.yml` loops over `examples/*.py`. Mutation-tested four ways: an API break fails it, a wording change does not, a broken first script does not hide the second, and an empty directory fails rather than passing vacuously. |
+| Resolution | An `examples` job in `ci.yml` loops over `examples/[!_]*.py` and **fails** on a broken script (unlike the `continue-on-error` notebooks job). Note it is not an *enforced* gate — no branch protection exists anywhere in this repo, register C-92. Mutation-tested four ways: an API break fails it, a wording change does not, a broken first script does not hide the second, and an empty directory fails rather than passing vacuously. |
 | Source | repo-assimilation (2026-08-17), Phase 6. |
 | Cross-refs | **C-74** (resolved — the identical shape: a check that existed but was never wired into CI), C-70 (README drifting from the code), **C-75** (resolved — tests that asserted README *prose*; this check deliberately asserts exit status instead), C-86 / S11 (the other README defect found later — its §9 conformance path). |
 
