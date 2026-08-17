@@ -52,6 +52,10 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
   `views_frames_summarize` (ADR-017). The frame exposes the structural `sample_count`/
   `is_sample` only.
 - Carries a typed, optional-extensible `metadata` header (provenance; ADR-013).
+- **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
+  `metadata`, `n_rows`, `sample_count`, `is_sample`. They allocate nothing and return
+  the stored objects; `identifiers` returns the index's arrays, which are write-protected.
+
 
 ---
 

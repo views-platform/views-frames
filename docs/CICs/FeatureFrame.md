@@ -49,6 +49,13 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
   requirement; present rows bit-exact, absent rows filled (`fill_value` keyword-only,
   required, broadcast across `(F, S)`); `feature_names`/metadata preserved; law-pinned
   by `assert_reindex_fill_law`.
+- **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
+  `metadata`, `feature_names`, `n_rows`, **`n_features`**, `sample_count`, `is_sample`. They
+  allocate nothing and return the stored objects. `n_features` is `values.shape[1]` — the size
+  of the feature axis, distinct from `len(feature_names)` only in that the constructor
+  validates the two agree. It appears in **no protocol** (`Frame` declares `n_rows`, `Sampled`
+  declares `sample_count`/`is_sample`; neither declares `n_features`), so unlike the others it
+  is frozen by ADR-018 alone — recorded there 2026-08-17, register C-85.
 
 ---
 

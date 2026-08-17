@@ -53,10 +53,15 @@ Contracts must be clear enough that:
 
 Every non-trivial surface across the three shipped packages (`views_frames`,
 `views_frames_summarize`, `views_frames_reconcile`) is governed by an active CIC below.
-New contracts are authored **with** the class/package that introduces them. Two gaps were
+New contracts are authored **with** the class/package that introduces them. **Three** gaps were
 found after the fact rather than authored alongside: `Reconcile.md` (closed 2026-06-28,
-register C-64) and `Conformance.md` (closed 2026-07-31, register C-81) — the second found
-only because this claim of completeness was audited against the code.
+register C-64), `Conformance.md` (closed 2026-07-31, register C-81) and `FrameMetadata.md`
+(closed 2026-08-18, register C-85) — each found only because this claim of completeness was
+audited against the code, and each time the audit was the *only* thing that found it.
+
+**Do not read this heading as evidence.** It has been wrong three times. What makes it true is
+the assertion S6 (#246) adds to `docs/validate_docs.sh`: every public class has a CIC or an
+entry in the exemption below.
 
 ---
 
@@ -68,6 +73,8 @@ These CICs govern the shipped surface (`src/`, three packages, frozen since v1.0
   cross-level mapping injected (ADR-014).
 - `Protocols.md` — the published surface `Frame`/`SpatioTemporalIndexed`/`Sampled`/`Persistable`
   (DIP/ISP; no shared base, ADR-011).
+- `FrameMetadata.md` — the typed, generic-only provenance header every frame carries; the
+  forward-compatible dict codec and what its unknown-key drop costs (ADR-013/ADR-020).
 - `PredictionFrame.md` — model outputs `(N, S)`; numpy-only validation (not a verbatim move).
 - `FeatureFrame.md` — model inputs `(N, F, S)` + `feature_names` + typed metadata header.
 - `TargetFrame.md` — observed actuals `(N, 1)`; the array-native evaluation boundary.
