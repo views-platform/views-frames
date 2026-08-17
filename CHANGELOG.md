@@ -28,6 +28,26 @@ changed or removed.
   flat array codecs importing only `_typing`, and all three frames call them. The
   contract records the code. Correcting the ADR is left to a separate change.
 
+### Changed — governance
+
+- **Four concerns registered from a full assimilation sweep** (`repo-assimilation`,
+  `graphify`, `review-base-docs`): **C-82** the ADR-002 topology inversion above — which
+  `docs/standards/physical_architecture_standard.md` restates, and which C-09's 2026-06-21
+  resolution caused; **C-83** `examples/` advertised as runnable and executed by no CI job;
+  **C-84** the physical-architecture standard describing one of three packages and eight of
+  thirteen modules; **C-85** four governance documents asserting coverage that nothing
+  checks, whose real fix is completeness assertions in `docs/validate_docs.sh` rather than
+  four more one-off corrections.
+
+- **Two causal clusters added** (`review-rr strategic`): *doc↔code topology drift*
+  {C-82, C-84} and *unchecked completeness claims* {C-85, C-77, C-80}. The second is the
+  largest cluster in the register at nine entries, six of them already resolved — the
+  signature of a pattern being fixed instance by instance rather than at the cause.
+
+- **This file now carries an `[Unreleased]` section**, per the Keep a Changelog format it
+  already claims to follow. Entries were previously written at release time, which is how
+  the 1.10.2 entry ended up six commits behind its release (#234).
+
 ## [1.10.2] — 2026-07-31
 
 **No behaviour change.** This release publishes work on the checks, the tests and the

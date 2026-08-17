@@ -100,7 +100,7 @@ layers = [
 # importing io/" as a forbidden pattern. The ADR is out of date, not the code; see the
 # PR that added this file's contracts.
 [[tool.importlinter.contracts]]
-name = "views_frames internal layering"
+name = "The leaf's internal layering runs one way"
 type = "layers"
 layers = [
     "views_frames.feature_frame | views_frames.prediction_frame | views_frames.target_frame | views_frames.conformance",
