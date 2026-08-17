@@ -12,10 +12,24 @@ driving any cross-repo MAJOR bump.
 
 ## Conformance floor
 
-The published conformance suite ships with the package as `views_frames.conformance`
-(`assert_frame_contract`, `assert_index_alignment_laws`,
-`assert_cross_level_alignment_law`). Every consumer runs it in CI against its own
-adapter output.
+The published conformance suite ships with the wheel in **three modules**, one per package.
+Every consumer runs it in CI against its own adapter output.
+
+**The source of truth is each module's `__all__`, not this list** — read it there. This list
+has fallen behind twice (`assert_frame_envelope` in v1.4.0, `assert_reindex_fill_law` with
+ADR-026), which is why it is now written to be checked rather than trusted:
+
+| Module | Published surface |
+|--------|-------------------|
+| `views_frames.conformance` | `CONFORMANCE_FLOOR`, `assert_frame_contract`, `assert_frame_envelope`, `assert_index_alignment_laws`, `assert_cross_level_alignment_law`, `assert_reindex_fill_law` |
+| `views_frames_summarize.conformance` | `assert_summarizer_contract` |
+| `views_frames_reconcile.conformance` | `assert_reconcile_contract` |
+
+Verify with:
+
+```bash
+uv run python -c "import views_frames.conformance as c; print(sorted(c.__all__))"
+```
 
 - **Conformance-floor version:** `1.0.0` (`views_frames.conformance.CONFORMANCE_FLOOR`).
 - The floor is a **single governed version every consumer runs regardless of its
@@ -23,12 +37,11 @@ adapter output.
   "my adapter vs my pin" (closes register C-10). The floor is bumped deliberately,
   as a governance act, not implicitly by a consumer upgrading.
 - **What the floor tracks (register C-27):** the **whole published conformance
-  surface** — both the structural frame contract and the published laws
-  (`assert_index_alignment_laws`, `assert_cross_level_alignment_law`, and the
-  summarizer's `assert_summarizer_contract`). It is bumped whenever a **breaking**
-  change is made to any of them, so reading `CONFORMANCE_FLOOR` tells a consumer
-  exactly which contract version its CI asserts. Additive surface (a new law or
-  method) is MINOR and does **not** bump the floor.
+  surface** — every name in the table above, across all three modules, not just the
+  `views_frames.conformance` ones. It is bumped whenever a **breaking** change is made
+  to any of them, so reading `CONFORMANCE_FLOOR` tells a consumer exactly which contract
+  version its CI asserts. Additive surface (a new law or method) is MINOR and does
+  **not** bump the floor.
 
 ## Versioning (SemVer for a contract)
 
