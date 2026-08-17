@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 87                                   |
-| Open Concerns     | 21                                   |
-| Resolved Concerns | 66                                   |
+| Total Concerns    | 88                                   |
+| Open Concerns     | 20                                   |
+| Resolved Concerns | 68                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -98,6 +98,32 @@ arrow raises: Object of type datetime is not JSON serializable
 
 ---
 
+### C-91: `TowerSummary` is a public class whose only CIC occurrence describes a return value, not a contract
+
+| Field | Value |
+|-------|-------|
+| ID | C-91 |
+| Tier | 4 |
+| Status | **actionable** — one §-level entry in `docs/CICs/Summarize.md`, or a stated exemption |
+| Source | code-review (2026-08-18) during S5, confirmed by the check S6 armed. |
+| Trigger | **When a consumer unpacks a `TowerSummary` and needs to know what its fields guarantee** — whether `intervals` is nested, whether `bimodal` is per-row, what `masses` orders. Also when the next `NamedTuple`-shaped public return type is added, since the same "is it contracted?" question will apply and there is currently no precedent to point at. |
+| Location | `src/views_frames_summarize/summarize_tower.py` (`class TowerSummary`); `docs/CICs/Summarize.md:130` — its only occurrence, inside a bullet describing `summarize_tower`'s output; `docs/validate_docs.sh` check 7 (which reports it as an INFO). |
+| Cross-refs | **C-85** (whose check surfaced it), **C-64** / **C-81** (the CIC index claiming coverage it lacked — this is the same question one level finer: *presence* versus *contract*), ADR-006 (the requirement CICs exist to satisfy), ADR-019 (which introduced the type). |
+
+`TowerSummary` is exported from `views_frames_summarize` and named in ADR-018's frozen surface. It appears in `docs/CICs/Summarize.md` exactly once:
+
+> `summarize_tower(frame, masses)` → `TowerSummary(point, intervals, bimodal, masses)`: a single-pass bundle deriving all three from one sort; **provably equal** to the trio.
+
+That is a constructor signature inside a description of a *function*. There is no statement of what each field guarantees, no failure modes, no test alignment — none of what ADR-006 asks a contract to provide.
+
+**It passes S6's check 8, deliberately.** Presence is the gate, because telling "contracted" from "mentioned in passing" is a judgement a bash script cannot make. The check reports single-occurrence names as an **INFO** so a human looks — and a single occurrence is often correct (`assert_index_alignment_laws` is contracted by exactly one bolded entry in `Conformance.md`). `TowerSummary` is the case where it is not.
+
+**Tier 4.** The type is a `NamedTuple` whose fields are self-describing and whose components (`tower_point`, `hdi_tower`, `bimodality`) are each contracted individually in the same document — so a reader is not left without recourse, only without a direct answer. Registered because it is the one known false pass of a check this epic added, and leaving it unrecorded would make that check's INFO output look like noise rather than a pointer at something real.
+
+**Resolved when** `Summarize.md` either contracts the type — fields, guarantees, and the "provably equal to the trio" claim stated as a law — or records why a bundle of already-contracted components needs no separate entry.
+
+---
+
 ### C-88: the published MAP-containment law is wrong on tied draws — it fails on ~6% of ordinary count posteriors
 
 | Field | Value |
@@ -132,28 +158,6 @@ The reviewer's independent probe reported 116/2000 (5.8%) on the same shape. **Z
 **Two candidate corrections, and choosing between them is the work:** derive `n_tip` and each floor's count from the actual `_in_range_span` counts rather than from `floor(m·S)+1`; or restrict the law to strictly-distinct draws and state that limit in ADR-019. The first keeps the guarantee general and costs a recount; the second is honest but narrows a published law to a case the platform's own data does not satisfy. **Not fixed in epic #240**, which scoped `src/` out.
 
 **Resolved when** the law's guarantee holds on tied draws — demonstrated by a red test built from integer count draws that passes after the fix — and ADR-019's amendment records whichever correction was chosen.
-
----
-
-### C-89: `validate_docs.sh`'s README-banner check silently no-ops if either input moves
-
-| Field | Value |
-|-------|-------|
-| ID | C-89 |
-| Tier | 4 |
-| Status | **actionable** — one `else` branch |
-| Source | code-review (2026-08-17), during S4 of epic #240. |
-| Trigger | **When `README.md` or `pyproject.toml` is renamed, moved, or the script's working directory changes** — including any restructure that alters the `../` relative paths. The check turns itself off and CI stays green. Check this before the next release, since the banner check exists specifically to gate a version bump. |
-| Location | `docs/validate_docs.sh:92` — `if [ -f "../pyproject.toml" ] && [ -f "../README.md" ]; then … fi`, with no `else`. |
-| Cross-refs | **C-74** (resolved — this script was wired into CI precisely so it would stop being optional; a silent no-op re-creates the state C-74 closed), **C-70** (the README banner drifting a whole release cycle, which is why this check exists), **C-85** / S6 #246 (which is adding checks to this same script and should adopt the same guard for all of them), the **verification-completeness** cluster. |
-
-The README-banner check is guarded by a file-existence test with no failure branch. If either file is absent from where the script expects it, the check is skipped and the script still exits 0.
-
-That was tolerable while the script only ran when someone typed it. It is a CI gate now (`.github/workflows/ci.yml`, `docs` job — armed by C-74), and the specific thing it gates is the version bump that C-70 records drifting for a whole release cycle undetected. A guard that disables itself when its inputs move is the same failure class as the check that was never wired in.
-
-**Tier 4** — nothing is wrong today, the paths are correct, and the failure requires a restructure to trigger. Registered because the fix is one `else` that increments `errors`, and because **S6 (#246) is about to add three more checks to this file** and should not copy the pattern.
-
-**Resolved when** a missing input is an error rather than a skip, in this check and in any S6 adds.
 
 ---
 
@@ -220,61 +224,6 @@ The practical consequence surfaced when `GOVERNANCE.md` tried to point at a sing
 README §quickstart links both scripts and tells a reader to run them. No workflow does. The repo already solved exactly this for `notebooks/`, where `notebooks.yml` runs the showcase notebooks end-to-end under `nbmake` as a deliberately `continue-on-error` drift check — so the tooling, the precedent and the rationale all exist, and `examples/` was simply not included. The asymmetry looks like oversight rather than decision: `research/` and `scripts/` are explicitly declared un-gated in `pyproject.toml`, `examples/` is not.
 
 **Tier 4** — nothing in the package is at risk and any breakage is loud. The cost is a broken first impression discovered by a new consumer rather than by CI, in the two files most likely to be a consumer's first contact with the package. **Resolved when** either a job executes both scripts, or README stops presenting them as runnable.
-
----
-
-### C-85: four governance documents assert coverage that nothing checks
-
-| Field | Value |
-|-------|-------|
-| ID | C-85 |
-| Tier | 3 |
-| Status | **actionable** — three small doc edits plus ~20 lines in `validate_docs.sh`; the script edit is what stops recurrence |
-| Source | review-base-docs (2026-08-17). |
-| Trigger | **When the next public name is added** — a conformance law, a frame accessor, an estimator. Every instance below was created by exactly that act: something shipped, and the document enumerating it was not updated. Check `GOVERNANCE.md`, ADR-018's additive forward pointer, and the CIC index at the same time. |
-| Location | `GOVERNANCE.md:15-17` (names 3 of the 6 `views_frames.conformance.__all__` exports); `docs/ADRs/018_api_freeze_v1.md:36-44` (frozen-frame bullet, omits `feature_names`) and `:54-63` (the "Additive since v1.0.0" forward pointer, omits the ADR-026 dense-fill family and `assert_frame_envelope`); `docs/CICs/README.md:52-58` ("Status: fully contracted" + a two-item exemption list that omits `FrameMetadata`); `src/views_frames/feature_frame.py:105` (`n_features` — in no protocol, no ADR-018 bullet, no CIC); `docs/validate_docs.sh` (the script that checks none of this). |
-| Cross-refs | **C-81** and **C-64** (resolved — the two prior instances of the CIC index claiming completeness it lacked; C-81's resolution text already says it was *"found only because this claim of completeness was audited against the code"*), **C-80** (the same disease in the test suite rather than the governance docs), **C-74** (resolved — the precedent for the fix: a check that existed but was never wired into CI), C-27 (resolved — conformance-floor staleness), C-46 (the envelope-drift risk the un-named `assert_frame_envelope` was shipped to mitigate). |
-
-Four separate documents each enumerate a surface and each enumeration has fallen behind. They are registered together because they share one cause, one trigger and one durable fix.
-
-1. ~~**`GOVERNANCE.md:15-17` tells consumers the published conformance suite is `assert_frame_contract`, `assert_index_alignment_laws`, `assert_cross_level_alignment_law`.**~~ **Document corrected 2026-08-17 (S3 #243); the check that keeps it correct lands in S6 (#246).** `conformance.__all__` exports six names — those three plus `CONFORMANCE_FLOOR`, **`assert_frame_envelope`** and **`assert_reindex_fill_law`**. This is the document that tells a consumer what to run in its own CI, which is ADR-016's entire mechanism. A consumer following it literally runs three of five checks, and the two it skips are the shipped mitigation for C-46 and the law pinning ADR-026.
-   *State of item 1:* `GOVERNANCE.md` now carries a three-row table naming every published entry point across all three conformance modules — including `assert_reconcile_contract`, which the old prose omitted at the *module* level as well as the function level — with a runnable command that reads all three. The "what the floor tracks" bullet points at that table instead of repeating a third partial list; its semantics are untouched, because that is where issue #237 lands.
-
-   **Two honesty notes, both from the S3 review.** First, the table's third column records *how* each surface is declared, because they differ: only `views_frames.conformance` has an `__all__`. The sibling modules declare none, so an instruction to "read `__all__`" would raise `AttributeError` — and worse, a reader resolving "public surface" as "what the module exposes" would see everything imported at module level. **Whether the siblings should gain an explicit `__all__` is a `src/` question this epic put out of scope**; it is noted for S6 (#246), which has to decide how its check reads all three.
-
-   Second, the bidirectional verification is currently **manual**. It is mechanizable for `views_frames.conformance` and reads public `assert_*` names for the siblings, but nothing in CI compares the table to the code: `grep -rn GOVERNANCE docs/validate_docs.sh` returns nothing. **So item 1 fixes the document, not the drift** — the next additive export lands, the code grows, the table does not, and no gate fires. That is the recurrence this entry exists to record, and it is exactly why C-85 does not close until S6.
-
-2. ~~**ADR-018 never mentions `feature_names`.**~~ and 3. ~~**ADR-018's "Additive since v1.0.0" forward pointer skips two shipped additions.**~~ **Document corrected 2026-08-17 (S4 #244); the check that keeps it correct lands in S6 (#246).**
-
-   *State of items 2–3.* The story named three omissions. Auditing the **whole** public surface against the ADR — 65 names: every package `__all__`, every conformance entry point, and every public member of the three frames and the index — found **eight**, of which the largest is a package:
-
-   | Missing from ADR-018 | Kind |
-   |---|---|
-   | `feature_names`, `n_features`, `from_2d` | `FeatureFrame` surface — `from_2d` is ordinary supported surface, not a shim (C-76) |
-   | `n_rows` | on all three frames and the index; transitively frozen via the `Frame` protocol, never named |
-   | `SpatialLevel`, `FrameMetadata` | exported value objects a consumer cannot construct or read a frame without |
-   | **the whole `views_frames_reconcile` package** | shipped v1.7.0 (ADR-023) — `ReconciliationModule`, `ReconciliationResult`, `reconcile_proportional`, the mode constants, `assert_reconcile_contract` |
-   | `assert_frame_envelope` (v1.4.0), the ADR-026 dense-grid family (v1.10.0) | additive surface the forward pointer exists to record |
-
-   **A third package joined the wheel and the freeze document did not say so.** That is the finding worth carrying: the forward pointer records the tower, exceedance and expected-shortfall estimator families in careful detail, and silently skipped an entire package.
-
-   `n_features` is now **frozen** rather than left unstated. It has been public on a frozen class since v1.0.0, so declaring it unfrozen would be a retroactive narrowing; S5 (#245) gives it a CIC home to match. The compressed `aggregate_distributions`(`_arrays`) was expanded to two names so the document is greppable — the point of the exercise is a list a check can read.
-
-   `GOVERNANCE.md`'s mirror of the freeze list had the same eight omissions. Rather than restate the list correctly a second time, it now defers: it names six coarse areas, records what it omitted until 2026-08-17, and says **"ADR-018 names every member. If this list and ADR-018 disagree, ADR-018 wins."**
-
-   **Verification.** Every one of the 65 public names now resolves in ADR-018, and the check was mutation-tested before being trusted (C-77): renaming `from_2d` in the document makes it report `['from_2d']`; restoring it reports none. As with item 1, **nothing in CI runs this** — it is S6's to arm.
-
-4. ~~**`FrameMetadata` has no CIC and no stated exemption.**~~ **Document corrected 2026-08-18 (S5 #245); the check that keeps it correct lands in S6 (#246).**
-
-   *State of item 4.* `docs/CICs/FrameMetadata.md` written, and the CIC index corrected — its "fully contracted" heading now records that it has been wrong **three** times (C-64, C-81, and this), and says plainly: *"Do not read this heading as evidence. What makes it true is the assertion S6 adds."* `n_features` is named in `docs/CICs/FeatureFrame.md` with the fact that it appears in no protocol, so unlike the other accessors it is frozen by ADR-018 alone; the remaining unlisted accessors (`n_rows`, `sample_count`, `is_sample`) were added to all three frame CICs at the same time. Verified: every public member of the three frames is now named in its CIC, and every public class in `src/` is named in some CIC.
-
-   **Writing the contract found two guarantees nothing pins**, recorded in its §10 rather than glossed: the `save`/`load` header round-trip is asserted for `PredictionFrame` only — `FeatureFrame` and `TargetFrame` have no equivalent — and nothing asserts that a frame built without metadata exposes an *empty* header rather than `None`, though every consumer reading `.metadata` depends on it. Both are one-line additions and belong to **S9 (#249)**, which owns the suite's self-description under C-80.
-
-   The contract also documents, for the first time, what `from_dict`'s forward-compatible unknown-key drop **costs**: a header written by a newer version and read by an older one silently loses fields, and re-saving persists the loss. That behaviour was decided in ADR-013's as-built amendment and pinned by a test, but its consequence was written down nowhere.
-
-**Tier 3.** No correctness or reliability impact — every gap is an omission from a list, not a wrong statement about behaviour, and the CICs themselves are accurate and current. What it costs is the credibility of the coverage claims, which is load-bearing here: a consumer trusts `GOVERNANCE.md` to tell it what to run, and a contributor trusts the CIC index to tell it what is contracted.
-
-**The fix that matters is the fourth one.** Items 1–4 are three small edits and one CIC; left there, the same drift returns with the next public name. `docs/validate_docs.sh` already runs in CI (C-74) and already checks placeholders, dangling cross-references and the README version banner — it checks nothing about whether an enumeration is complete. Three cheap assertions would have caught all four mechanically: every name in a package's `__all__` appears in its CIC; every public class has a CIC or an entry in the exemption list; the conformance names in `GOVERNANCE.md` match `conformance.__all__`. This repository has learned this lesson once already — C-74's fix was wiring an existing check into CI. **Resolved when** the four documents are corrected *and* `validate_docs.sh` asserts the completeness claims it currently takes on trust.
 
 ---
 
@@ -773,6 +722,60 @@ $ bash docs/validate_docs.sh
 ```
 
 Also corrected in the same change: `docs/standards/physical_architecture_standard.md` (the layering paragraph and the Circular Dependency Guard — its stale *directory tree* is C-84), `docs/ADRs/README.md` (the index summary), `README.md` §layout rules, `docs/CICs/Protocols.md` (which now records that `Persistable` is *why* the frames depend on `io/`; `Last reviewed` moved from 2026-06-24, the oldest CIC, to 2026-08-17), the `[tool.importlinter]` comment in `pyproject.toml`, and the `[Unreleased]` CHANGELOG entry, which had said correcting the ADR was *"left to a separate change"* — this is that change, in the same unreleased section.
+
+---
+
+### C-85: four governance documents asserted coverage that nothing checked — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-85 |
+| Tier | 3 |
+| Resolved | 2026-08-18 (Epic #240 / S3 #243 + S4 #244 + S5 #245 + S6 #246) |
+| Resolution | All four documents corrected, **and `docs/validate_docs.sh` now asserts the claims** — three new checks, each mutation-tested. See below. |
+| Source | review-base-docs (2026-08-17). |
+| Cross-refs | **C-64**, **C-81** (the two prior instances of the same claim failing), **C-74** (the precedent: the fix is arming a check, not making the correction again), **C-89** (resolved with it — the self-disabling guard already in this script), **C-87** (the `__all__` asymmetry the checks had to accommodate), **C-91** (what check 7's INFO surfaced), C-46, C-27, the *unchecked completeness claims* cluster. |
+
+Four documents each enumerated a surface and each had fallen behind: `GOVERNANCE.md` named three of seven published conformance entry points; ADR-018 omitted `feature_names`, `n_rows`, `n_features`, `from_2d`, `SpatialLevel`, `FrameMetadata` and **the entire `views_frames_reconcile` package**; `docs/CICs/README.md` claimed "fully contracted" while `FrameMetadata` had no CIC.
+
+**The corrections were the easy half.** The entry's own thesis was that correcting the lists without adding a check schedules the fourth instance of C-64/C-81 — so it stayed open through S3, S4 and S5 while each document was fixed, and closes only now that the assertions exist.
+
+**What was added** (`docs/validate_docs.sh`, checks 7–9, bash-and-grep so the `docs` CI job still installs no Python):
+
+- **7** — every publicly exported name is named in some CIC. 38 names across four `__all__` blocks and, for the two modules that declare none (C-87), their public `assert_*` definitions.
+- **8** — every public class has a CIC or an exemption in the CIC index. 13 classes.
+- **9** — `GOVERNANCE.md` names every published conformance entry point. 8 names.
+
+**Names are matched on word boundaries, not as substrings**, and that decision was not obvious — it was forced by measurement. `Frame` has **84 substring hits** across the CICs and **9 real ones**, so a `grep -F` would have let any `*Frame` satisfy the bare `Frame` protocol, and let `hdi_tower` satisfy `hdi`. That is the **third** time a substring match has been the defect in this epic (`scripts/check_arch_tree.py` in S2, the S5 verification, and nearly here).
+
+**Verification — every check mutation-tested, and it took three attempts to write one that worked:**
+
+```
+M1  remove `hdi` from Summarize.md only              → PASSED  (wrong mutation: the name lives in other CICs)
+M1' remove `` `hdi` `` from every CIC                → PASSED  (wrong mutation: bare `hdi(` occurrences remain)
+M1'' neutralise every \bhdi\b, keep hdi_tower ×4    → ERROR: 'hdi' … named in no CIC        ✅
+M2' remove bare `Frame` everywhere, keep *Frame ×8   → ERROR: 'Frame' … named in no CIC       ✅
+M3  drop one conformance name from GOVERNANCE.md     → ERROR: 'assert_reindex_fill_law' …     ✅
+M4  add an export no CIC mentions                    → ERROR: 'brand_new_estimator' …         ✅
+M5  move README.md away (C-89's guard)               → ERROR: expected ../pyproject.toml …    ✅
+```
+
+**The first two mutations were inadequate, and that is the finding worth keeping.** Both looked like they tested the substring trap and neither did — the first because the name lived in another CIC, the second because bare `hdi(` occurrences survived a backtick-scoped `sed`. Each time the check passed and the *pass was the signal something was wrong with the test*, not the code. This is C-77's fourth refinement (the mutations an author picks are the ones they already have in mind) applying to the mutations themselves, one level down.
+
+---
+
+### C-89: `validate_docs.sh`'s README-banner check silently no-opped if either input moved — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-89 |
+| Tier | 4 |
+| Resolved | 2026-08-18 (Epic #240 / S6 #246) |
+| Resolution | The `if [ -f ... ]` guard became `if [ ! -f ... ]; then error; else check; fi`. Verified by moving `README.md` aside: the script now reports `ERROR: expected ../pyproject.toml and ../README.md` and exits 1, where it previously skipped and exited 0. The same shape was **not** copied into checks 7–9, each of which errors when its input is unreadable. |
+| Source | code-review (2026-08-17). |
+| Cross-refs | **C-74** (which armed this script as a CI gate — a guard that disables itself re-creates the state C-74 closed), **C-70** (the banner drift the check exists for), **C-85** (resolved together). |
+
+A CI gate whose check turns itself off when its inputs move is not a gate. Fixed with `errors` incremented on the missing-input path, and mutation-tested rather than assumed.
 
 ---
 
