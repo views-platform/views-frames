@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 88                                   |
+| Total Concerns    | 89                                   |
 | Open Concerns     | 20                                   |
-| Resolved Concerns | 68                                   |
+| Resolved Concerns | 69                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -95,6 +95,42 @@ arrow raises: Object of type datetime is not JSON serializable
 **Tier 4.** No consumer is known to set a non-JSON metadata value, all six fields are typed `str | int | None`, and `mypy --strict` catches it at any typed call site. It is registered because the divergence is **invisible until it bites**, it sits in the published IO surface (ADR-016), and a silently-stringified field is precisely what a same-version round-trip test cannot see (C-79).
 
 **Resolved when** both codecs treat a non-JSON header value the same way, and `docs/CICs/FrameMetadata.md` §6 records the chosen behaviour as one row rather than two.
+
+---
+
+### C-92: no branch protection exists, so every "gate" in this repository is advisory
+
+| Field | Value |
+|-------|-------|
+| ID | C-92 |
+| Tier | 3 |
+| Status | **actionable** — a repository setting, not a code change; needs the maintainer's decision on which checks to require |
+| Status-note | Not resolvable by a contributor: changing branch protection needs admin rights on the GitHub repository. |
+| Source | code-review (2026-08-18), during S7 of epic #240. |
+| Trigger | **Before the next release, and before relying on any check to have prevented something.** Also whenever a new gate is added — each one is currently a red X a merge can walk past, so "we added a gate" means less than it reads. |
+| Location | GitHub repository settings for `views-platform/views-frames` (`main`, `development`); the eleven CI checks in `.github/workflows/ci.yml` and `notebooks.yml` that this makes advisory. |
+| Cross-refs | **C-74** (resolved — *"a check that does not run is worse than no check at all"*; this entry is the other half: a check that runs but enforces nothing), **C-85** / **C-89** (the completeness checks S6 armed), **C-83** (the examples job whose "blocking" description prompted this), ADR-005, GOVERNANCE.md §cross-repo MAJOR-bump process. |
+
+Measured 2026-08-18:
+
+```
+$ gh api repos/views-platform/views-frames/branches/main/protection
+{"message":"Branch not protected", …}
+$ gh api repos/views-platform/views-frames/branches/development/protection
+{"message":"Branch not protected", …}
+$ gh api repos/views-platform/views-frames/rulesets
+[]
+```
+
+**Neither branch is protected and there are no rulesets.** Eleven CI checks run on every pull request — the four-version matrix, the numpy floor, build, docs, format, examples, imports, nbmake — and **not one of them is required**. A red check is a red X next to a merge button that still works.
+
+This does not mean the checks are worthless: they are read, and this epic's own history shows them catching real defects. But it changes what several documents claim. C-74's resolution says wiring `validate_docs.sh` into CI is *"what makes it a gate"*; it makes it a **signal**. The same wording appears around the format check, the import contracts, and the examples job registered under C-83.
+
+**Tier 3, not 2.** Nothing is currently broken by it — this is a small, careful team and the checks are watched. It is registered because it silently weakens a claim made in at least four places, because the cost of fixing it is a settings change rather than work, and because the register's own C-74 lesson — *a check that does not run is worse than no check at all* — has an obvious second half that nobody had written down: **a check that runs but cannot block is worth less than its documentation says.**
+
+**Deliberately not fixed here.** Enabling required checks is an admin action with immediate consequences for everyone merging, including choosing *which* of the eleven are required (the `nbmake` job is `continue-on-error` by design and must not be). That is a maintainer decision, not a documentation story's.
+
+**Resolved when** either required status checks are configured and the documents describing gates are corrected to match, or a deliberate decision to keep them advisory is recorded and the word "gate" is softened wherever it overstates.
 
 ---
 
@@ -206,24 +242,6 @@ The practical consequence surfaced when `GOVERNANCE.md` tried to point at a sing
 **Tier 4.** Nothing is wrong at runtime, no consumer is misled in practice (the CICs and ADRs name the entry points explicitly, and `import *` is banned repo-wide), and the frozen surface is unaffected — an `__all__` here declares what is already public rather than narrowing it. It is registered because it is a real inconsistency in a *published* surface and because **S6 cannot avoid meeting it**: its check has to read all three modules.
 
 **Resolved when** either both sibling modules declare `__all__`, or the asymmetry is recorded as deliberate with a reason, and S6's check reflects whichever was chosen.
-
----
-
-### C-83: `examples/` is advertised as runnable and executed by nothing
-
-| Field | Value |
-|-------|-------|
-| ID | C-83 |
-| Tier | 4 |
-| Status | **actionable** — one CI job modelled on `notebooks.yml`, or drop the README claim |
-| Source | repo-assimilation (2026-08-17), Phase 6. |
-| Trigger | **Before the next change to a frozen constructor signature or to `cross_level_align`'s arguments** — those are what the two scripts call, and nothing would report their breakage. Alternatively, when a new consumer reports that the quickstart does not run. |
-| Location | `examples/quickstart.py`, `examples/cross_level.py`; `README.md:60-61,89` (presents both as runnable, `uv run examples/quickstart.py`); `.github/workflows/notebooks.yml` (the pattern already solved for the sibling artifact). |
-| Cross-refs | **C-74** (resolved — the identical shape: a check that existed but was never wired into CI), C-70 (resolved — README drifting from what the code does), C-80 (the adjacent "what an artifact claims vs what it does" theme). |
-
-README §quickstart links both scripts and tells a reader to run them. No workflow does. The repo already solved exactly this for `notebooks/`, where `notebooks.yml` runs the showcase notebooks end-to-end under `nbmake` as a deliberately `continue-on-error` drift check — so the tooling, the precedent and the rationale all exist, and `examples/` was simply not included. The asymmetry looks like oversight rather than decision: `research/` and `scripts/` are explicitly declared un-gated in `pyproject.toml`, `examples/` is not.
-
-**Tier 4** — nothing in the package is at risk and any breakage is loud. The cost is a broken first impression discovered by a new consumer rather than by CI, in the two files most likely to be a consumer's first contact with the package. **Resolved when** either a job executes both scripts, or README stops presenting them as runnable.
 
 ---
 
@@ -800,6 +818,48 @@ annotate `__all__: list[str] = [`                 → correctly parsed, 38 names
 | Cross-refs | **C-74** (which armed this script as a CI gate — a guard that disables itself re-creates the state C-74 closed), **C-70** (the banner drift the check exists for), **C-85** (resolved together). |
 
 A CI gate whose check turns itself off when its inputs move is not a gate. Fixed with `errors` incremented on the missing-input path, and mutation-tested rather than assumed.
+
+---
+
+### C-83: `examples/` was advertised as runnable and executed by nothing — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-83 |
+| Tier | 4 |
+| Resolved | 2026-08-18 (Epic #240 / S7 #247) |
+| Resolution | An `examples` job in `ci.yml` loops over `examples/[!_]*.py` and **fails** on a broken script (unlike the `continue-on-error` notebooks job). Note it is not an *enforced* gate — no branch protection exists anywhere in this repo, register C-92. Mutation-tested four ways: an API break fails it, a wording change does not, a broken first script does not hide the second, and an empty directory fails rather than passing vacuously. |
+| Source | repo-assimilation (2026-08-17), Phase 6. |
+| Cross-refs | **C-74** (resolved — the identical shape: a check that existed but was never wired into CI), C-70 (README drifting from the code), **C-75** (resolved — tests that asserted README *prose*; this check deliberately asserts exit status instead), C-86 / S11 (the other README defect found later — its §9 conformance path). |
+
+`README.md:60-61,89` presented `examples/quickstart.py` and `examples/cross_level.py` as runnable (`uv run examples/quickstart.py`) and no workflow executed either, while `notebooks/` had had an `nbmake` drift check since #151. `research/` and `notebooks/` are *explicitly* declared un-gated in `pyproject.toml`; `examples/` was declared nothing.
+
+**The job blocks, and the difference from `notebooks.yml` is the point.** That job is `continue-on-error` because *"a slow or flaky notebook never blocks a merge — the notebooks are un-gated dev artifacts."* Neither reason applies here, measured rather than assumed:
+
+```
+examples/quickstart.py    0.24s
+examples/cross_level.py   0.24s
+two runs of quickstart    byte-identical output
+imports                   numpy, stdlib, views_frames, views_frames_summarize — nothing else
+```
+
+And unlike a notebook, README tells a new consumer to run these. A quickstart that does not run is a broken promise, not a flaky artifact.
+
+**Verification.** The check asserts **exit status, not output** — deliberately, because C-75 is the register's record of what happens when a check couples to prose. Four mutations:
+
+```
+break a frozen call: assert_frame_contract(pf, extra_arg=1)  → exit 1  ✅ fails
+change printed wording only: "HDI(sum)" → "HDI-SUM"          → exit 0  ✅ tolerated
+break the FIRST script                                        → the second still runs, exit 1  ✅
+empty examples/                                               → "no scripts found … would pass
+                                                                 vacuously", exit 1  ✅
+```
+
+The last two came from reviewing the first draft, which hard-coded the two filenames as separate `run:` steps. That version would have covered two of three the day someone added a third script, and a failure in the first would have hidden the second's status. Both are the under-coverage shape this epic exists to remove, built into the fix for it.
+
+**The job comment's first draft also gave a wrong reason for a right decision.** It said one job / one Python version was justified "for the same reason as `docs`, `format` and `imports`: nothing here depends on the Python version." That is true of those three and false of this one — `cross_level.py` calls `hdi()`, which is exactly the code the `floor` job exists for (C-24). The real reason is that these scripts smoke-test the **documented on-ramp**, not behaviour; version coverage belongs to the matrix and the floor job. The comment now says that.
+
+**Known non-coverage, stated rather than left to infer:** `examples/` is linted (the `check` matrix runs `ruff check .` and does not exclude it) but **not type-checked** — CI runs `mypy src/`. `uv run mypy examples/` passes today; nothing keeps it passing. Adding it would be a different guarantee from "these scripts run", so it is recorded here rather than folded in.
 
 ---
 

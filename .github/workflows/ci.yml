@@ -73,6 +73,65 @@ jobs:
       - uses: astral-sh/setup-uv@v4
       - run: uv run ruff format --check .
 
+  # The two scripts README §quickstart tells readers to run. They were advertised as
+  # runnable and executed by nothing (register C-83), while notebooks/ has had a drift
+  # check since #151 — an asymmetry that looked like oversight rather than decision.
+  #
+  # This job FAILS on a broken example — it is not `continue-on-error` like the notebooks
+  # job, which stays green regardless. (Note that no branch protection or ruleset exists on
+  # `main` or `development` today, so a red check does not mechanically prevent a merge
+  # anywhere in this repo; register C-92. "Fails" here means a red X, not an enforced gate.)
+  #
+  # The difference from notebooks.yml is deliberate. That job is `continue-on-error` because
+  # "a slow or flaky notebook never blocks a merge — the notebooks are un-gated dev
+  # artifacts". Neither reason applies here: these scripts run in 0.24s each, import only
+  # numpy, the stdlib and this package, and produce byte-identical output across runs. And
+  # unlike a notebook, README tells a new consumer to run them — a quickstart that does not
+  # run is a broken promise, not a flaky artifact.
+  #
+  # One job, NOT a step in the four-version matrix — but not for the reason `docs`, `format`
+  # and `imports` give. Those are genuinely version-independent; this one executes the
+  # package, and `cross_level.py` calls `hdi()`, exactly the code the `floor` job exists for
+  # (numpy ulp differences, register C-24). The reason is different: these scripts smoke-test
+  # the **documented on-ramp**, not behaviour. Behaviour across versions is what the matrix
+  # and the floor job cover.
+  #
+  # Pinned to 3.10 — the declared floor (`requires-python = ">=3.10"`). The failure this job
+  # exists to catch is on-ramp-shaped, and the on-ramp is promised to a floor consumer: a
+  # 3.11+-only construct in a future example would otherwise pass here while breaking the
+  # quickstart for exactly the reader most likely to pin conservatively.
+  #
+  # `timeout-minutes` makes the "these are fast" claim enforced rather than asserted. The
+  # 0.24s measurement is of today's two scripts; the glob applies this gate to every future
+  # one, and a grid-scale demo (register C-71) would otherwise hold every PR in the repo.
+  #
+  # The loop is not decoration: hard-coding filenames would silently cover two of three the
+  # day someone adds a third, and it keeps going after a failure so one broken script does
+  # not hide another's status. `_`-prefixed files are skipped as helpers — `notebooks/` has
+  # exactly that shape in `_synthetic.py`. An empty set fails rather than passing vacuously,
+  # the lesson from the completeness checks in `docs/validate_docs.sh`.
+  examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.10
+      - name: Run every example script
+        run: |
+          shopt -s nullglob
+          scripts=(examples/[!_]*.py)
+          if [ ${#scripts[@]} -eq 0 ]; then
+            echo "::error::no runnable scripts under examples/ — this job would pass vacuously"
+            exit 1
+          fi
+          failed=0
+          for f in "${scripts[@]}"; do
+            echo "--- $f"
+            uv run --python 3.10 "$f" || { echo "::error file=$f::$f exited non-zero"; failed=1; }
+          done
+          exit "$failed"
+
   # The import contracts in pyproject.toml's [tool.importlinter]. Its own job for the
   # same reason as `docs` and `format`: import-linter reads the source with grimp and
   # never imports the package, so its result cannot depend on the Python version, and
