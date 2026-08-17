@@ -73,9 +73,9 @@ binding without the pre-1.0 latitude: any breaking change to the frozen surface 
 a **MAJOR** bump and follows the cross-repo process below. What v1.0.0 locks (the
 surface a consumer may safely pin) is recorded in **ADR-018**, which is the authority — read
 the frozen list and the "Additive since v1.0.0" pointer there rather than the sketch below.
-This summary named five areas and omitted `SpatialLevel`, `FrameMetadata`, `feature_names`,
-`from_2d`, `n_rows`/`n_features`, and the entire `views_frames_reconcile` package until
-2026-08-17 (register C-85); it is kept deliberately coarse now so it cannot drift again:
+This summary had drifted from ADR-018 until 2026-08-17 — most consequentially by omitting
+the entire `views_frames_reconcile` package (register C-85). It is kept deliberately coarse
+now so it cannot drift again:
 
 - the three frames, their constructor shapes and their accessors;
 - `SpatioTemporalIndex`, its same-level alignment and its `(time, unit)`-keyed

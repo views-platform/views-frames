@@ -41,9 +41,13 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
   `FeatureFrame`'s `feature_names`, `n_features` and `from_2d` — `feature_names` is the
   attribute that distinguishes a feature frame at all (ADR-013), and `from_2d` is ordinary
   supported surface for unsampled `(N, F)` input, not a deprecated shim (register C-76).
-- `FrameMetadata` (ADR-013) and `SpatialLevel` (ADR-015): the typed provenance header and
-  the cm/pgm identifier vocabulary. Both are exported from `views_frames` and composed into
-  every frame; a consumer cannot construct or read a frame without them.
+- `SpatialLevel` (ADR-015): the cm/pgm identifier vocabulary. **Required** to construct a
+  `SpatioTemporalIndex` — passing anything else raises `TypeError` — so no consumer can
+  build a frame without it.
+- `FrameMetadata` (ADR-013): the typed provenance header. Optional at construction
+  (`metadata=None` builds an empty one), but it is the type `.metadata` **returns**, so any
+  consumer reading or writing provenance depends on its field set and on
+  `to_dict`/`from_dict`.
 - `SpatioTemporalIndex`: the `{time, unit, level}` identity, same-level alignment
   (`intersect`/`reindex`/`searchsorted`/`is_superset_of`/`argsort`/`select`), the
   **`(time, unit)`-keyed, time-aware** `cross_level_align` and the columnar
@@ -51,9 +55,11 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
   stance**: duplicate `(time, unit)` rows are *allowed* (cross-level produces them);
   same-level joins *assume* uniqueness.
 - The protocols `Frame` / `SpatioTemporalIndexed` / `Sampled` / `Persistable`.
-- The published conformance suite and its laws (`assert_frame_contract`,
-  `assert_index_alignment_laws`, `assert_cross_level_alignment_law`,
-  `assert_summarizer_contract`), governed at `CONFORMANCE_FLOOR = "1.0.0"`.
+- The published conformance suite and its laws **as they stood at v1.0.0**
+  (`assert_frame_contract`, `assert_index_alignment_laws`,
+  `assert_cross_level_alignment_law`, `assert_summarizer_contract`), governed at
+  `CONFORMANCE_FLOOR = "1.0.0"`. Three more have been published since — see the forward
+  pointer below; `GOVERNANCE.md` carries the current full table.
 - The `views_frames_summarize` estimator surface: `collapse`, `map_estimate`, `hdi`,
   `quantiles`, `aggregate_distributions`, `aggregate_distributions_arrays`.
 
