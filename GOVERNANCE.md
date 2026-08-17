@@ -12,10 +12,32 @@ driving any cross-repo MAJOR bump.
 
 ## Conformance floor
 
-The published conformance suite ships with the package as `views_frames.conformance`
-(`assert_frame_contract`, `assert_index_alignment_laws`,
-`assert_cross_level_alignment_law`). Every consumer runs it in CI against its own
-adapter output.
+The published conformance suite ships with the wheel in **three modules**, one per package.
+Every consumer runs it in CI against its own adapter output.
+
+**The code is the source of truth, not this list.** It has fallen behind twice
+(`assert_frame_envelope` in v1.4.0, `assert_reindex_fill_law` with ADR-026), so it is
+written to be checked rather than trusted — and the two are not read the same way:
+
+| Module | Published surface | Where the code declares it |
+|--------|-------------------|----------------------------|
+| `views_frames.conformance` | `assert_frame_contract`<br>`assert_frame_envelope`<br>`assert_index_alignment_laws`<br>`assert_cross_level_alignment_law`<br>`assert_reindex_fill_law`<br>*plus* the `CONFORMANCE_FLOOR` constant | an explicit `__all__` |
+| `views_frames_summarize.conformance` | `assert_summarizer_contract` | no `__all__`; the module's public `assert_*` functions (ADR-017, `docs/CICs/Summarize.md`) |
+| `views_frames_reconcile.conformance` | `assert_reconcile_contract` | no `__all__`; the module's public `assert_*` functions (ADR-023, `docs/CICs/Reconcile.md`) |
+
+Read all three at once — the sibling packages declare no `__all__`, so asking for one raises
+`AttributeError` rather than telling you anything:
+
+```bash
+uv run python -c "
+import views_frames.conformance as c
+import views_frames_summarize.conformance as s
+import views_frames_reconcile.conformance as r
+for name, mod in (('views_frames', c), ('views_frames_summarize', s), ('views_frames_reconcile', r)):
+    pub = getattr(mod, '__all__', None) or [n for n in vars(mod) if n.startswith('assert_')]
+    print(f'{name+\".conformance\":38} {sorted(pub)}')
+"
+```
 
 - **Conformance-floor version:** `1.0.0` (`views_frames.conformance.CONFORMANCE_FLOOR`).
 - The floor is a **single governed version every consumer runs regardless of its
@@ -23,12 +45,13 @@ adapter output.
   "my adapter vs my pin" (closes register C-10). The floor is bumped deliberately,
   as a governance act, not implicitly by a consumer upgrading.
 - **What the floor tracks (register C-27):** the **whole published conformance
-  surface** — both the structural frame contract and the published laws
-  (`assert_index_alignment_laws`, `assert_cross_level_alignment_law`, and the
-  summarizer's `assert_summarizer_contract`). It is bumped whenever a **breaking**
-  change is made to any of them, so reading `CONFORMANCE_FLOOR` tells a consumer
-  exactly which contract version its CI asserts. Additive surface (a new law or
-  method) is MINOR and does **not** bump the floor.
+  surface** — every `assert_*` entry point in the table above, across all three modules,
+  not just the `views_frames.conformance` ones. (`CONFORMANCE_FLOOR` is the number being
+  governed, not a checked surface; it does not track itself.) It is bumped whenever a
+  **breaking** change is made
+  to any of them, so reading `CONFORMANCE_FLOOR` tells a consumer exactly which contract
+  version its CI asserts. Additive surface (a new law or method) is MINOR and does
+  **not** bump the floor.
 
 ## Versioning (SemVer for a contract)
 
