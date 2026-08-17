@@ -16,7 +16,8 @@ depends *toward* it.
 
 **Three packages** under `src/` (one wheel), strict one-way dependencies
 `views_frames_summarize → views_frames` and `views_frames_reconcile → views_frames`
-(siblings never import each other), enforced by `tests/test_import_enforcement.py`:
+(siblings never import each other), enforced by `tests/test_import_enforcement.py` and,
+in CI, by the `import-linter` contracts in `pyproject.toml` (`uv run lint-imports`):
 
 **`src/views_frames/`** — the pure data contract (numpy-only; depends on nothing; frozen):
 
@@ -60,6 +61,7 @@ uv run pytest           # tests (incl. import-enforcement + falsification suites
 uv run ruff check .     # lint
 uv run ruff format .    # format
 uv run mypy src/        # type check (strict; also check with --python 3.11 before pushing)
+uv run lint-imports     # import contracts ([tool.importlinter] in pyproject.toml)
 uv build                # build wheel + sdist
 ```
 
