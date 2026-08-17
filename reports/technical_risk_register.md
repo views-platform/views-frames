@@ -792,7 +792,7 @@ A CI gate whose check turns itself off when its inputs move is not a gate. Fixed
 | ID | C-83 |
 | Tier | 4 |
 | Resolved | 2026-08-18 (Epic #240 / S7 #247) |
-| Resolution | A **blocking** `examples` job in `ci.yml` runs both scripts. Mutation-tested: an API break fails it, a wording change does not. See below. |
+| Resolution | A **blocking** `examples` job in `ci.yml` loops over `examples/*.py`. Mutation-tested four ways: an API break fails it, a wording change does not, a broken first script does not hide the second, and an empty directory fails rather than passing vacuously. |
 | Source | repo-assimilation (2026-08-17), Phase 6. |
 | Cross-refs | **C-74** (resolved — the identical shape: a check that existed but was never wired into CI), C-70 (README drifting from the code), **C-75** (resolved — tests that asserted README *prose*; this check deliberately asserts exit status instead), C-86 / S11 (the other README defect found later — its §9 conformance path). |
 
@@ -809,14 +809,19 @@ imports                   numpy, stdlib, views_frames, views_frames_summarize �
 
 And unlike a notebook, README tells a new consumer to run these. A quickstart that does not run is a broken promise, not a flaky artifact.
 
-**Verification.** The check asserts **exit status, not output** — deliberately, because C-75 is the register's record of what happens when a check couples to prose. Mutation-tested in both directions:
+**Verification.** The check asserts **exit status, not output** — deliberately, because C-75 is the register's record of what happens when a check couples to prose. Four mutations:
 
 ```
-$ # break a frozen call the way an API change would
-  assert_frame_contract(pf, extra_arg=1)      → exit 1   ✅ the job fails
-$ # change printed wording only
-  "HDI(sum)" → "HDI-SUM"                      → exit 0   ✅ the job tolerates it
+break a frozen call: assert_frame_contract(pf, extra_arg=1)  → exit 1  ✅ fails
+change printed wording only: "HDI(sum)" → "HDI-SUM"          → exit 0  ✅ tolerated
+break the FIRST script                                        → the second still runs, exit 1  ✅
+empty examples/                                               → "no scripts found … would pass
+                                                                 vacuously", exit 1  ✅
 ```
+
+The last two came from reviewing the first draft, which hard-coded the two filenames as separate `run:` steps. That version would have covered two of three the day someone added a third script, and a failure in the first would have hidden the second's status. Both are the under-coverage shape this epic exists to remove, built into the fix for it.
+
+**The job comment's first draft also gave a wrong reason for a right decision.** It said one job / one Python version was justified "for the same reason as `docs`, `format` and `imports`: nothing here depends on the Python version." That is true of those three and false of this one — `cross_level.py` calls `hdi()`, which is exactly the code the `floor` job exists for (C-24). The real reason is that these scripts smoke-test the **documented on-ramp**, not behaviour; version coverage belongs to the matrix and the floor job. The comment now says that.
 
 **Known non-coverage, stated rather than left to infer:** `examples/` is linted (the `check` matrix runs `ruff check .` and does not exclude it) but **not type-checked** — CI runs `mypy src/`. `uv run mypy examples/` passes today; nothing keeps it passing. Adding it would be a different guarantee from "these scripts run", so it is recorded here rather than folded in.
 

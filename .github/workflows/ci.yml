@@ -84,15 +84,38 @@ jobs:
   # byte-identical output across runs. And unlike a notebook, README tells a new consumer
   # to run them — a quickstart that does not run is a broken promise, not a flaky artifact.
   #
-  # Its own job rather than a step in the four-version matrix, for the same reason as
-  # `docs`, `format` and `imports`: nothing here depends on the Python version.
+  # One job, one Python version — but NOT for the reason `docs`, `format` and `imports`
+  # give. Those are genuinely version-independent; this one executes the package, and
+  # `cross_level.py` calls `hdi()`, exactly the code the `floor` job exists for (numpy ulp
+  # differences, register C-24). The reason is different: these scripts are a smoke test of
+  # the **documented on-ramp**, not of behaviour. Behaviour across versions is what the
+  # four-version matrix and the floor job cover. Running the on-ramp once answers "is the
+  # quickstart broken", which is all C-83 asks. The version is whatever `uv` resolves; that
+  # is deliberate, since version coverage is not this job's concern.
+  #
+  # The loop is not decoration: hard-coding the two filenames would silently cover two of
+  # three the day someone adds a third, and it keeps going after a failure so one broken
+  # script does not hide another's status. An empty `examples/` fails rather than passing
+  # vacuously — the lesson from the completeness checks in `docs/validate_docs.sh`.
   examples:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv run examples/quickstart.py
-      - run: uv run examples/cross_level.py
+      - name: Run every example script
+        run: |
+          shopt -s nullglob
+          scripts=(examples/*.py)
+          if [ ${#scripts[@]} -eq 0 ]; then
+            echo "::error::no scripts found under examples/ — this job would pass vacuously"
+            exit 1
+          fi
+          failed=0
+          for f in "${scripts[@]}"; do
+            echo "--- $f"
+            uv run "$f" || { echo "::error file=$f::$f exited non-zero"; failed=1; }
+          done
+          exit "$failed"
 
   # The import contracts in pyproject.toml's [tool.importlinter]. Its own job for the
   # same reason as `docs` and `format`: import-linter reads the source with grimp and
