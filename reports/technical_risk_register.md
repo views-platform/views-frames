@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-17                           |
 | Total Concerns    | 82                                   |
-| Open Concerns     | 18                                   |
-| Resolved Concerns | 64                                   |
+| Open Concerns     | 17                                   |
+| Resolved Concerns | 65                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -65,34 +65,6 @@ one — re-auditing it produces the same answer its precondition already gives.
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
 > with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
-
-### C-82: ADR-002's intra-package layering is inverted against the code, and a CI contract is about to enforce the code's side
-
-| Field | Value |
-|-------|-------|
-| ID | C-82 |
-| Tier | 3 |
-| Status | **actionable** — one section of ADR-002, no code change |
-| Source | repo-assimilation (2026-08-17), Phase 2 (dependency graph, measured with `grimp`). |
-| Trigger | **When someone acts on ADR-002's Forbidden Patterns list or the physical-architecture standard's Circular Dependency Guard** — most likely an agent told to "fix the forbidden pattern," or a contributor adding a module and consulting either document for where it belongs. Acting on them as written means deleting the frames' `npz` imports, which breaks `save`/`load`. Also check before merging PR #239, which turns the opposite claim into a CI gate. |
-| Location | `docs/ADRs/002_topology_and_dependency_rules.md` §Decision (intra-package bullet 3), §Layering Principle, §Forbidden Patterns (bullet 3); **`docs/standards/physical_architecture_standard.md:48-49` and `:67`** (the same claim restated as an operational standard); `src/views_frames/io/npz.py`, `src/views_frames/io/arrow.py`; `src/views_frames/feature_frame.py:21`, `src/views_frames/prediction_frame.py:20`, `src/views_frames/target_frame.py:18`; `pyproject.toml` `[tool.importlinter]` contract 2. |
-| Cross-refs | **C-09** (resolved 2026-06-21 — the decision that produced today's shape: `io/` operates on a generic state dict and carries no per-frame schema; ADR-002 was never updated to match), **C-78** (architectural guards and their blind spots — this is a guard about to enforce what the constitution denies), C-39 / C-23 (resolved — the same doc-lags-code disease in CICs), **ADR-000** (§"Relationship to Code": *"If code and ADRs disagree, the ADR is the source of truth"*), ADR-003 (declarations are authoritative over inference), ADR-007 (agents as untrusted contributors reading these documents; it cites ADR-002 as *"enforced topology"* though no test enforces the `io/` direction), ADR-018 (the freeze that makes the code side immovable), GH #238 / #239. |
-
-ADR-002 §Decision states that `io/` *"sits at the top, imports the frames to serialize them"* and *"Nothing lower may import `io/`"*, and §Forbidden Patterns lists *"a frame importing `io/`"* as an architectural violation. The code is the inverse: `io/npz.py` and `io/arrow.py` import only `_typing`, and all three frames import `io` and call `npz.save`/`npz.load`. The pattern the ADR forbids is used in three of the leaf's core files.
-
-The binding *principle* is not violated — the graph is acyclic (verified exhaustively with `grimp`: 36 modules, 89 dependencies, zero mutual-import pairs) and nothing lower imports higher. What is wrong is the ADR's factual claim about which way `io/` runs. The code's direction is forced by a decision recorded elsewhere: `Persistable` (`protocols.py:62`) puts `save`/`load` **on the frame**, so the frame must reach the serializer. And it satisfies ADR-002's stated *goal* better than its own prescription would — `io/` never importing a frame is stronger decoupling than `io/` importing three of them. **C-09 is the causal origin**: resolving it in v0.1.0 moved `io/` to a generic state-dict contract and inverted the dependency; the ADR was not amended.
-
-The ADR's layer list is also **incomplete**. It names `index`, `spatial_level`, `protocols`, `_validation` as the lowest layer and omits four modules — including `_typing`, which at fan-in 8 is the most-depended-on module in the leaf.
-
-**It is two documents, not one** (added 2026-08-17 by the graphify pass). `docs/standards/physical_architecture_standard.md:48-49` restates the claim verbatim — *"`io/` sits on top and imports the frames. Nothing lower may import `io/`; a frame must not know how it is serialized"* — and `:67` turns it into an operational **Circular Dependency Guard**: *"no core module may import `io/`."* So a contributor checking whether the repo satisfies its own circular-dependency guard would conclude, from the standard, that the code violates it. Meanwhile the three frame CICs (§5 in each) describe `save` writing `values.npy` + `identifiers.npz` — the code's side. **Three documents describe what the code does; two describe the inverse.**
-
-**And the constitution says the two win.** ADR-000 §"Relationship to Code" states: *"If code and ADRs disagree, the ADR is the source of truth — or a new ADR is required."* That is the sentence which converts this from a stale paragraph into a live instruction, and it is also the sentence that names the fix: a new or amended ADR, not a code change.
-
-**Tier 3, not 2 — the failure is loud.** The realistic bad change (deleting the frames' `io` imports) breaks `test_io.py` immediately under the 100% gate; nothing reaches a consumer. What it costs is a wasted change, a wasted review, and a contributor misdirected by the one document that is supposed to be authoritative about topology. That cost lands on multiple developers and on every agent handed these documents, which is what puts it above Tier 4. **Correcting the code instead of the ADR is not available**: `save`/`load` are frozen v1 surface (ADR-018), so it would be a MAJOR bump to fix a documentation error.
-
-**Resolved when** ADR-002's intra-package section describes `io/` as a low-level array codec the frames call, states why (`Persistable` places persistence on the frame; C-09 made `io/` schema-generic), removes the stale Forbidden Patterns bullet, and names all ten leaf modules in its layer list.
-
----
 
 ### C-83: `examples/` is advertised as runnable and executed by nothing
 
@@ -560,6 +532,47 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-82: ADR-002's intra-package layering was inverted against the code — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-82 |
+| Tier | 3 |
+| Resolved | 2026-08-17 (Epic #240 / S1 #241) |
+| Resolution | ADR-002 amended, and the same claim corrected in `docs/standards/physical_architecture_standard.md`. See the verification below. |
+| Source | repo-assimilation (2026-08-17), Phase 2 (dependency graph, measured with `grimp`). |
+| Cross-refs | **C-09** (the origin — resolving it in v0.1.0 moved `io/` onto a generic state-dict contract and inverted the dependency; ADR-002 was never amended), **C-84** (the rest of the physical-architecture standard's staleness, same cluster), C-78, C-39 / C-23, ADR-000 §"Relationship to Code", ADR-003, ADR-007, ADR-018, GH #238 / #239 / #240 / #241. |
+
+ADR-002 stated that `io/` *"sits at the top, imports the frames to serialize them"*, that *"Nothing lower may import `io/`"*, and listed *"a frame importing `io/`"* under **Forbidden Patterns**. `docs/standards/physical_architecture_standard.md:48-49` restated it and `:67` made it a Circular Dependency Guard. The code is the inverse: `io/npz` and `io/arrow` import only `_typing`, and all three frames import `io` and call `npz.save` / `npz.load`.
+
+The **decision** was never wrong — direction is one-way and acyclic. The ADR's factual claim about *which* way was. `Persistable` (`protocols.py:62`) places `save`/`load` on the frame, so the frame reaches the serializer; those methods are frozen v1 surface (ADR-018), so correcting the code would have been a MAJOR cross-repo bump to fix a documentation error.
+
+**Verification (2026-08-17).**
+
+Every stale claim is gone; the only remaining occurrences are inside the amendment text that explains the correction:
+
+```
+$ grep -rn "sits at the top\|imports the frames to serialize\|a frame importing \`io/\`\|no core module may import" docs/ README.md CLAUDE.md
+docs/ADRs/002_topology_and_dependency_rules.md:8:> the top, imports the frames to serialize them"*, that *"nothing lower may import `io/`"*,
+docs/ADRs/002_topology_and_dependency_rules.md:9:> and it listed *"a frame importing `io/`"* under **Forbidden Patterns**. **The code runs the
+```
+
+All eleven leaf modules are now named in the intra-package section (it previously named four, omitting `_typing` — the highest fan-in in the leaf — plus `metadata`, `io` and `conformance`). Checked against `find src/views_frames -name '*.py'`: `_typing`, `metadata`, `spatial_level`, `_validation`, `io`, `index`, `protocols`, `feature_frame`, `prediction_frame`, `target_frame`, `conformance` — all OK, none missing.
+
+```
+$ uv run lint-imports
+The core does not depend on its consumers KEPT
+The leaf's internal layering runs one way KEPT
+Contracts: 2 kept, 0 broken.
+
+$ bash docs/validate_docs.sh
+=== PASSED: no issues found ===
+```
+
+Also corrected in the same change: `docs/CICs/Protocols.md` now records that `Persistable` is *why* the frames depend on `io/` (and its `Last reviewed` moved from 2026-06-24, the oldest CIC, to 2026-08-17), and the `[tool.importlinter]` comment in `pyproject.toml` no longer says the ADR is out of date.
+
+---
 
 ### C-74: the CI gate was a strict subset of the local gate — `validate_docs.sh` and `ruff format` ran only by habit — RESOLVED
 

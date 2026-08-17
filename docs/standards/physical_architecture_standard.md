@@ -44,9 +44,13 @@ src/views_frames/
     └── arrow.py         # flat columnar (.parquet) — the scalable disk format
 ```
 
-Layering (ADR-002): `index`/`spatial_level`/`protocols`/`_validation` are the lowest layer;
-the frame files depend on them; `io/` sits on top and imports the frames. Nothing lower may
-import `io/`; a frame must not know how it is serialized.
+Layering (ADR-002): `_typing`/`metadata`/`spatial_level` are the lowest layer;
+`_validation` and `io/` sit above them and import only `_typing` — both operate on **raw
+arrays**, never on a frame; `index` composes `spatial_level`; `protocols` sits above
+`index`; the frame files are the top layer and **call down into `io/`** to serialize
+themselves. `io/` must never import a frame — that is what keeps a frame's schema from
+rippling into the codecs (amended 2026-08-17, register C-82; `Persistable` places
+`save`/`load` on the frame, so the frame is what reaches the serializer).
 
 A new developer should infer every responsibility from this tree **without reading bodies**.
 
@@ -64,7 +68,7 @@ catch-all; it must not grow into a god-class (ADR-001 Category 6).
 ## 4. Import Conventions
 
 - **Explicit Imports:** Avoid `from module import *`. `__init__.py` uses named re-exports so the public API is statically analyzable.
-- **Circular Dependency Guard:** Follow ADR-002. Dependencies flow strictly toward the lowest layer; `index.py`/`_validation.py` must never import a frame, and no core module may import `io/`.
+- **Circular Dependency Guard:** Follow ADR-002. Dependencies flow strictly toward the lowest layer; `index.py`, `_validation.py` and anything under `io/` must never import a frame. Machine-enforced by the `import-linter` contracts in `pyproject.toml` (`uv run lint-imports`) and by `tests/test_import_enforcement.py`.
 - **No `views_*`, no pandas in the core:** the numbered constraint of ADR-001/002 is also a physical rule — `pyarrow` appears only under `io/`.
 
 ---
