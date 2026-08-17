@@ -20,9 +20,19 @@ must scream "data contracts."
 **Every non-trivial class must live in its own file named after the class in `snake_case`.**
 
 - **Correct:** `SpatioTemporalIndex` lives in `index.py`; `PredictionFrame` lives in `prediction_frame.py`.
-- **Incorrect:** Bundling unrelated frames in a `frames.py`, or a `handlers.py`/`file.py`-style multi-class dumping ground (the ~950-LOC `_ViewsDataset` / 13-class file is the failure mode this leaf escapes).
+- **Incorrect:** Bundling several unrelated **classes** in one file, or a `handlers.py`/`file.py`-style multi-class dumping ground (the ~950-LOC `_ViewsDataset` / 13-class file is the failure mode this leaf escapes).
 - **Accepted exception:** A small set of genuinely tightly-coupled classes may coexist in one file only when locality meaningfully aids comprehension. The coupling must be real (tight composition), not topical.
 - **Trivial exception:** Trivial data containers or exceptions directly related to a class may coexist in the same file.
+- **Names are read package-qualified.** Inside the sibling packages a module is named for its
+  role *within that package*, not by repeating the package prefix: `ReconciliationModule`
+  lives in `views_frames_reconcile/module.py` and `ReconciliationResult` in
+  `views_frames_reconcile/result.py`, which read as `reconcile.module` and
+  `reconcile.result`. `reconciliation_module.py` would stutter. The rule being enforced is
+  **one concept per file** — `views_frames_reconcile/frames.py`, for instance, holds the
+  package's array→frame adapter *functions*, not a bundle of frame classes.
+
+The mechanically-checkable half of this rule is `tests/test_import_enforcement.py::test_one_concept_per_file`
+(at most one public class per module). The naming half is a review judgement.
 
 When in doubt, prefer separate files. The cost of an extra file is lower than the cost of a tangled one.
 
