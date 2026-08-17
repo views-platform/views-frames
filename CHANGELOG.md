@@ -4,6 +4,30 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [Unreleased]
+
+**No behaviour change.** Nothing under `src/` changed, and no public API was added,
+changed or removed.
+
+### Changed — checks
+
+- **Import contracts now run in CI.** `pyproject.toml` gained two `import-linter`
+  `layers` contracts and CI gained an `imports` job that runs them. The first records
+  that the core does not depend on its two sibling packages and that the siblings do not
+  depend on each other; the second records the module layering inside `views_frames`.
+  Both describe the structure the code already has — nothing was restructured.
+
+  The first contract duplicates `tests/test_import_enforcement.py`, which remains the
+  stricter of the two (it also bans foreign `views_*` packages, pandas and friends, and
+  `pyarrow` outside `io/`). The duplication is deliberate — the same contract is landing
+  across the platform's cycle-free repos, so it is written the same way here (issue #238).
+
+  Writing the contracts surfaced that **ADR-002's intra-package layering is out of date**:
+  it describes `io/` as the top layer importing the frames, and lists "a frame importing
+  `io/`" as a forbidden pattern. The code is the inverse — `io/npz` and `io/arrow` are
+  flat array codecs importing only `_typing`, and all three frames call them. The
+  contract records the code. Correcting the ADR is left to a separate change.
+
 ## [1.10.2] — 2026-07-31
 
 **No behaviour change.** This release publishes work on the checks, the tests and the

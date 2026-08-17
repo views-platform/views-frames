@@ -65,6 +65,49 @@ dev = [
     # pyarrow is the consumer-facing [arrow] extra; installed in dev so CI
     # exercises io/arrow. It must never be imported outside src/views_frames/io/.
     "pyarrow>=14,<20",
+    # Enforces [tool.importlinter] below. All three packages are cycle-free today;
+    # this keeps them that way rather than discovering otherwise in six months.
+    "import-linter>=2.0",
+]
+
+# Both contracts record the dependency direction the code already has — they are not a
+# new architecture. `|` between siblings means *independent*: they may not import each
+# other, which is what actually prevents a cycle. (`:` would permit it.)
+#
+# Contract 1 duplicates tests/test_import_enforcement.py, which is stricter (it also bans
+# foreign views_* packages, pandas et al., and pyarrow outside io/). The duplication is
+# deliberate: the same contract is landing across the platform's cycle-free repos, so it
+# is written the same way here. Do not delete the test believing this replaces it.
+[tool.importlinter]
+root_packages = ["views_frames", "views_frames_summarize", "views_frames_reconcile"]
+
+[[tool.importlinter.contracts]]
+name = "The core does not depend on its consumers"
+type = "layers"
+layers = [
+    "views_frames_summarize | views_frames_reconcile",
+    "views_frames",
+]
+
+# `conformance` is in the top layer because that is its role — it validates frames from
+# outside. It imports nothing internal today (it duck-types against `Any`), so it would
+# satisfy any layer; putting it at the bottom would break this contract the first time
+# someone added a frame import for a type hint.
+#
+# NOTE: `io` sits *below* the frames because that is what the code does — `io/npz` and
+# `io/arrow` are flat array codecs importing only `_typing`, and the frames call them.
+# ADR-002 describes the inverse (io on top, importing the frames) and lists "a frame
+# importing io/" as a forbidden pattern. The ADR is out of date, not the code; see the
+# PR that added this file's contracts.
+[[tool.importlinter.contracts]]
+name = "views_frames internal layering"
+type = "layers"
+layers = [
+    "views_frames.feature_frame | views_frames.prediction_frame | views_frames.target_frame | views_frames.conformance",
+    "views_frames.protocols",
+    "views_frames.index",
+    "views_frames._validation | views_frames.io",
+    "views_frames._typing | views_frames.metadata | views_frames.spatial_level",
 ]
 
 [tool.hatch.build.targets.wheel]

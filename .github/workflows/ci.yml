@@ -72,3 +72,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - run: uv run ruff format --check .
+
+  # The import contracts in pyproject.toml's [tool.importlinter]. Its own job for the
+  # same reason as `docs` and `format`: import-linter reads the source with grimp and
+  # never imports the package, so its result cannot depend on the Python version, and
+  # running it inside the four-version matrix would repeat identical work four times.
+  imports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv run lint-imports
