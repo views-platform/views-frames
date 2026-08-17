@@ -37,8 +37,11 @@ every field in it is a field every consumer must agree on.
   is authoritative, or reconciling two frames that disagree, is consumer policy (ADR-001
   Category 5).
 - **It does not validate its own field *values*.** See §4.
-- **`feature_names` is not a header field.** It is a `FeatureFrame` constructor argument,
-  validated there against the feature axis (ADR-013 as-built amendment).
+- **`feature_names` is not a `FrameMetadata` field.** It is a `FeatureFrame` constructor
+  argument, validated there against the feature axis (ADR-013 as-built amendment). Note the word
+  *header* is used two ways in this repository: `FrameMetadata` is **the** header, and
+  `header.json` is the file the codec writes — which contains both the metadata dict *and*
+  `feature_names`, written there by the frame, not by this class.
 
 ---
 
@@ -54,9 +57,10 @@ every field in it is a field every consumer must agree on.
 - **`from_dict()` ignores unknown keys.** This is deliberate forward-compatibility (ADR-013
   as-built amendment): a header written by a newer version loads under an older one instead of
   raising. **The consequence is that the unknown fields are silently dropped** — see §6.
-- **Round-trip is lossless for known, set fields.** `from_dict(to_dict())` reproduces the
-  header. This is the property `save`/`load` relies on, via the frame-state contract that keeps
-  `io/` free of per-frame schema (register C-09).
+- **Round-trip is lossless for known, set fields *of JSON-native types*.** `from_dict(to_dict())`
+  reproduces the header in memory, and that is the property the frame-state contract relies on to
+  keep `io/` free of per-frame schema (register C-09). **Through the codecs the guarantee is
+  weaker**, because §4 means a non-JSON value is constructible — see §6.
 - **Adding a field is MINOR; removing or renaming one is MAJOR** (ADR-018, GOVERNANCE.md).
 
 ---
@@ -70,7 +74,10 @@ every field in it is a field every consumer must agree on.
 - `from_dict` accepts any `Mapping[str, Any]`. Values are not coerced: a `timestamp` arriving
   as a string stays a string.
 - **The type annotations are a declaration, not an enforcement.** Nothing raises if a field is
-  set to the wrong type. `mypy --strict` catches it at the call site; runtime does not.
+  set to the wrong type. `mypy --strict` catches it **at a typed call site only** — it cannot
+  see the load path, where `from_dict` receives a `Mapping[str, Any]` parsed from
+  `header.json`. A `header.json` containing `"seed": "abc"` produces a header whose `seed`
+  is a `str`, with no complaint from either mypy or runtime.
 
 ---
 
@@ -90,16 +97,25 @@ every field in it is a field every consumer must agree on.
 | Situation | Behaviour | Loud? |
 |---|---|---|
 | Unknown key in `from_dict` | **Dropped silently** | ❌ **no** |
-| Field set to the wrong type | Accepted at runtime | ❌ no (caught by `mypy --strict`) |
+| Field set to a non-JSON type, then `save`d via **npz** | **Silently stringified** — `io/npz.py` uses `json.dumps(..., default=str)`, so a `datetime` timestamp reloads as `'2026-01-01 00:00:00'` | ❌ **no** |
+| The same value `save`d via **arrow** | `TypeError: Object of type datetime is not JSON serializable` — `io/arrow.py` uses a plain `json.dumps` | ✅ yes |
+| Field set to the wrong type at a typed call site | Accepted at runtime | ❌ no — caught by `mypy --strict` **only here** |
+| Wrong type arriving from a loaded `header.json` | Accepted; `from_dict` takes `Mapping[str, Any]` and coerces nothing | ❌ **no** — mypy cannot see this path |
 | Mutating a field after construction | `FrozenInstanceError` | ✅ yes |
 | Field left unset | Defaults to `None`, omitted by `to_dict` | n/a — by design |
+
+**The two codecs disagree on the same header** (register **C-90**): npz coerces, arrow raises.
+That is an inconsistency in the published IO surface, not a property of this class, but it is
+visible here because §4's "values are taken as declared" is what makes such a header
+constructible in the first place.
 
 **The unknown-key drop is the one worth understanding.** It is the deliberate cost of
 forward-compatibility, and it has a directional consequence: **a header written by a newer
 version and read by an older one loses the fields the older version does not know about, with
 no signal.** If that frame is then re-saved, the loss is persisted.
 
-This is accepted (ADR-013) and pinned by a test (`tests/test_frames.py`), and it is the reason
+This is accepted (ADR-013) — though as §10 records, **nothing actually pins the drop**; the
+nearest test only asserts that it does not raise. It is the reason
 adding a field is MINOR rather than free: the *writer* gains a field, and every older reader
 silently drops it until it upgrades. It is also why register **C-79** — no test that today's
 loader reads a file written by an older release — matters more here than the header's small
@@ -164,13 +180,18 @@ level = frame.metadata.run_type.split("_")[0]   # ADR-003: no semantic inference
   `tests/test_frames.py`. Metadata survives row selection (`tests/test_select.py:88`).
 - **Beige:** `with_metadata` allocates no second `values` buffer — the copy-vs-view property
   (`tests/test_properties.py::test_with_metadata_shares_the_values_buffer`, register C-07).
-- **Red:** mutation raises `FrozenInstanceError` (`test_metadata_is_frozen`); unknown keys are
-  dropped rather than raising (`test_metadata_ignores_unknown_keys`). The second is a red test
-  pinning a *deliberate silent* behaviour, so the day someone decides it should be loud, this
-  contract and that test have to change together.
+- **Red:** mutation raises `FrozenInstanceError` (`test_metadata_is_frozen`).
 
-**Two guarantees in §3 are not pinned by any test**, found while writing this contract and
+`test_metadata_ignores_unknown_keys` is **green, not red, and pins less than its name suggests**:
+it asserts only `md.model == "x"` after passing an unknown key, so it pins *"does not raise"* and
+never asserts the unknown key was discarded rather than stored. The drop documented in §3 and §6
+— the behaviour with the durable consequence — is therefore **not pinned by anything**.
+
+**Three guarantees in §3 are not pinned by any test**, found while writing this contract and
 recorded rather than glossed:
+
+0. **The unknown-key drop itself** — see immediately above. `assert not hasattr(md, "unknown")`
+   is the missing line.
 
 1. **The `save`/`load` header round-trip is pinned for `PredictionFrame` only**
    (`tests/test_frames.py:107`, `assert loaded.metadata == pf.metadata`). `FeatureFrame` and

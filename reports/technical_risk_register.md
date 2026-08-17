@@ -4,9 +4,9 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-08-17                           |
-| Total Concerns    | 86                                   |
-| Open Concerns     | 20                                   |
+| Last Updated      | 2026-08-18                           |
+| Total Concerns    | 87                                   |
+| Open Concerns     | 21                                   |
 | Resolved Concerns | 66                                   |
 | Disagreements     | 12                                   |
 
@@ -67,6 +67,36 @@ one — re-auditing it produces the same answer its precondition already gives.
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
 > with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
+
+### C-90: the two IO codecs disagree on a non-JSON metadata value — npz coerces it silently, arrow raises
+
+| Field | Value |
+|-------|-------|
+| ID | C-90 |
+| Tier | 4 |
+| Status | **actionable** — one `default=` argument, once the desired behaviour is chosen |
+| Source | code-review (2026-08-18), during S5 of epic #240; reproduced before registering. |
+| Trigger | **When a producer sets a `FrameMetadata` field to a non-JSON value** — a `datetime` `timestamp` is the obvious one, and the field is typed `int` precisely because someone might. The frame saves cleanly through `npz` and raises through `arrow`, so the *storage backend* decides whether the run fails. Also check when adding a metadata field whose natural Python type is not JSON-native. |
+| Location | `src/views_frames/io/npz.py:39` — `json.dumps(header, sort_keys=True, default=str)`; `src/views_frames/io/arrow.py:69` — `json.dumps(header)`; `docs/CICs/FrameMetadata.md` §6 (documents the divergence). |
+| Cross-refs | **C-09** (the state-dict contract that keeps `io/` schema-free — this is a place where the two implementations of it diverged), **C-79** (no cross-version IO fixture; a silently-stringified field is exactly the kind of thing that would survive a round-trip test at one version), C-72 (the last time the two codecs were found to differ in strictness), ADR-008 (fail loud), ADR-016. |
+
+`FrameMetadata` takes field values as declared and validates none of them (ADR-013's as-built amendment; `docs/CICs/FrameMetadata.md` §4), so a header with a non-JSON value is constructible. The two published codecs then handle it differently:
+
+```
+$ # FrameMetadata(timestamp=datetime.datetime(2026, 1, 1)) on a PredictionFrame
+npz  round-trip timestamp type: str '2026-01-01 00:00:00'
+arrow raises: Object of type datetime is not JSON serializable
+```
+
+`io/npz` passes `default=str`, so the value is **silently stringified** and reloads as a string — the field's declared type is `int | None`, and what comes back is neither. `io/arrow` passes no `default`, so the same header raises `TypeError`.
+
+**Neither behaviour is obviously wrong; having both is.** Which one a producer gets depends on the storage backend, so the same frame either persists lossily or fails loudly according to where it is written. ADR-008 says fail loud, which argues for removing `default=str`; the counter-argument is that npz is the native format and coercion is friendlier. That choice is the work — the divergence is the defect.
+
+**Tier 4.** No consumer is known to set a non-JSON metadata value, all six fields are typed `str | int | None`, and `mypy --strict` catches it at any typed call site. It is registered because the divergence is **invisible until it bites**, it sits in the published IO surface (ADR-016), and a silently-stringified field is precisely what a same-version round-trip test cannot see (C-79).
+
+**Resolved when** both codecs treat a non-JSON header value the same way, and `docs/CICs/FrameMetadata.md` §6 records the chosen behaviour as one row rather than two.
+
+---
 
 ### C-88: the published MAP-containment law is wrong on tied draws — it fails on ~6% of ordinary count posteriors
 

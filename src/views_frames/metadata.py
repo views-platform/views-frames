@@ -1,8 +1,13 @@
 """`FrameMetadata` — the typed, optional-extensible provenance header (ADR-013).
 
-Not a free-form dict: a frozen dataclass with all-optional, validated fields, so
+Not a free-form dict: a frozen dataclass with all-optional, *declared* fields, so
 adding a field is a MINOR change and consumers cannot diverge on key names (the
 store-side cause of reporting's C-48). It is the typed home for run/eval identity.
+
+The field **values** are not validated — ADR-013's as-built amendment records that
+"validated at construction" applies to the frames and identifiers, not to the header's
+own fields, and checking them here would be the semantic inference ADR-003 forbids.
+See ``docs/CICs/FrameMetadata.md`` §4.
 
 Provenance fields are **generic only** (``run_id``, ``data_version``): meaningful for
 any frame. Evaluation-specific provenance (``scoring_code_version``, full-precision

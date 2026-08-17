@@ -46,8 +46,10 @@ boundary array-native, replacing the pandas actuals the eval adapter takes today
 - The role (ground truth, single realized value) is explicit so line-graph / eval code
   can treat it distinctly from sampled frames.
 - **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
-  `metadata`, `n_rows`, `sample_count`, `is_sample`. They allocate nothing and return the
-  stored objects; `identifiers` returns the index's arrays, which are write-protected.
+  `metadata`, `n_rows`, `sample_count`, `is_sample`. `values`, `index` and `metadata`
+  return the stored objects with no copy. **`identifiers` builds a fresh `{time, unit}` dict
+  on every call** — the *arrays* inside it are shared and write-protected, but the wrapper is
+  not free, so do not call it in a hot loop.
 
 ---
 
