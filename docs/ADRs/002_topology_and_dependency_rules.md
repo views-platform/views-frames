@@ -69,7 +69,8 @@ This repository enforces a strict, directional dependency structure, at two leve
   of the DAG. **They never import each other** — there is no edge between the two leaves;
   each is depended *toward*, never sideways.
 
-**Intra-package (the module layers).** Ten modules, lowest layer first:
+**Intra-package (the module layers)**, lowest layer first — this list is the enumeration; do
+not restate a count beside it:
 
 - `_typing`, `metadata`, `spatial_level` are the lowest layer: they depend only on numpy
   and the standard library. `_typing` has the highest fan-in in the leaf — every module
@@ -91,11 +92,9 @@ This repository enforces a strict, directional dependency structure, at two leve
 Dependency direction must remain acyclic. Violations are architectural defects.
 
 > **Why the frames call `io/`, and not the reverse.** `Persistable` (`protocols.py`) places
-> `save`/`load` **on the frame** — that is the published surface a consumer holds, and it is
-> frozen under ADR-018. Once persistence is a frame method, the frame must reach the
-> serializer. The decoupling this ADR wants is preserved by the *opposite* mechanism from
-> the one originally written here: because `io/` never imports a frame, a change to a
-> frame's schema cannot propagate into the codecs at all. See the Amendment above.
+> `save`/`load` **on the frame**, so the frame is what reaches the serializer. Because `io/`
+> never imports a frame, a change to a frame's schema cannot propagate into the codecs at
+> all. The Amendment above records why this ADR originally said the opposite.
 
 ---
 
@@ -137,7 +136,7 @@ Examples of architectural violations specific to this leaf:
 - Any module under `views_frames` importing a `views_*` package (re-acquiring pandas via a `views-pipeline-core` import is the canonical example to avoid).
 - Importing `pandas`/`polars`/`geopandas`/`wandb`/`viewser`/`torch` anywhere in the core.
 - `index.py`, `_validation.py`, or anything under `io/` importing a frame. (A frame importing
-  `io/` is **correct** — see the Amendment. It was listed here in error until 2026-08.)
+  `io/` is **correct** — see the Amendment. It was listed here in error until 2026-08-17.)
 - Embedding the cross-level `priogrid→country` mapping in the leaf instead of accepting it as an injected argument (ADR-009).
 - An edge between the two leaves: `views-frames` importing `views-appwrite` or vice versa.
 

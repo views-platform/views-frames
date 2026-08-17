@@ -43,7 +43,7 @@ surface so no consumer depends on methods it does not use: a reconciler needs on
   **This protocol is why the frames depend on `io/` and not the reverse.** Placing
   `save`/`load` on the frame means the frame is what reaches the serializer; `io/npz`
   and `io/arrow` take raw arrays and never import a frame class. ADR-002 originally
-  described the opposite direction and was corrected in 2026-08 (register C-82).
+  described the opposite direction and was corrected on 2026-08-17 (register C-82).
 - `Frame`: the minimal `values` + index + `n_rows` composition.
 
 ---
