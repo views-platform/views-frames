@@ -762,6 +762,30 @@ M5  move README.md away (C-89's guard)               → ERROR: expected ../pypr
 
 **The first two mutations were inadequate, and that is the finding worth keeping.** Both looked like they tested the substring trap and neither did — the first because the name lived in another CIC, the second because bare `hdi(` occurrences survived a backtick-scoped `sed`. Each time the check passed and the *pass was the signal something was wrong with the test*, not the code. This is C-77's fourth refinement (the mutations an author picks are the ones they already have in mind) applying to the mutations themselves, one level down.
 
+**Then a code review found three ways the checks could pass while checking nothing** — the C-67 disease (a suite reporting green while dead) in the code written to prevent that disease:
+
+1. **A parser that silently read nothing.** The first version matched only the literal `__all__ = [`. Annotating one file as `__all__: list[str] = [` — **a form already in live use at `src/views_frames/io/__init__.py:13`** — dropped check 7 from 38 names to 32 and check 9 from 8 to 2, and the script printed `PASSED`.
+2. **Iteration over nothing.** With `../src` absent, an empty line still satisfies `read -r`, and `grep -qE "\b\b"` matches everything: check 8 reported `OK (checked 1 public classes)`.
+3. **An `OK` printed after its own check had errored** — `ERROR: 'x' … named in no CIC` immediately followed by `OK (checked 39 exported names)`, which in a CI log scanned for per-check OK lines reads as a pass.
+
+Plus three narrower ones: `^class [A-Za-z_]` would have demanded a CIC for the first private class anyone added; the sibling-conformance `assert_*` fallback would have silently kept ignoring an `__all__` once C-87 is fixed; and the check's own comment overstated its coverage — `src/views_frames/io/` is scanned by nothing, which is now **stated** rather than left to be inferred.
+
+**Final mutation matrix, all seven firing:**
+
+```
+remove bare `hdi` from CICs, keep hdi_tower       → ERROR 'hdi' … named in no CIC
+remove bare `Frame` from CICs, keep *Frame        → ERROR 'Frame' … named in no CIC
+drop a conformance name from GOVERNANCE.md        → ERROR 'assert_reindex_fill_law' …
+add an export no CIC mentions                     → ERROR 'nope' … named in no CIC
+move README.md away                               → ERROR expected ../pyproject.toml …
+move src/ away                                    → ERROR ../src not found …
+break the __all__ parser (`= [` → `= (`)          → ERROR no exported names could be read …
+add a private `class _Codec:`                     → correctly ignored
+annotate `__all__: list[str] = [`                 → correctly parsed, 38 names
+```
+
+**The lesson this entry ends on is not the one it started with.** It began as "an enumeration nobody checks goes stale". It closes as: *a check written to catch that can itself pass vacuously in at least three ways, and every one of them was found by someone other than its author.*
+
 ---
 
 ### C-89: `validate_docs.sh`'s README-banner check silently no-opped if either input moved — RESOLVED
@@ -771,7 +795,7 @@ M5  move README.md away (C-89's guard)               → ERROR: expected ../pypr
 | ID | C-89 |
 | Tier | 4 |
 | Resolved | 2026-08-18 (Epic #240 / S6 #246) |
-| Resolution | The `if [ -f ... ]` guard became `if [ ! -f ... ]; then error; else check; fi`. Verified by moving `README.md` aside: the script now reports `ERROR: expected ../pyproject.toml and ../README.md` and exits 1, where it previously skipped and exited 0. The same shape was **not** copied into checks 7–9, each of which errors when its input is unreadable. |
+| Resolution | The `if [ -f ... ]` guard became `if [ ! -f ... ]; then error; else check; fi`. Verified by moving `README.md` aside: the script now reports `ERROR: expected ../pyproject.toml and ../README.md` and exits 1, where it previously skipped and exited 0. Checks 7–9 now error when their input is unreadable — but **not at first**: the S6 code review found check 8 reporting `OK (checked 1 public classes)` with `../src` absent, because an empty line still satisfies `read` and `grep -qE "\b\b"` matches everything. The fix for C-89 had reproduced C-89. Corrected and mutation-tested; see C-85. |
 | Source | code-review (2026-08-17). |
 | Cross-refs | **C-74** (which armed this script as a CI gate — a guard that disables itself re-creates the state C-74 closed), **C-70** (the banner drift the check exists for), **C-85** (resolved together). |
 
