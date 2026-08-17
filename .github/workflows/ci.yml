@@ -73,6 +73,27 @@ jobs:
       - uses: astral-sh/setup-uv@v4
       - run: uv run ruff format --check .
 
+  # The two scripts README §quickstart tells readers to run. They were advertised as
+  # runnable and executed by nothing (register C-83), while notebooks/ has had a drift
+  # check since #151 — an asymmetry that looked like oversight rather than decision.
+  #
+  # BLOCKING, unlike the notebooks job, and the difference is deliberate. That job is
+  # `continue-on-error` because "a slow or flaky notebook never blocks a merge — the
+  # notebooks are un-gated dev artifacts". Neither reason applies here: these scripts run
+  # in 0.24s each, import only numpy, the stdlib and this package, and produce
+  # byte-identical output across runs. And unlike a notebook, README tells a new consumer
+  # to run them — a quickstart that does not run is a broken promise, not a flaky artifact.
+  #
+  # Its own job rather than a step in the four-version matrix, for the same reason as
+  # `docs`, `format` and `imports`: nothing here depends on the Python version.
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv run examples/quickstart.py
+      - run: uv run examples/cross_level.py
+
   # The import contracts in pyproject.toml's [tool.importlinter]. Its own job for the
   # same reason as `docs` and `format`: import-linter reads the source with grimp and
   # never imports the package, so its result cannot depend on the Python version, and
