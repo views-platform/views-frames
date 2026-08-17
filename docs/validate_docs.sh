@@ -209,6 +209,16 @@ if [ ! -f "../GOVERNANCE.md" ]; then
 else
     conf_count=0
     while IFS="	" read -r where name; do
+        # A missing module must fail here too, not merely lower the count. Check 7 also
+        # errors on it, but a check that quietly does less when an input disappears is the
+        # very shape C-89 was about — do not reproduce it in the fix for C-89.
+        if [ "$where" = "MISSING" ]; then
+            case "$name" in *conformance*)
+                echo "  ERROR: expected $name; cannot check its names against GOVERNANCE.md"
+                errors=$((errors + 1)) ;;
+            esac
+            continue
+        fi
         case "$where" in *conformance*) ;; *) continue ;; esac
         conf_count=$((conf_count + 1))
         grep -qE "\b${name}\b" ../GOVERNANCE.md || {
