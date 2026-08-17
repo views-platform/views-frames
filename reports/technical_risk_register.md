@@ -5,8 +5,8 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-17                           |
-| Total Concerns    | 84                                   |
-| Open Concerns     | 18                                   |
+| Total Concerns    | 86                                   |
+| Open Concerns     | 20                                   |
 | Resolved Concerns | 66                                   |
 | Disagreements     | 12                                   |
 
@@ -67,6 +67,65 @@ one — re-auditing it produces the same answer its precondition already gives.
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
 > with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
+
+### C-88: the published MAP-containment law is wrong on tied draws — it fails on ~6% of ordinary count posteriors
+
+| Field | Value |
+|-------|-------|
+| ID | C-88 |
+| Tier | 2 |
+| Status | **actionable** — the fix is local to the law's arithmetic, but it touches ADR-019's 2026-07-24 amendment and the published suite, so it needs a decision on *which* correction |
+| Source | code-review (2026-08-17), during S4 of epic #240; reproduced independently before registering. |
+| Trigger | **When any consumer wires `assert_summarizer_contract` into its CI against real count data** — views-postprocessing and views-faoapi both hold zero-inflated integer fatality draws, which is the shape that fires it. Their CI goes red on correct data. Also fires for us the moment a test uses tie-heavy integer draws; none currently does, which is why the suite has never caught it. |
+| Location | `src/views_frames_summarize/conformance.py:128-152` (the MAP-containment law: `n_tip = int(np.floor(tip_mass * s_count)) + 1` and the `2 * (floor(m·S)+1) > n_tip` guarantee filter); `src/views_frames_summarize/tower.py:82-93` (`_in_range_span`, which counts by **value**, not by index span); `src/views_frames_summarize/tower_point.py` (`_median_in` consumes it); `docs/ADRs/019_coherent_posterior_summary_hdi_tower.md` (Amendment 3, where the law is stated). |
+| Cross-refs | **C-44** (the tower's minority-duplicate collapse — the same tie-sensitivity, one layer down), C-45, C-32/C-34 (the #89 estimator-coherence cluster this joins), **C-67** (a published conformance suite that reported green while checking nothing — this is its mirror image: one that reports red while nothing is wrong), C-46 / ADR-016 (the published-surface obligation that gives it cross-repo blast radius). |
+
+The MAP-containment law (ADR-019, Amendment 3) certifies which HDI floors are *guaranteed* to contain the tower tip, and asserts containment for each. Its arithmetic assumes **a floor of mass `m` spans exactly `floor(m·S)+1` draws** — true of the *index span* `_ks` builds the floor from, since that counts inter-draw steps.
+
+But the tip is computed by `tower_point` → `_median_in` → **`_in_range_span`**, which counts every draw whose **value** falls inside the floor's bounds. When the floor's endpoint values are duplicated — routine in integer count data — the real count exceeds `floor(m·S)+1`. `n_tip` is understated, the "holds more than half the tip floor's draws" filter admits floors that do not, and the assertion those floors were certified to pass then fails.
+
+**Measured, not argued.** 500 trials of `assert_summarizer_contract` on single-row `PredictionFrame`s of `Poisson(λ ∈ [0.5, 6])` draws, half of them zero-inflated at 30%, `S ∈ {32, 64, 128}`:
+
+```
+failures: 30/500  (6.0%)
+  S=64 lam=3.27  MAP-containment violated: tip above the 0.15 floor
+  S=64 lam=2.71  MAP-containment violated: tip above the 0.15 floor
+  S=64 lam=3.65  MAP-containment violated: tip above the 0.15 floor
+```
+
+The reviewer's independent probe reported 116/2000 (5.8%) on the same shape. **Zero-inflated integer counts are this platform's primary data shape** — they are conflict fatality draws.
+
+**Tier 2, not 1.** No number is wrong and nothing is silent: the estimator is fine, the failure is a loud `AssertionError`, and what is defective is the *guarantee* the law publishes about it. **Tier 2 rather than 3** because `assert_summarizer_contract` is published under ADR-016 and every consumer is required to run it in their own CI — so the failure mode is other repositories going red on correct data, with the cause sitting in ours. It is structural fragility with a concrete, already-identified trigger.
+
+**Why the suite never caught it:** no test in `tests/` uses tie-heavy integer draws. The estimator tests build float posteriors from continuous distributions, where endpoint ties are measure-zero. This is C-44's lesson recurring — "a numerical special case silently wrong on a subdomain the tests never sampled" — and it is why C-44 and C-68 were linked by the graph pass as semantically similar despite living in different packages.
+
+**Two candidate corrections, and choosing between them is the work:** derive `n_tip` and each floor's count from the actual `_in_range_span` counts rather than from `floor(m·S)+1`; or restrict the law to strictly-distinct draws and state that limit in ADR-019. The first keeps the guarantee general and costs a recount; the second is honest but narrows a published law to a case the platform's own data does not satisfy. **Not fixed in epic #240**, which scoped `src/` out.
+
+**Resolved when** the law's guarantee holds on tied draws — demonstrated by a red test built from integer count draws that passes after the fix — and ADR-019's amendment records whichever correction was chosen.
+
+---
+
+### C-89: `validate_docs.sh`'s README-banner check silently no-ops if either input moves
+
+| Field | Value |
+|-------|-------|
+| ID | C-89 |
+| Tier | 4 |
+| Status | **actionable** — one `else` branch |
+| Source | code-review (2026-08-17), during S4 of epic #240. |
+| Trigger | **When `README.md` or `pyproject.toml` is renamed, moved, or the script's working directory changes** — including any restructure that alters the `../` relative paths. The check turns itself off and CI stays green. Check this before the next release, since the banner check exists specifically to gate a version bump. |
+| Location | `docs/validate_docs.sh:92` — `if [ -f "../pyproject.toml" ] && [ -f "../README.md" ]; then … fi`, with no `else`. |
+| Cross-refs | **C-74** (resolved — this script was wired into CI precisely so it would stop being optional; a silent no-op re-creates the state C-74 closed), **C-70** (the README banner drifting a whole release cycle, which is why this check exists), **C-85** / S6 #246 (which is adding checks to this same script and should adopt the same guard for all of them), the **verification-completeness** cluster. |
+
+The README-banner check is guarded by a file-existence test with no failure branch. If either file is absent from where the script expects it, the check is skipped and the script still exits 0.
+
+That was tolerable while the script only ran when someone typed it. It is a CI gate now (`.github/workflows/ci.yml`, `docs` job — armed by C-74), and the specific thing it gates is the version bump that C-70 records drifting for a whole release cycle undetected. A guard that disables itself when its inputs move is the same failure class as the check that was never wired in.
+
+**Tier 4** — nothing is wrong today, the paths are correct, and the failure requires a restructure to trigger. Registered because the fix is one `else` that increments `errors`, and because **S6 (#246) is about to add three more checks to this file** and should not copy the pattern.
+
+**Resolved when** a missing input is an error rather than a skip, in this check and in any S6 adds.
+
+---
 
 ### C-86: the README's directory tree and conformance-suite location are stale — and one of them points consumers at a path that does not exist
 
@@ -155,8 +214,26 @@ Four separate documents each enumerate a surface and each enumeration has fallen
 
    Second, the bidirectional verification is currently **manual**. It is mechanizable for `views_frames.conformance` and reads public `assert_*` names for the siblings, but nothing in CI compares the table to the code: `grep -rn GOVERNANCE docs/validate_docs.sh` returns nothing. **So item 1 fixes the document, not the drift** — the next additive export lands, the code grows, the table does not, and no gate fires. That is the recurrence this entry exists to record, and it is exactly why C-85 does not close until S6.
 
-2. **ADR-018 never mentions `feature_names`.** It is `FeatureFrame`'s defining public attribute, a ratified consumer requirement, and thoroughly contracted in `FeatureFrame.md` — but absent from the document a consumer reads to decide what is safe to pin.
-3. **ADR-018's "Additive since v1.0.0" forward pointer skips two shipped additions** — the ADR-026 dense-grid family (`cartesian`, `reindex_fill`, `assert_reindex_fill_law`) and `assert_frame_envelope` (v1.4.0) — while carefully recording the tower, exceedance and expected-shortfall additions. The section exists precisely to track post-freeze growth.
+2. ~~**ADR-018 never mentions `feature_names`.**~~ and 3. ~~**ADR-018's "Additive since v1.0.0" forward pointer skips two shipped additions.**~~ **Document corrected 2026-08-17 (S4 #244); the check that keeps it correct lands in S6 (#246).**
+
+   *State of items 2–3.* The story named three omissions. Auditing the **whole** public surface against the ADR — 65 names: every package `__all__`, every conformance entry point, and every public member of the three frames and the index — found **eight**, of which the largest is a package:
+
+   | Missing from ADR-018 | Kind |
+   |---|---|
+   | `feature_names`, `n_features`, `from_2d` | `FeatureFrame` surface — `from_2d` is ordinary supported surface, not a shim (C-76) |
+   | `n_rows` | on all three frames and the index; transitively frozen via the `Frame` protocol, never named |
+   | `SpatialLevel`, `FrameMetadata` | exported value objects a consumer cannot construct or read a frame without |
+   | **the whole `views_frames_reconcile` package** | shipped v1.7.0 (ADR-023) — `ReconciliationModule`, `ReconciliationResult`, `reconcile_proportional`, the mode constants, `assert_reconcile_contract` |
+   | `assert_frame_envelope` (v1.4.0), the ADR-026 dense-grid family (v1.10.0) | additive surface the forward pointer exists to record |
+
+   **A third package joined the wheel and the freeze document did not say so.** That is the finding worth carrying: the forward pointer records the tower, exceedance and expected-shortfall estimator families in careful detail, and silently skipped an entire package.
+
+   `n_features` is now **frozen** rather than left unstated. It has been public on a frozen class since v1.0.0, so declaring it unfrozen would be a retroactive narrowing; S5 (#245) gives it a CIC home to match. The compressed `aggregate_distributions`(`_arrays`) was expanded to two names so the document is greppable — the point of the exercise is a list a check can read.
+
+   `GOVERNANCE.md`'s mirror of the freeze list had the same eight omissions. Rather than restate the list correctly a second time, it now defers: it names six coarse areas, records what it omitted until 2026-08-17, and says **"ADR-018 names every member. If this list and ADR-018 disagree, ADR-018 wins."**
+
+   **Verification.** Every one of the 65 public names now resolves in ADR-018, and the check was mutation-tested before being trusted (C-77): renaming `from_2d` in the document makes it report `['from_2d']`; restoring it reports none. As with item 1, **nothing in CI runs this** — it is S6's to arm.
+
 4. **`FrameMetadata` has no CIC and no stated exemption.** `docs/CICs/README.md:52` declares *"Status: fully contracted — every non-trivial surface … is governed by an active CIC"*, and exempts exactly two things by name: `_validation` and `SpatialLevel`. `FrameMetadata` is exported in `views_frames.__all__`, listed in ADR-018's frozen surface, and its literal name appears in only one CIC — `Reconcile.md`, a *sibling package's* contract. A related orphan: **`n_features`** is a public property on a frozen class that appears in no protocol, no ADR-018 bullet and no CIC (`n_rows` is at least transitively frozen via the `Frame` protocol; `n_features` has no home at all).
 
 **Tier 3.** No correctness or reliability impact — every gap is an omission from a list, not a wrong statement about behaviour, and the CICs themselves are accurate and current. What it costs is the credibility of the coverage claims, which is load-bearing here: a consumer trusts `GOVERNANCE.md` to tell it what to run, and a contributor trusts the CIC index to tell it what is contracted.
@@ -187,7 +264,11 @@ Four times in a single epic, a resolution described what the author **meant to d
 
 **Second refinement (2026-08-17, from C-84 — evidence has to be re-runnable).** The C-84 resolution pasted the output of a tree-diffing script, and mutation-tested it in both directions, which satisfies the first refinement above. But the script lived in a scratchpad and was not committed, so the only artifact proving the tree was correct was a transcript nobody else could execute. A `/code-review` pass named it: a claim backed by an unreproducible transcript is the same shape as a claim backed by nothing, one review cycle later. Fixed by committing it as `scripts/check_arch_tree.py`, beside the other standalone tools there.
 
-**So the rule has three parts, and S10 (#250) should write all three down somewhere durable:** demonstrate rather than describe; use a check that could actually have failed; and leave the check where the next person can run it.
+**Third refinement (2026-08-17, from C-84's check itself — the mutations you pick are the ones you already have in mind).** `scripts/check_arch_tree.py` was mutation-tested in S2 before being trusted, exactly as the first refinement demands, and it passed both mutations: a phantom module added, a real module hidden. A `/code-review` pass then deleted `views_frames_reconcile/conformance.py` from the tree and **the check stayed green** — it tested bare basenames, and `conformance.py` also exists in the summarize block, so one mention satisfied both. `__init__.py` appears five times and satisfied all five.
+
+Both mutations chosen in S2 used *unique* basenames. The duplicated-basename case is precisely the one the check could not see, and precisely the one that did not occur to its author — because an author mutating their own check reaches for the failure they were already thinking about. Fixed by matching each module within its own package's block; re-tested against all three mutations including the one that used to pass.
+
+**So the rule has four parts, and S10 (#250) should write all four down somewhere durable:** demonstrate rather than describe; use a check that could actually have failed; leave the check where the next person can run it; and remember that **the mutations an author picks are the ones they already have in mind** — a check that survives its author's own mutation testing is not yet known to be sound. Where it matters, have someone else pick the mutation.
 
 **Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
 
@@ -424,7 +505,7 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 | Source | GH #199 item 2 (ADR-013 §8, views-postprocessing); split out when item 1 shipped as C-72 (2026-07-31) — the residual was recorded only inside the *resolved* C-72 and needed to stay visible in Open. |
 | Trigger | When a consumer loads a **full-S global-reference shard in one call** — i.e. drops or widens the per-month sharding on the FAO/postprocessing ingestion path (views-faoapi #100), or loads several shards concurrently in one process. At that point do the arithmetic before running: `N_rows × S × 4` bytes for the flat table **plus** the same again for the reshaped values (`pq.read_table` materializes the whole table, then `.to_numpy()`/`reshape`/`np.stack` copy it). #199 measures ~1.6 GB transient per full-S month shard at global reference. |
 | Location | `src/views_frames/io/arrow.py::load` (the `pq.read_table` call) (`pq.read_table` — whole-table materialization), `the per-column `.to_numpy().reshape()` / `np.stack` block in the same function` (per-column `.to_numpy().reshape()` + `np.stack` — the second full copy). The npz path already has `mmap=True`; arrow has no equivalent. |
-| Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. |
+| Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. | **Also on the load path (added 2026-08-17, code-review during S4):** the v1.10.1 wire-contract validation allocates three full-table temporaries — `np.tile(np.arange(s), n)` as int32, plus two `(N, S)` boolean comparisons — on *every* load. On a 10M-row × 100-sample pgm frame that is roughly 4 GB + 1 GB + 1 GB of transient peak **on top of** the table this entry is already about. The same guarantees are checkable without full-size temporaries (a strided `sample_col[::s]` comparison, or `np.array_equiv` against a broadcast view). This makes the entry's memory ceiling worse than it reads, and it arrived with the fix for C-72.
 
 `arrow` is the platform's **interchange** codec — the format the FAO/postprocessing path actually ships forecasts in — and `load` reads the entire parquet into RAM, then copies it again to reshape. ADR-013 §8 states the mitigation as **per-month sharding** (a consumer-side contract obligation) and names mmap/partitioned reading as the long-term fix while explicitly declaring it **NOT a contract dependency** — so this is deliberately open, not neglected: shipping FAO data does not wait on it. **Tier 3** — the failure mode is a loud `MemoryError`/OOM-kill under a footprint the consumer controls, never a wrong number; the cost is operational, and the mitigation already exists. Deliberately **not designed yet**: the leaf does not guess a streaming API for a wall nobody has hit. The receipt that would change this — a consumer OOM *despite* sharding, or a shard size that cannot be reduced further — is the thing to wait for; a design without it risks a speculative, frozen surface (ADR-018, C-52).
 
