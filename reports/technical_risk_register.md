@@ -155,8 +155,26 @@ Four separate documents each enumerate a surface and each enumeration has fallen
 
    Second, the bidirectional verification is currently **manual**. It is mechanizable for `views_frames.conformance` and reads public `assert_*` names for the siblings, but nothing in CI compares the table to the code: `grep -rn GOVERNANCE docs/validate_docs.sh` returns nothing. **So item 1 fixes the document, not the drift** — the next additive export lands, the code grows, the table does not, and no gate fires. That is the recurrence this entry exists to record, and it is exactly why C-85 does not close until S6.
 
-2. **ADR-018 never mentions `feature_names`.** It is `FeatureFrame`'s defining public attribute, a ratified consumer requirement, and thoroughly contracted in `FeatureFrame.md` — but absent from the document a consumer reads to decide what is safe to pin.
-3. **ADR-018's "Additive since v1.0.0" forward pointer skips two shipped additions** — the ADR-026 dense-grid family (`cartesian`, `reindex_fill`, `assert_reindex_fill_law`) and `assert_frame_envelope` (v1.4.0) — while carefully recording the tower, exceedance and expected-shortfall additions. The section exists precisely to track post-freeze growth.
+2. ~~**ADR-018 never mentions `feature_names`.**~~ and 3. ~~**ADR-018's "Additive since v1.0.0" forward pointer skips two shipped additions.**~~ **Document corrected 2026-08-17 (S4 #244); the check that keeps it correct lands in S6 (#246).**
+
+   *State of items 2–3.* The story named three omissions. Auditing the **whole** public surface against the ADR — 65 names: every package `__all__`, every conformance entry point, and every public member of the three frames and the index — found **eight**, of which the largest is a package:
+
+   | Missing from ADR-018 | Kind |
+   |---|---|
+   | `feature_names`, `n_features`, `from_2d` | `FeatureFrame` surface — `from_2d` is ordinary supported surface, not a shim (C-76) |
+   | `n_rows` | on all three frames and the index; transitively frozen via the `Frame` protocol, never named |
+   | `SpatialLevel`, `FrameMetadata` | exported value objects a consumer cannot construct or read a frame without |
+   | **the whole `views_frames_reconcile` package** | shipped v1.7.0 (ADR-023) — `ReconciliationModule`, `ReconciliationResult`, `reconcile_proportional`, the mode constants, `assert_reconcile_contract` |
+   | `assert_frame_envelope` (v1.4.0), the ADR-026 dense-grid family (v1.10.0) | additive surface the forward pointer exists to record |
+
+   **A third package joined the wheel and the freeze document did not say so.** That is the finding worth carrying: the forward pointer records the tower, exceedance and expected-shortfall estimator families in careful detail, and silently skipped an entire package.
+
+   `n_features` is now **frozen** rather than left unstated. It has been public on a frozen class since v1.0.0, so declaring it unfrozen would be a retroactive narrowing; S5 (#245) gives it a CIC home to match. The compressed `aggregate_distributions`(`_arrays`) was expanded to two names so the document is greppable — the point of the exercise is a list a check can read.
+
+   `GOVERNANCE.md`'s mirror of the freeze list had the same eight omissions. Rather than restate the list correctly a second time, it now defers: it names six coarse areas, records what it omitted until 2026-08-17, and says **"ADR-018 names every member. If this list and ADR-018 disagree, ADR-018 wins."**
+
+   **Verification.** Every one of the 65 public names now resolves in ADR-018, and the check was mutation-tested before being trusted (C-77): renaming `from_2d` in the document makes it report `['from_2d']`; restoring it reports none. As with item 1, **nothing in CI runs this** — it is S6's to arm.
+
 4. **`FrameMetadata` has no CIC and no stated exemption.** `docs/CICs/README.md:52` declares *"Status: fully contracted — every non-trivial surface … is governed by an active CIC"*, and exempts exactly two things by name: `_validation` and `SpatialLevel`. `FrameMetadata` is exported in `views_frames.__all__`, listed in ADR-018's frozen surface, and its literal name appears in only one CIC — `Reconcile.md`, a *sibling package's* contract. A related orphan: **`n_features`** is a public property on a frozen class that appears in no protocol, no ADR-018 bullet and no CIC (`n_rows` is at least transitively frozen via the `Frame` protocol; `n_features` has no home at all).
 
 **Tier 3.** No correctness or reliability impact — every gap is an omission from a list, not a wrong statement about behaviour, and the CICs themselves are accurate and current. What it costs is the credibility of the coverage claims, which is load-bearing here: a consumer trusts `GOVERNANCE.md` to tell it what to run, and a contributor trusts the CIC index to tell it what is contracted.

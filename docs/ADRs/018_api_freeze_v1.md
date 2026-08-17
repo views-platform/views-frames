@@ -36,8 +36,14 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 **In scope (frozen — the surface a consumer may pin):**
 
 - The frames `FeatureFrame` `(N, F, S)`, `PredictionFrame` `(N, S)`, `TargetFrame`
-  `(N, 1)`: their constructor shapes, `values`, `identifiers`, `metadata`,
-  `sample_count`/`is_sample`, `with_metadata`, `select`/`reindex`, `save`/`load`.
+  `(N, 1)`: their constructor shapes, `values`, `identifiers`, `metadata`, `n_rows`,
+  `sample_count`/`is_sample`, `with_metadata`, `select`/`reindex`, `save`/`load`; plus
+  `FeatureFrame`'s `feature_names`, `n_features` and `from_2d` — `feature_names` is the
+  attribute that distinguishes a feature frame at all (ADR-013), and `from_2d` is ordinary
+  supported surface for unsampled `(N, F)` input, not a deprecated shim (register C-76).
+- `FrameMetadata` (ADR-013) and `SpatialLevel` (ADR-015): the typed provenance header and
+  the cm/pgm identifier vocabulary. Both are exported from `views_frames` and composed into
+  every frame; a consumer cannot construct or read a frame without them.
 - `SpatioTemporalIndex`: the `{time, unit, level}` identity, same-level alignment
   (`intersect`/`reindex`/`searchsorted`/`is_superset_of`/`argsort`/`select`), the
   **`(time, unit)`-keyed, time-aware** `cross_level_align` and the columnar
@@ -49,7 +55,7 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
   `assert_index_alignment_laws`, `assert_cross_level_alignment_law`,
   `assert_summarizer_contract`), governed at `CONFORMANCE_FLOOR = "1.0.0"`.
 - The `views_frames_summarize` estimator surface: `collapse`, `map_estimate`, `hdi`,
-  `quantiles`, `aggregate_distributions`(`_arrays`).
+  `quantiles`, `aggregate_distributions`, `aggregate_distributions_arrays`.
 
 > **Additive since v1.0.0 (forward pointer):** v1.1.0 added the coherent posterior
 > summary — `hdi_tower` / `tower_point` / `bimodality` / `summarize_tower` (+ the
@@ -61,6 +67,25 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 > are likewise additive under this freeze (ADR-021, target v1.5.0); the floor stays `1.0.0`.
 > The worst-case **expected shortfall** estimator (`expected_shortfall`, the tail mean) is likewise
 > additive under this freeze (ADR-022, target v1.6.0); the floor stays `1.0.0`.
+>
+> **Three more additions were shipped without being recorded here, and are recorded now**
+> (register C-85, 2026-08-17). This section exists to track post-freeze growth, so an
+> omission in it is the same failure as an omission in the frozen list above:
+>
+> - **v1.4.0** — `views_frames.conformance.assert_frame_envelope`, the shared frame
+>   envelope factored out as one written authority for a non-spatiotemporal sibling to
+>   validate against (ADR-020; the shipped half of register C-46).
+> - **v1.7.0** — the whole **`views_frames_reconcile`** package (ADR-023): `ReconciliationModule`,
+>   `ReconciliationResult`, `reconcile_proportional`, the `POINT_BROADCAST` / `ALIGNED_DRAWS`
+>   mode constants and `METHOD_PROPORTIONAL`, plus `conformance.assert_reconcile_contract`.
+>   v1.8.0 added the native point-country broadcast within it. A third package joined the
+>   wheel and this ADR did not say so.
+> - **v1.10.0** — the dense-grid family (ADR-026): `frame.reindex_fill(other, *, fill_value)`
+>   on all three frames, `SpatioTemporalIndex.cartesian`, and the published
+>   `assert_reindex_fill_law`.
+>
+> All are additive; the floor stays `1.0.0` throughout, because additive surface does not
+> break a consumer pinned at the floor.
 
 **Out of scope (NOT frozen, may still evolve additively or remain deferred):**
 

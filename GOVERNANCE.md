@@ -71,18 +71,22 @@ re-key (v0.3.0) was the last such change. This pre-1.0 latitude **ends at v1.0.0
 **v1.0.0 freezes the public API.** From v1.0.0 on, the SemVer rules above are
 binding without the pre-1.0 latitude: any breaking change to the frozen surface is
 a **MAJOR** bump and follows the cross-repo process below. What v1.0.0 locks (the
-surface a consumer may safely pin) is recorded in **ADR-018**:
+surface a consumer may safely pin) is recorded in **ADR-018**, which is the authority — read
+the frozen list and the "Additive since v1.0.0" pointer there rather than the sketch below.
+This summary named five areas and omitted `SpatialLevel`, `FrameMetadata`, `feature_names`,
+`from_2d`, `n_rows`/`n_features`, and the entire `views_frames_reconcile` package until
+2026-08-17 (register C-85); it is kept deliberately coarse now so it cannot drift again:
 
-- the frames (`FeatureFrame`/`PredictionFrame`/`TargetFrame`), their constructor
-  shapes, `identifiers`, `values`, `metadata`, `save`/`load`, `with_metadata`,
-  `select`/`reindex`;
-- `SpatioTemporalIndex` (`{time, unit, level}`, same-level alignment, the
-  `(time, unit)`-keyed time-aware `cross_level_align`/`cross_level_align_arrays`,
-  the row-uniqueness stance);
+- the three frames, their constructor shapes and their accessors;
+- `SpatioTemporalIndex`, its same-level alignment and its `(time, unit)`-keyed
+  time-aware cross-level alignment, plus the row-uniqueness stance;
+- the value objects the frames compose — `FrameMetadata`, `SpatialLevel`;
 - the `Frame`/`SpatioTemporalIndexed`/`Sampled`/`Persistable` protocols;
-- the published conformance suite and laws;
-- the `views_frames_summarize` estimator surface (`collapse`/`map_estimate`/`hdi`/
-  `quantiles`/`aggregate_distributions`).
+- the published conformance suite and laws (the table above);
+- the estimator surface of `views_frames_summarize`, and the reconciliation surface of
+  `views_frames_reconcile` (additive since v1.7.0).
+
+**ADR-018 names every member.** If this list and ADR-018 disagree, ADR-018 wins.
 
 New surface remains additive (MINOR). The bar to a MAJOR bump is deliberately high
 (see the closing note); reaching v1.0 with no pinned consumer is intentional — it
