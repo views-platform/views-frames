@@ -527,6 +527,8 @@ The standard's §2 directory tree was a pre-implementation design sketch, never 
 
 **Verification (2026-08-17).** Following C-77's refinement, the check was written to match the *shape* of the claim rather than a fixed phrase, and **mutation-tested in both directions before being trusted**:
 
+The check is a ~10-line script that parses the fenced tree out of §2 and diffs the filenames in it against `pathlib.Path('src').rglob('*.py')`, in both directions. **It is deliberately not committed** — it would be the only Python in a `docs/` tree whose CI job installs none, and its logic is a candidate for `validate_docs.sh` in S6 (#246), which is where that decision belongs. Reproducing it from this description takes a minute; committing a throwaway to pre-empt S6 would be worse.
+
 ```
 $ python3 treecheck.py                       # parses the §2 fence, diffs it against src/**/*.py
 source modules: 36
