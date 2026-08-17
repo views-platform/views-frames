@@ -52,19 +52,50 @@ def _tree_block(document: str) -> str:
     return document[start : document.index("```", start + 3)]
 
 
+def _package_blocks(tree: str) -> dict[str, str]:
+    """Split the tree into one text block per package.
+
+    A bare basename test is not enough: `conformance.py` exists in two packages and
+    `__init__.py` in five, so a single mention anywhere in the tree would satisfy all of
+    them — deleting `views_frames_reconcile/conformance.py` from the tree left the check
+    green. Each module is therefore looked up only within its own package's block.
+    """
+    blocks: dict[str, str] = {}
+    for i, pkg in enumerate(PACKAGES):
+        start = tree.index(pkg)
+        ends = [tree.index(p) for p in PACKAGES[i + 1 :] if p in tree]
+        blocks[pkg.removeprefix("src/").rstrip("/")] = tree[
+            start : min(ends, default=len(tree))
+        ]
+    return blocks
+
+
 def main() -> int:
     """Diff the standard's §2 tree against `src/` and report both directions."""
     tree = _tree_block(STANDARD.read_text(encoding="utf-8"))
     modules = sorted(
         str(p.relative_to(REPO_ROOT / "src")) for p in (REPO_ROOT / "src").rglob("*.py")
     )
-
-    missing = [m for m in modules if m.split("/")[-1] not in tree]
-    named = set(re.findall(r"([a-z_]+\.py)", tree))
-    ghosts = sorted(
-        n for n in named if not any(m.endswith("/" + n) or m == n for m in modules)
-    )
     absent_packages = [p for p in PACKAGES if p not in tree]
+    if absent_packages:  # cannot attribute modules to blocks that are not there
+        print(f"packages absent from tree: {absent_packages}")
+        print(
+            "\nFAILED: docs/standards/physical_architecture_standard.md §2 is out of date."
+        )
+        return 1
+
+    blocks = _package_blocks(tree)
+    missing = [m for m in modules if m.split("/")[-1] not in blocks[m.split("/", 1)[0]]]
+    named = {
+        (pkg, n)
+        for pkg, block in blocks.items()
+        for n in re.findall(r"([a-z_]+\.py)", block)
+    }
+    ghosts = sorted(
+        f"{pkg}/{n}"
+        for pkg, n in named
+        if not any(m.split("/", 1)[0] == pkg and m.split("/")[-1] == n for m in modules)
+    )
 
     print(f"source modules: {len(modules)}")
     print(f"missing from tree: {missing or 'none'}")
