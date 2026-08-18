@@ -14,14 +14,15 @@ the second is how it acquired two phantom frames.
 
 Run it after adding, moving or removing a module::
 
-    uv run python scripts/check_arch_tree.py
+    python3 scripts/check_arch_tree.py
 
 Exits 0 when the tree matches, 1 with a report when it does not.
 
-**Not wired into CI.** `docs/validate_docs.sh` is the documentation gate and is bash-and-grep
-by design — its CI job installs no Python on purpose. Whether this check belongs there, and
-how to express it without Python, is issue #246 (register C-85). Until then this is a
-standalone tool, like `verify_reconcile_parity.py` beside it.
+**Runs in CI**, as a step of the `docs` job beside `docs/validate_docs.sh`. It stays
+stdlib-only for that reason: the `docs` job installs no `uv` on purpose, so this script may
+never import the package it describes — the runner's own `python3` has to be enough. It
+spent one release wired into nothing, which is the failure C-74 records; keeping the
+dependency at zero is what makes the wiring free.
 """
 
 from __future__ import annotations

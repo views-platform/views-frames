@@ -4,83 +4,206 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
-## [Unreleased]
+## [1.11.0] — 2026-08-18
 
-**No behaviour change.** Nothing under `src/` changed, and no public API was added,
-changed or removed.
+**The published MAP-containment law was wrong on tied draws, and the governance documents
+had drifted from the code in ways nothing checked.** This release fixes the first, corrects the second, and
+adds the CI checks that keep both from drifting again. `CONFORMANCE_FLOOR` stays `1.0.0`,
+and no public API was added, changed or removed.
 
-### Changed — checks
+MINOR rather than PATCH because the conformance suite now asserts a different set of HDI
+floors than it did in 1.10.2. Nothing a consumer wrote needs to change, and a consumer that
+passed 1.10.2 still passes.
 
-- **Import contracts now run in CI.** `pyproject.toml` gained two `import-linter`
-  `layers` contracts and CI gained an `imports` job that runs them. The first records
-  that the core does not depend on its two sibling packages and that the siblings do not
-  depend on each other; the second records the module layering inside `views_frames`.
-  Both describe the structure the code already has — nothing was restructured.
+### Fixed
 
-  The first contract duplicates `tests/test_import_enforcement.py`, which remains the
-  stricter of the two (it also bans foreign `views_*` packages, pandas and friends, and
-  `pyarrow` outside `io/`). The duplication is deliberate — the same contract is landing
-  across the platform's cycle-free repos, so it is written the same way here (issue #238).
+- **`assert_summarizer_contract` failed on integer count posteriors** (register C-88,
+  #257). The MAP-containment law decided which HDI floors provably contain the tower tip
+  using `floor(m·S)+1` — a floor's *index span*, which `_ks` builds it from. The tip is the
+  median of the draws whose *value* lies inside the floor. Those two agree only when draws
+  are distinct: duplicated endpoint values put more draws inside the same bounds, so the tip
+  floor held more than the formula allowed, and narrower floors were certified that hold
+  less than half of it. The law then asserted containment for them.
 
-  Writing the contracts surfaced that **ADR-002's intra-package layering was out of date**:
-  it described `io/` as the top layer importing the frames, and listed "a frame importing
-  `io/`" as a forbidden pattern. The code is the inverse — `io/npz` and `io/arrow` are
-  flat array codecs importing only `_typing`, and all three frames call them. The
-  contract records the code, and **the documents were corrected immediately after** — see
-  *Changed — architecture record* below.
+  Measured on zero-inflated Poisson posteriors at `S ∈ {32, 64, 128}`: **30 of 500 rows
+  failed**, every one on the `0.15` floor — exactly the narrowest floor the old arithmetic
+  certified at `S = 64`. After the fix, **0 of 500**.
+
+  This is published under ADR-016 and consumers run it in *their* CI, so the failure landed
+  as another repository going red on correct data — and integer counts are this platform's
+  primary shape, since they are conflict fatality counts. No test here used integer or tied
+  draws, which is why it survived: the estimator tests build posteriors from continuous
+  distributions, where endpoint ties are measure-zero.
+
+  The fix counts rather than computes. Both the tip floor's occupancy and each candidate
+  floor's now come from `_in_range_span` — the same quantity `tower_point` takes the median
+  of. Occupancy depends on the row once ties exist, so a floor may qualify in one row and
+  not another, and the law asserts containment only where it qualifies. Nesting across the
+  candidate grid is asserted *unconditionally*, because qualification is derived from the
+  tower under test and a broken tower would otherwise disarm the law with its own defect.
+  Counted in the same row blocks `hdi_tower` uses, so the published suite stays inside the
+  memory discipline of the code it certifies (C-22/C-25/C-71): 143 MB peak on a 200k×32
+  frame, against 149 MB before.
+
+  `CONFORMANCE_FLOOR` stays `1.0.0`: the correction *narrows* what the suite asserts, so
+  consumers who passed still pass and consumers who failed now pass.
+
+- **The two IO codecs disagreed on a non-JSON metadata value** (register C-90). `io/npz`
+  passed `json.dumps(..., default=str)` and `io/arrow` did not, so a `datetime` timestamp
+  was silently stringified by one codec and rejected by the other — reloaded as
+  `'2026-01-01 00:00:00'` where the field is declared `int | None`. The storage backend
+  decided whether the run failed. Both now raise, per ADR-008.
+
+### Added — checks
+
+- **Import contracts run in CI** (#238). `pyproject.toml` gained two `import-linter`
+  `layers` contracts and CI gained an `imports` job. The first records that the core does
+  not depend on its two sibling packages and that the siblings do not depend on each other;
+  the second records the module layering inside `views_frames`. Both describe the structure
+  the code already has — nothing was restructured.
+
+  The first duplicates `tests/test_import_enforcement.py`, which remains the stricter of the
+  two (it also bans foreign `views_*` packages, pandas and friends, and `pyarrow` outside
+  `io/`). The duplication is deliberate: the same contract is landing across the platform's
+  cycle-free repos, so it is written the same way here.
+
+- **`docs/validate_docs.sh` now asserts three completeness claims** that four governance
+  documents had been making without evidence (register C-85, C-89):
+
+  - every publicly exported name is named in some CIC (38 names, read from the `__all__`
+    blocks);
+  - every public class has a CIC or a recorded exemption (13 classes);
+  - `GOVERNANCE.md` names every published conformance entry point (8 names).
+
+  Each would have caught one of C-64, C-81 and C-85 mechanically. Names are matched on
+  **word boundaries, not substrings** — `Frame` has 84 substring hits across the CICs and 9
+  real ones, so a substring match would let any `*Frame` satisfy the bare `Frame` protocol
+  and let `hdi_tower` satisfy `hdi`.
+
+  The same change fixed a check that could silently switch itself off: the README-banner
+  comparison was guarded by `if [ -f ... ]` with no `else`, so moving either input disabled
+  it while CI stayed green (C-89).
+
+- **`examples/` runs in CI** (register C-83, #247). README's quickstart tells readers to run
+  `examples/quickstart.py` and `examples/cross_level.py`, and no workflow executed either,
+  while `notebooks/` has had a drift check since #151. The job loops over `examples/[!_]*.py`
+  so a third script tomorrow is covered, keeps going after a failure so one broken script
+  cannot hide another, fails when the glob matches nothing rather than passing vacuously,
+  carries `timeout-minutes: 5`, and is pinned to the 3.10 floor — the on-ramp is promised to
+  the reader most likely to pin conservatively.
+
+- **A cross-version IO fixture test** (register C-79). Every arrow IO test wrote a file and
+  read it back in the same process at the same version, which proves the codec is
+  self-consistent and nothing about the property that matters for a data contract: that a
+  file written by an earlier release still loads. Consumers on that path hold archived
+  shards (views-postprocessing, views-faoapi #100).
+
+  `scripts/gen_arrow_crossversion_fixture.py` extracts `io/arrow.py` and `io/npz.py` from
+  the `v1.8.0` tag and writes the fixtures with *that* `save`. `v1.8.0` predates v1.10.1,
+  which added three `ValueError` paths rejecting row orders that violate the wire contract
+  (C-72) — so these fixtures are the evidence those rules accept a file written before they
+  existed.
+
+- **The architecture-tree check runs in CI**, as a step of the `docs` job. It was added in
+  this cycle to stop the standard's directory tree going stale again and then ran nowhere,
+  which is the same failure C-74 records. It is stdlib-only, so the `docs` job still
+  installs no Python toolchain.
+
+- **`__all__` on both sibling conformance modules** (register C-87), so all three published
+  surfaces are read the same way.
 
 ### Changed — architecture record
 
 - **ADR-002 amended: `io/` is a codec the frames call, not a layer above them** (register
-  C-82, epic #240 / S1). The decision never changed — dependency direction is still
-  one-way and acyclic — but the ADR's factual claim about *which way* `io/` runs was
-  wrong, and had been since C-09's resolution in v0.1.0 moved `io/` onto a generic
-  frame-state contract. `Persistable` places `save`/`load` on the frame, and those are
-  frozen v1 surface, so the documents moved rather than the code.
+  C-82). The decision never changed — dependency direction is still one-way and acyclic —
+  but the ADR's claim about *which way* `io/` runs was wrong, and had been since C-09's
+  resolution in v0.1.0 moved `io/` onto a generic frame-state contract. `Persistable` puts
+  `save`/`load` on the frame, and those are frozen v1 surface, so the documents moved rather
+  than the code. Corrected alongside it:
+  `docs/standards/physical_architecture_standard.md`, `docs/ADRs/README.md`, `README.md`
+  §layout rules, and `docs/CICs/Protocols.md`, which now records that `Persistable` is *why*
+  the dependency runs the way it does.
 
-  Corrected in the same change: `docs/standards/physical_architecture_standard.md`
-  (which restated the claim as a Circular Dependency Guard), `docs/ADRs/README.md` (the
-  index summarised ADR-002 with the pre-amendment direction), `README.md` §layout rules,
-  and `docs/CICs/Protocols.md`, which now records that `Persistable` is *why* the
-  dependency runs the way it does.
+- **The physical-architecture standard's directory tree matches the repository** (register
+  C-84). Its §2 tree was a pre-implementation sketch that had never been revised: it showed
+  one of the three shipped packages, omitted `metadata.py`, `_typing.py` and the whole
+  `conformance/` subpackage, listed two files that were never written, and still marked
+  `target_frame.py` as "anticipated" — it shipped in v1.0.0.
 
-- **The physical-architecture standard's directory tree now matches the repository**
-  (register C-84, epic #240 / S2). Its §2 tree was a pre-implementation sketch that had
-  never been revised: it showed one of the three shipped packages, omitted `metadata.py`,
-  `_typing.py` and the whole `conformance/` subpackage, listed two files that were never
-  written, and still marked `target_frame.py` as "anticipated" — it shipped in v1.0.0.
-  The tree now covers all three packages and all 36 modules, and the document carries a
-  `Last reviewed` date so the next drift is visible.
+- **README's tree and its conformance path** (register C-86). The tree omitted 11 of 36
+  modules — the summarize package was shown as four where it has fourteen — and named two
+  `tests/` directories that do not exist. §9 introduced the published suite as
+  `tests/conformance/`, **a path that has never existed**; it is
+  `src/views_frames/conformance/`, which GOVERNANCE, ADR-016 and every CIC name. README is
+  the PyPI long-description, and that sentence sits in the section written to close the
+  cross-repo contract-test gap (C-30).
 
-  Added `scripts/check_arch_tree.py`, which diffs that tree against `src/**/*.py` in both
-  directions — a module missing from the tree, and a module named in the tree that does
-  not exist. It is a standalone tool, not a CI gate; wiring it in is issue #246.
+- **`GOVERNANCE.md` names all seven published conformance exports** (register C-85 part 1).
+  It told consumers the suite was three functions. The two it omitted from
+  `views_frames.conformance` are not incidental — `assert_frame_envelope` is the shipped
+  mitigation for the still-open Tier-2 C-46, and `assert_reindex_fill_law` pins ADR-026 —
+  and it omitted `views_frames_reconcile.conformance` entirely. A consumer following it
+  literally ran three of seven. It is now written to be checked rather than trusted: a table
+  per module, an explicit statement that **each module's `__all__` is the source of truth,
+  not the table**, and the command to read it.
 
-  §1 and §3 were corrected in the same change, because making the tree complete exposed
-  them: §1's naming rule now says module names are read package-qualified
-  (`ReconciliationModule` in `views_frames_reconcile/module.py` reads as
-  `reconcile.module`), and §3 records why `_typing.py` and `_common.py` are focused
-  modules rather than the dumping grounds their names resemble.
+- **ADR-018 records eight names it froze but never listed** (register C-85 parts 2–3). An
+  audit of the whole public surface against the ADR — 65 names — found eight omissions. The
+  largest is a package: `views_frames_reconcile` shipped in v1.7.0 and ADR-018 does not
+  mention it, though the "Additive since v1.0.0" section records the estimator families in
+  careful detail. The rest are `feature_names`, `n_features`, `from_2d`, `n_rows`,
+  `SpatialLevel`, `FrameMetadata`, `assert_frame_envelope`, and the ADR-026 dense-grid
+  family.
+
+- **New contract document: `docs/CICs/FrameMetadata.md`** (register C-85 part 4). It was
+  exported from `views_frames`, listed in ADR-018's frozen surface, and its name appeared in
+  exactly one CIC — a sibling package's. The parts worth having in writing are what the
+  unknown-key drop *costs* (a header written by a newer version and read by an older one
+  silently loses fields, and re-saving persists the loss — which is why adding a field is
+  MINOR rather than free), what the class deliberately does not validate, and why `io/`
+  never sees it.
+
+### Changed — tests
+
+- **`tests/test_packaging.py` collected zero tests on the 3.10 leg** (register C-80).
+  `importorskip("tomllib")` sat at module level and `tomllib` is 3.11+, so the classifier
+  assertions never ran on the leg the `floor` job exists to scrutinise. Now a `tomli`
+  fallback, with the dependency declared for `python_version < '3.11'`.
+- **Three `FrameMetadata` guarantees that its contract states and nothing pinned** now have
+  tests: the unknown-key drop (the nearest test only asserted `from_dict` does not raise),
+  the empty-header default, and the save/load round-trip for `FeatureFrame` and
+  `TargetFrame` — pinned for `PredictionFrame` only.
+- `tests/test_reconcile_head_to_head.py` collects zero tests anywhere and is kept: it is a
+  real local cross-check against the *live* old package, which a fixture cannot be. Its
+  docstring now names what holds the guarantee in CI instead.
 
 ### Changed — governance
 
-- **Four concerns registered from a full assimilation sweep** (`repo-assimilation`,
-  `graphify`, `review-base-docs`): **C-82** the ADR-002 topology inversion above — which
-  `docs/standards/physical_architecture_standard.md` restates, and which C-09's 2026-06-21
-  resolution caused; **C-83** `examples/` advertised as runnable and executed by no CI job;
-  **C-84** the physical-architecture standard describing one of three packages and eight of
-  thirteen modules; **C-85** four governance documents asserting coverage that nothing
-  checks, whose real fix is completeness assertions in `docs/validate_docs.sh` rather than
-  four more one-off corrections.
+- **`docs/contributor_protocols/carbon_based_agents.md` gained a section on claims about
+  your own work** (register C-77): demonstrate rather than describe; use a check that could
+  actually have failed; leave it where the next person can run it; and remember that the
+  mutations an author picks are the ones they already had in mind. The fourth part earned
+  its place twice more after being written — a tree check that passed its author's own
+  mutations and still could not see a duplicated basename, and the C-88 fix that was tested
+  for firing falsely but not for failing to fire.
 
-- **Two causal clusters added** (`review-rr strategic`): *doc↔code topology drift*
-  {C-82, C-84} and *unchecked completeness claims* {C-85, C-77, C-80}. The second is the
-  largest cluster in the register at nine entries, six of them already resolved — the
-  signature of a pattern being fixed instance by instance rather than at the cause.
+- **CI checks are not gates here** (register C-92). Neither `main` nor `development` has
+  branch protection and there are no rulesets, so all eleven checks run on every pull
+  request and none is required. Several documents described checks as "blocking" or as
+  "what makes it a gate"; they make it a signal. The wording is corrected and the entry
+  stays open until branch protection is configured.
 
-- **This file now carries an `[Unreleased]` section**, per the Keep a Changelog format it
-  already claims to follow. Entries were previously written at release time, which is how
-  the 1.10.2 entry ended up six commits behind its release (#234).
+- **`docs/guides/publishing-to-pypi.md` describes the repository as it is.** The runbook
+  is written to be followed "solo, cold, months later", and it still said the pipeline was
+  *"not yet exercised by a real release"* after thirteen of them, described a wheel of two
+  packages where it ships three, and told the reader to configure a *pending* trusted
+  publisher for a project that has existed since `v1.0.0`. The wheel-contents check in the
+  TestPyPI rehearsal expected two `py.typed` files and would have passed while missing a
+  package.
+
+- **`CLAUDE.md` gained a `## Maintenance mode` section.** This package is frozen and
+  released, and the register's open entries are a log of accepted conditions, not a backlog.
+  The section says so, and says which discovery tooling should not be run here.
 
 ## [1.10.2] — 2026-07-31
 

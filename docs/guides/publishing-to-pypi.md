@@ -14,7 +14,7 @@ copy-paste-able. If you only need to ship a routine update, the cheat sheet is e
 
 | Thing | What | Why it matters |
 |---|---|---|
-| **One project, two packages** | The single `views-frames` wheel bundles **both** `views_frames` (the leaf) and `views_frames_summarize` (the sibling) | `pip install views-frames` makes **both** importable. There is no separate `views-frames-summarize` project. |
+| **One project, three packages** | The single `views-frames` wheel bundles `views_frames` (the leaf), `views_frames_summarize` and `views_frames_reconcile` (the siblings) — see `[tool.hatch.build.targets.wheel]` | `pip install views-frames` makes **all three** importable. There are no separate `views-frames-summarize` or `views-frames-reconcile` projects. |
 | **numpy-only, broad Python** | `requires-python = ">=3.10"`; the only runtime dep is `numpy>=1.26,<3`. `pyarrow` is an optional `[arrow]` extra | No build cap, no heavy deps — installs are fast and the wheel is pure-Python (`py3-none-any`). |
 | **Versions are write-once** | Once `X.Y.Z` is on PyPI it can never be re-uploaded or truly deleted (only "yanked") | Always **bump the version first**. For repeated TestPyPI rehearsals use a throwaway like `1.0.1.dev1`. |
 | **uv + hatchling, NOT poetry** | Build backend is `hatchling.build`; tooling is `uv` | Use `uv build` / `uv publish`. |
@@ -54,19 +54,20 @@ trusted-publisher config — see Prerequisites.
 The release workflow authenticates with **Trusted Publishing (OIDC)** — there is **no
 stored token**. A project owner enables it **once** on PyPI.
 
-**Because `views-frames` is not on PyPI yet, use a _pending_ publisher** (PyPI lets you
-trust a publisher for a project that does not exist yet; the first OIDC publish then
-creates the project):
+**This is already configured** — `views-frames` has been on PyPI since `v1.0.0` and the
+trusted publisher lives under the project's **Settings → Publishing**. What follows is kept
+for reference: how it was set up, and what to repeat if the entry is ever lost or a second
+project is added. It was originally a *pending* publisher, which is how PyPI lets you trust
+a publisher for a project that does not exist yet:
 
 > PyPI → your account → **Publishing** → **Add a pending publisher (GitHub)**:
 > - **PyPI Project Name:** `views-frames`
 > - **Owner:** `views-platform`  ·  **Repository:** `views-frames`
 > - **Workflow name:** `publish_package.yml`  ·  **Environment:** *(leave blank)*
 
-After the first release creates the project, the same entry appears under the project's
-**Settings → Publishing** as a normal trusted publisher. Until this is configured, the
-workflow's publish step fails with an auth error — that's the only gap between merging
-the workflow and it working.
+After the first release created the project, that entry became a normal trusted publisher
+under **Settings → Publishing**, which is where it is today. If it is ever removed, the
+workflow's publish step fails with an auth error and nothing else breaks.
 
 > If you'd rather not use a pending publisher, do the **first** upload manually with a
 > token (§B), then all future releases go through the automated path.
@@ -111,7 +112,7 @@ rm -rf dist && uv build
 uvx --from twine twine check dist/*            # both files must say PASSED
 # sanity: BOTH packages + their py.typed are in the wheel
 python3 -c "import zipfile,glob; ns=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); \
-print([n for n in ns if n.endswith('py.typed')])"   # expect both packages' py.typed
+print([n for n in ns if n.endswith('py.typed')])"   # expect all three packages' py.typed
 
 # upload to TestPyPI (your terminal; replace the token — never paste it in chat)
 uv publish --publish-url https://test.pypi.org/legacy/ --token pypi-<YOUR-TESTPYPI-TOKEN> dist/*
@@ -120,7 +121,7 @@ uv publish --publish-url https://test.pypi.org/legacy/ --token pypi-<YOUR-TESTPY
 uv venv --clear --python 3.11 /tmp/tp-check && source /tmp/tp-check/bin/activate
 uv pip install --index-url https://test.pypi.org/simple/ \
                --extra-index-url https://pypi.org/simple/ views-frames
-python -c "import views_frames, views_frames_summarize; print('both import OK')"
+python -c "import views_frames, views_frames_summarize, views_frames_reconcile; print('all three import OK')"
 deactivate && rm -rf /tmp/tp-check
 ```
 
@@ -129,20 +130,23 @@ deactivate && rm -rf /tmp/tp-check
 
 ---
 
-## B. First real deployment — break-glass / manual (if not using a pending publisher)
+## B. Break-glass — manual upload
+
+Not the normal path, and not needed since `v1.0.0`. Use it only if Trusted Publishing is
+broken and a release genuinely cannot wait for it to be fixed.
 
 ```bash
 git checkout main && git pull --ff-only
 rm -rf dist && uv build && uvx --from twine twine check dist/*
-# publish to REAL PyPI (the v1.0.0 tag already exists)
+# publish to REAL PyPI
 uv publish --token pypi-<YOUR-REAL-PYPI-TOKEN> dist/*
 # confirm it's live:
 curl -s https://pypi.org/pypi/views-frames/json | \
   python3 -c "import sys,json;d=json.load(sys.stdin)['info'];print(d['name'],d['version'])"
 ```
 
-After the first manual upload, switch to the automated path (§Prerequisites + TL;DR) for
-every future release.
+Then go straight back to the automated path (§C) — a manual upload leaves no Actions
+record of what was published.
 
 > 🔒 **Token safety:** type a token only in your own terminal; never paste it into a
 > chat/transcript/PR. Prefix the command with a space (or `export UV_PUBLISH_TOKEN=…`) to
@@ -186,7 +190,10 @@ every future release.
 
 - This guide and `.github/workflows/publish_package.yml` mirror the views-reporting
   routine (its `documentation/guides/publishing-to-pypi.md`), adapted: no Python cap, no
-  bundled assets, and a single wheel that ships both `views_frames` and
-  `views_frames_summarize`.
-- **Not yet exercised by a real release** — the first `v1.0.0` publish (after the one-time
-  PyPI pending-publisher config) confirms it; update this line when it does.
+  bundled assets, and a single wheel that ships `views_frames`,
+  `views_frames_summarize` and `views_frames_reconcile`.
+- **Exercised by every release published since `v1.0.0`**, including the `v1.7.0` publish that added
+  the third package to the wheel. This line said "not yet exercised by a real release" until
+  2026-08-18, having been written before the first one and never revised — the same drift
+  the version banner check and the architecture-tree check exist to prevent, in the guide
+  that describes how releases work.
