@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 93                                   |
+| Total Concerns    | 94                                   |
 | Open Concerns     | 10                                   |
-| Resolved Concerns | 83                                   |
+| Resolved Concerns | 84                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -440,6 +440,47 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-97: the status banners asserted a release state the repo cannot verify — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-97 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | Both banners reworded to be state-neutral, permanently: they state the version **in this tree** and link to PyPI for what is published. |
+| Source | pre-release falsification audit (2026-08-18, F2) — predicted before execution |
+| Cross-refs | C-70 (the banner epoch-lag that produced check 6), C-96 (the other half of the same audit), C-74 (a check that does not run). |
+
+`README.md` said **"v2.0.0 — published to PyPI"** and `CLAUDE.md` said **"released — v2.x on
+PyPI"** while PyPI served `1.11.0` and no `v2.0.0` tag existed. Both were false, on `main`, and
+`README.md` is the PyPI long description.
+
+This is the ordinary bump-then-publish transient every prior release had, which is why nobody
+noticed it in sixteen releases. It stopped being a transient here: the tag is gated on C-13's
+adoption-issue requirement, which has no date, so the false claim would stand for as long as
+that took.
+
+**The version number was never the bug — the words were.** A banner that asserts *publication*
+makes a claim about the world that the repository cannot check, and it is wrong in every cycle
+between the version bump and the publish job. The repair is to stop making the claim rather
+than to keep correcting it: the banner now states the version in the tree, links to PyPI, and
+says plainly that it is deliberately ahead between a release commit and its publish. One edit,
+no recurring work. Softening before each release and re-asserting afterwards was considered and
+rejected — it rebuilds the trap every cycle.
+
+`validate_docs.sh` check 6 is untouched and still pins the banner's MAJOR.MINOR to
+`pyproject.toml`, which is the part that *is* checkable from inside the repo.
+
+**What this cost, stated rather than glossed.** The audit's own stub asserted `banner version ==
+PyPI version`. That was the right test against the old wording and is the wrong test against the
+new one — it would contradict check 6, since the banner is now legitimately ahead between
+releases. The stub was rewritten to assert that the banner makes no publication claim, which is
+**weaker**: it cannot catch a merely stale banner. Check 6 covers staleness against
+`pyproject.toml`, and no check inside this repo can know what PyPI serves without the network.
+The rewritten stub was mutation-tested — restoring "published to PyPI" fails it.
+
+---
 
 ### C-96: the wheel's package count drifted in the documents that describe it — RESOLVED
 
