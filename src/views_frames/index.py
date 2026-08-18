@@ -47,7 +47,11 @@ class SpatioTemporalIndex:
         is_array = isinstance(time, np.ndarray) and time.ndim >= 1
         n = int(time.shape[0]) if is_array else -1
         validate_identifiers({"time": time, "unit": unit}, n_rows=n)
-        # store as read-only views so the value object cannot be mutated in place
+        # Write-protect the identifier arrays so the value object cannot be mutated
+        # in place. Note `ascontiguousarray` returns the *same* array when the input
+        # is already contiguous, so this also write-protects the caller's array. That
+        # is long-standing index behaviour, deliberately left alone here; the frames
+        # take a read-only view instead, for the reason given in their constructors.
         self._time = np.ascontiguousarray(time)
         self._unit = np.ascontiguousarray(unit)
         self._time.setflags(write=False)
@@ -173,6 +177,16 @@ class SpatioTemporalIndex:
         )
 
     def _require_same_level(self, other: SpatioTemporalIndex) -> None:
+        # Type first. Every same-level binary op (`searchsorted`/`reindex`,
+        # `is_superset_of`, `intersect`) routes through here, so this one guard is
+        # what stops a non-index argument reaching `other._level` and leaking
+        # `AttributeError: '...' object has no attribute '_level'` — a private
+        # attribute of a class the caller never named. ADR-008 requires a
+        # ValueError/TypeError at every validation guard (falsify audit 2026-08-18).
+        if not isinstance(other, SpatioTemporalIndex):
+            raise TypeError(
+                f"expected a SpatioTemporalIndex, got {type(other).__name__}"
+            )
         if self._level != other._level:
             raise ValueError(
                 "same-level operation requires equal SpatialLevel; "
