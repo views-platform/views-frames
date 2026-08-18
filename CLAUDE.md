@@ -6,11 +6,38 @@ at the **root of the platform dependency DAG**, plus two sibling operation packa
 in the same wheel. numpy only; depends on nothing internal; every other repo
 depends *toward* it.
 
-> **Status:** **released — v1.10.x on PyPI**, public API **frozen since v1.0.0**
+> **Status:** **released — v1.11.x on PyPI**, public API **frozen since v1.0.0**
 > (ADR-018; everything after is additive, `CONFORMANCE_FLOOR` stays `1.0.0`).
 > Consumers install `views-frames` and validate against the published conformance
 > suite (`views_frames.conformance`, ADR-016). See `CHANGELOG.md` for the release
 > history and `README.md` §status for the version chronicle.
+
+## Maintenance mode
+
+**This package is finished.** It is released, its public API has been frozen since v1.0.0,
+and its governance documents have been checked against the code and are now asserted by CI.
+Work here should be rare, small, and caused by something outside this repository.
+
+**Do not run discovery tooling here.** `repo-assimilation`, `graphify`, `review-base-docs`
+and `review-rr` return findings by construction. This repo carries roughly 9,400 lines of
+governance prose against 3,700 lines of source, and prose that large is never perfectly
+self-consistent. On a frozen package these tools *manufacture* work rather than reveal it —
+that is how a one-line CI addition became a day-long sprint on 2026-08-17. Run them on a
+repository that is still being designed.
+
+**The register's open entries are a log, not a backlog.** Every one names an external
+precondition — the next MAJOR bump, a sibling repo's type, a research result, a measured
+receipt that has not arrived. Re-auditing them returns the answer their precondition already
+gives. Do not reopen them; do not treat the count as debt to burn down.
+
+**For a small change:** review it, ship it. If something adjacent looks wrong, say so in one
+sentence and let the maintainer decide. Do not open an epic. A finding that is real and
+unrelated goes in the register with its precondition and stops there.
+
+**What legitimately reopens this repo:** a consumer reports a contract defect; a dependency
+floor moves; a sibling repository needs an additive surface; a MAJOR bump is coordinated
+across the platform. Everything else is optional, and optional work on a frozen leaf costs
+more than it returns.
 
 ## Architecture
 
