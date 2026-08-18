@@ -75,7 +75,10 @@ def _assert_save_unchanged_since(tag: str) -> None:
 
     released = subprocess.run(
         ["git", "show", f"{tag}:src/views_frames/io/arrow.py"],
-        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     current = (REPO_ROOT / "src" / "views_frames" / "io" / "arrow.py").read_text()
     if extract(released) != extract(current):
