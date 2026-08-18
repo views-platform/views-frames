@@ -1,10 +1,30 @@
 # ADR-018: API freeze at v1.0.0
 
-**Status:** Accepted
+**Status:** Accepted (amended 2026-08-18 — see *Amendment* below)
 **Date:** 2026-06-21
 **Deciders:** VIEWS platform maintainers (keystone owner)
 **Consulted:** two rounds of consumer review
 **Informed:** all `views_frames` consumers
+
+> **Amendment (2026-08-18, ADR-028 / register C-13).** **The freeze has been broken once,
+> deliberately, in 2.0.0** — the first MAJOR since this ADR was written.
+>
+> What changed: the three frames' constructors now reject an `index` argument that is not a
+> `SpatioTemporalIndex`. That is a **tightening of an invariant** on the constructor shapes
+> frozen below, and therefore a MAJOR under `GOVERNANCE.md`. Before 2.0.0 the constructors
+> read one attribute off `index` — `n_rows` — so a frame, or any object with an `n_rows`,
+> was accepted; the published `assert_summarizer_contract` then certified the result.
+>
+> Shipping alongside it, as riders on the same bump: `frame.values` is now write-protected
+> (register C-66, the enforce ADR-025 deferred), the same-level alignment ops raise
+> `TypeError` rather than leaking a private attribute, and `map_estimate` rejects non-finite
+> draws (register C-57). `CONFORMANCE_FLOOR` moved `1.0.0` → `2.0.0`, its first move.
+>
+> **The frozen list below is otherwise unchanged** — no name was removed, renamed or
+> re-signatured, and no consumer passing a real `SpatioTemporalIndex` is affected. What
+> narrowed is the set of inputs that were never valid. ADR-028 carries the decision, the
+> full migration table and the reasoning; read it before treating this as licence for a
+> second MAJOR.
 
 ---
 

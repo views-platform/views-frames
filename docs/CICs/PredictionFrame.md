@@ -37,9 +37,10 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
   and always explicit (`S >= 1`; ADR-012).
 - Immutable: `with_metadata` returns a **new** frame sharing the `values` buffer
   (zero-copy); `mmap` propagates (register C-07). **Immutability is enforced for the
-  index** (`time`/`unit` are `setflags(write=False)`) and held **by convention for the
-  value buffer** (left writeable to preserve zero-copy — mutating `.values` in place is
-  unsupported and may corrupt buffer-sharing frames; ADR-025 / register C-63).
+  index** (`time`/`unit` are `setflags(write=False)`) and, **since 2.0.0, for the value
+  buffer as well** — held as a read-only *view*, so zero-copy and `mmap` survive and the
+  caller's own array is left writeable (ADR-028 / register C-66). It was immutable only
+  by convention until then (ADR-025 / register C-63).
 - Row ops return new frames: `select(positions | mask)` and `reindex(other)` — the
   latter raises unless this frame's index is a superset of `other`. Selection **copies**
   the selected `values` (only structural/metadata ops share the buffer).
@@ -84,6 +85,10 @@ Violations raise at construction (ADR-008) — never log-and-continue.
   to float32 by copy at construction — accepted, not rejected (the no-copy fast path
   is float32-only, register C-07). The structural guarantee is **not temporal**
   (register C-11).
+- Raises `TypeError` when `index` is not a `SpatioTemporalIndex` (since 2.0.0, ADR-028). Before that, construction read one attribute off `index` — `n_rows` — so a frame, or any object exposing `n_rows`, was accepted silently and the published summarizer checker then certified the result.
+- Raises `TypeError` from `reindex`/`reindex_fill` when handed something that is not a `SpatioTemporalIndex`; it previously leaked `AttributeError` naming a private attribute (ADR-008 requires `ValueError`/`TypeError` at every guard).
+- Raises `ValueError` on in-place `.values` assignment — the buffer is write-protected.
+
 
 ---
 
@@ -111,11 +116,14 @@ point = collapse(pf, np.mean)                                       # (N, 1) fra
 # WRONG: list-in-cell / object dtype (the measured non-scaler) — raises
 PredictionFrame(y_pred=np.array(list_of_lists, dtype=object), index=idx)
 
-# WRONG: mutating the value buffer in place. Immutable *by convention* — NOT
-# write-protected (the buffer stays writeable for zero-copy), so this does NOT raise;
-# it silently corrupts every frame sharing the buffer (e.g. via with_metadata).
-# Build a new frame instead. (ADR-025 / register C-63; the index IS write-protected.)
-pf.values[:] = 0          # unsupported: silent shared-buffer corruption, no error
+# WRONG: mutating the value buffer in place. Since 2.0.0 this RAISES — the buffer is
+# write-protected (ADR-028 / register C-66). Until then it silently corrupted every
+# frame sharing the buffer, e.g. via with_metadata. Build a new frame instead.
+pf.values[:] = 0          # ValueError: assignment destination is read-only
+
+# WRONG: passing something that is not an index. Raises since 2.0.0; before that it
+# was accepted silently, because only `index.n_rows` was ever read (ADR-028).
+PredictionFrame(y_pred=arr, index=some_other_frame)      # TypeError
 ```
 
 ---
@@ -131,7 +139,10 @@ pf.values[:] = 0          # unsupported: silent shared-buffer corruption, no err
   C-80). `with_metadata` allocates no second `values` buffer — that one *is* measured
   (`tests/test_properties.py::test_with_metadata_shares_the_values_buffer`, C-07).
 - **Red:** object-dtype / wrong-dtype / NaN-identifier construction raises;
-  no-pandas import-enforcement.
+  a non-`SpatioTemporalIndex` `index` raises, including a frame and a bare object with
+  only `n_rows` — `tests/test_construction_red.py`; `reindex`/`reindex_fill` raise on a
+  non-index argument — `tests/test_select.py`; the value buffer is read-only while the
+  caller's array is not — `tests/test_properties.py`; no-pandas import-enforcement.
 
 ---
 

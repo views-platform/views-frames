@@ -73,7 +73,11 @@ def test_cross_level_alignment_law_is_time_varying():
 
 
 def test_conformance_floor_is_published():
-    assert CONFORMANCE_FLOOR == "1.0.0"
+    """Moved for the first time in 2.0.0 (ADR-028).
+
+    It stayed 1.0.0 for every release from the freeze until then.
+    """
+    assert CONFORMANCE_FLOOR == "2.0.0"
 
 
 # --- the published frame-envelope checker (ADR-020, C-46) --------------------

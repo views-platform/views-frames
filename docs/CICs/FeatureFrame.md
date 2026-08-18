@@ -40,8 +40,9 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
   frame from a 2-D `(N, F)` array of unsampled features, adding the trailing sample
   axis to give `(N, F, 1)`. It is ordinary, supported surface — not a deprecated shim.
 - Immutable with copy-vs-view semantics identical to `PredictionFrame` (C-07): the
-  **index is enforced** read-only; the **value buffer is immutable by convention**
-  (writeable for zero-copy — in-place `.values` mutation is unsupported; ADR-025 / C-63).
+  **index is enforced** read-only, and **since 2.0.0 so is the value buffer** — a
+  read-only *view*, preserving zero-copy and `mmap` while leaving the caller's array
+  writeable (ADR-028 / C-66; convention-only until then, ADR-025 / C-63).
 - Row ops return new frames preserving `feature_names`: `select(positions | mask)` and
   `reindex(other)` — the latter raises unless this index is a superset of `other`;
   selection **copies** the selected `values`.
@@ -85,6 +86,12 @@ Violations raise at construction (ADR-008).
 - Raises on non-`float32`/object dtype, shape/length mismatch (incl.
   `len(feature_names) != F`), or incomplete identifiers. Structural, not temporal
   (register C-11).
+- Raises `TypeError` when `index` is not a `SpatioTemporalIndex` (since 2.0.0, ADR-028).
+  Before that, construction read one attribute off `index` — `n_rows` — so a frame, or any
+  object exposing `n_rows`, was accepted silently.
+- Raises `TypeError` from `reindex`/`reindex_fill` on a non-index argument; it previously
+  leaked `AttributeError` naming a private attribute (ADR-008).
+- Raises `ValueError` on in-place `.values` assignment — the buffer is write-protected.
 
 ---
 
@@ -117,9 +124,12 @@ FeatureFrame(y_features=x2d, index=idx, feature_names=names)   # raises
 # WRONG: calling a grid constructor on the frame — that adapter lives in datafactory
 FeatureFrame.from_grid(cube)          # no such method here
 
-# WRONG: mutating the value buffer in place — immutable *by convention*, not
-# write-protected, so it does NOT raise; build a new frame (ADR-025 / register C-63).
-ff.values[:] = 0          # unsupported: silent shared-buffer corruption, no error
+# WRONG: mutating the value buffer in place — write-protected since 2.0.0, so this now
+# raises rather than silently corrupting buffer-sharing frames (ADR-028 / register C-66).
+ff.values[:] = 0          # ValueError: assignment destination is read-only
+
+# WRONG: passing something that is not an index — raises since 2.0.0 (ADR-028)
+FeatureFrame(y_features=x, index=some_other_frame, feature_names=names)   # TypeError
 ```
 
 ---
@@ -129,7 +139,9 @@ ff.values[:] = 0          # unsupported: silent shared-buffer corruption, no err
 - **Green:** construction validation incl. `feature_names` length; `select`/`reindex`
   parity (`test_frame_parity.py`); save/load round-trip preserving `feature_names`/`metadata`.
 - **Beige:** copy-vs-view property (`with_metadata` allocates no second buffer).
-- **Red:** 2-D input / object dtype / mismatched `feature_names` raises; no-pandas
+- **Red:** 2-D input / object dtype / mismatched `feature_names` raises, and a
+  non-`SpatioTemporalIndex` `index` raises — `tests/test_construction_red.py`; the value
+  buffer is read-only — `tests/test_properties.py`; no-pandas
   import-enforcement.
 
 ---
