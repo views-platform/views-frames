@@ -26,7 +26,10 @@
 > **Amendment (2026-07-24, ADR-019 Amendment 3).** `tip_mass` default **0.5 → 0.25** (the
 > top-quartile floor — the tower-tip MAP now reads the top floor of the published tower), with
 > the **MAP-containment law** added to `assert_summarizer_contract`: every floor holding more
-> than half the tip floor's draws provably contains the tip. Simulation evidence in
+> than half the tip floor's draws provably contains the tip. (Corrected 2026-08-18, register
+> C-88 / ADR-019 Amendment 4 — the law originally computed that count as `floor(m·S)+1`, the
+> floor's *index span*, which undercounts on tied draws; it now counts the draws actually in
+> range.) Simulation evidence in
 > `research/map_hdi/tip_mass_study.py`; behavior change to `tower_point`/`summarize_tower`
 > outputs (MAPs shift toward the mode on skewed cells — the intended C-32 direction).
 
@@ -113,7 +116,10 @@ re-derive (ADR-017).
   law** (asserted in the conformance suite): every floor holding more than half the tip
   floor's draws — asymptotically mass > `tip_mass`/2 = 12.5% — provably contains the tip;
   all published bands (50/90/95/99) qualify. Narrower floors carry no containment
-  guarantee and are below platform sample resolution.
+  guarantee and are below platform sample resolution. **Occupancy is counted, not
+  computed** (register C-88): a floor's draw count is the draws whose *value* lies in it,
+  which exceeds `floor(m·S)+1` once draws tie — so on tied data a floor may qualify in one
+  row and not another, and the law asserts it only where it qualifies.
   It is **not** a consistency-guaranteed mode; pair it with `bimodality`. **Caveat (the
   semantic shift — read before adopting over a histogram MAP):** on right-skewed /
   zero-inflated / multi-cluster posteriors `tower_point` returns the **densest** mode, which

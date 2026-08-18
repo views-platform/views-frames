@@ -37,7 +37,8 @@
 > beating the shorth on RMSE at pooled sample counts and reading zero-inflated cells
 > exactly. Decided: `tip_mass = 0.25`. With it comes the **MAP-containment law**, now
 > asserted in `conformance.py`: every floor holding more than half the tip floor's draws
-> (a floor of mass `m` spans `floor(m·S)+1` draws; asymptotically `m > tip_mass/2 = 12.5%`)
+> (asymptotically `m > tip_mass/2 = 12.5%`; **see Amendment 4 — the original parenthetical
+> here said a floor of mass `m` spans `floor(m·S)+1` draws, which is false on tied draws**)
 > provably contains the tip — wider floors by nesting, narrower qualifying floors because a
 > contiguous sub-window longer than half its parent cannot trim away the parent's median.
 > Floors below that threshold carry no containment guarantee and are below platform sample
@@ -45,6 +46,32 @@
 > the change *shrinks* the unguaranteed region from mass < 0.25 to mass ≤ ~0.125).
 > Consumer note: published MAPs shift toward the mode on skewed cells — the intended
 > direction (the C-32 lineage). The full shrinking-limit MAP remains #89.
+
+> **Amendment 4 (2026-08-18, register C-88 — the containment law counted the wrong thing).**
+> Amendment 3 justified the law with *"a floor of mass `m` spans `floor(m·S)+1` draws (the
+> `_ks` value counts inter-draw steps)"*. That is the floor's **index span**, not its draw
+> count, and the two agree only when draws are **distinct**. The tip is the median of the
+> draws whose *value* lies inside the floor (`_in_range_span`), so duplicated endpoint
+> values put more draws inside the same bounds than the formula allowed. The tip floor
+> therefore held more than `floor(tip_mass·S)+1`, and narrower floors were certified that
+> hold less than half of it — floors the law then asserted containment for.
+>
+> Measured on zero-inflated Poisson posteriors (`S ∈ {32,64,128}`), **30 of 500 rows
+> (6.0%)** failed the law, every one on the 0.15 floor — the narrowest the old arithmetic
+> certified at `S=64`. Integer count data ties constantly, and these are conflict fatality
+> draws, so the shape that broke it is the platform's primary one. `assert_summarizer_contract`
+> is published under ADR-016 and every consumer runs it in their own CI, so the failures
+> landed in *other repositories'* pipelines on correct data.
+>
+> **Correction: count, do not compute.** The law now derives both the tip floor's and each
+> candidate floor's occupancy from `_in_range_span` — the same quantity `tower_point` takes
+> the median of — and asserts a floor only on the rows where it actually qualifies, since
+> occupancy is row-dependent once ties exist.
+>
+> The guarantee is unchanged in kind and **narrower in extent**: fewer floors are certified
+> on tied data, which is what makes the assertion true. Consumers who passed still pass and
+> consumers who failed now pass, so nothing breaks — `CONFORMANCE_FLOOR` stays `1.0.0`. The
+> published bands (50/90/95/99) qualify as before.
 
 ---
 

@@ -18,7 +18,7 @@ from views_frames_summarize.expected_shortfall import expected_shortfall
 from views_frames_summarize.interval import hdi, quantiles
 from views_frames_summarize.point import map_estimate
 from views_frames_summarize.summarize_tower import summarize_tower
-from views_frames_summarize.tower import hdi_tower
+from views_frames_summarize.tower import _in_range_span, hdi_tower
 from views_frames_summarize.tower_point import tower_point
 
 
@@ -126,29 +126,39 @@ def _assert_tower_contract(frame: AnyFrame, n: int) -> None:
     assert (tip.values[..., 0] >= tlo - 1e-6).all(), "tip below the tip_mass floor"
     assert (tip.values[..., 0] <= thi + 1e-6).all(), "tip above the tip_mass floor"
 
-    # MAP-containment law (ADR-019 amendment 2026-07-24). Wider-than-tip_mass floors
-    # contain the tip by nesting. Below tip_mass, a nested floor still contains it
-    # whenever it holds MORE THAN HALF the tip floor's draws: a contiguous sub-window
-    # longer than half the parent cannot trim away the parent's middle draw(s), and
-    # the tip is their median/average. A floor of mass m spans floor(m·S)+1 draws
-    # (the `_ks` value counts inter-draw steps), so the exact condition is
-    # 2·(floor(m·S)+1) > floor(tip_mass·S)+1 — asymptotically mass > tip_mass/2.
-    # Floors below it carry NO guarantee and are below platform sample resolution
-    # (see tower_point.py / research/map_hdi/tip_mass_study.py).
-    s_count = int(frame.values.shape[-1])
-    n_tip = int(np.floor(tip_mass * s_count)) + 1
-    guaranteed = tuple(
-        float(m)
-        for m in config.canonical_floors()
-        if 2 * (int(np.floor(float(m) * s_count)) + 1) > n_tip
-    )
-    law_tower = hdi_tower(frame, masses=guaranteed)
-    for j, m in enumerate(guaranteed):
-        glo, ghi = law_tower[..., j, 0], law_tower[..., j, 1]
-        assert (tip.values[..., 0] >= glo - 1e-6).all(), (
+    # MAP-containment law (ADR-019 amendment 2026-07-24; corrected 2026-08-18, C-88).
+    # Wider-than-tip_mass floors contain the tip by nesting. Below tip_mass, a nested
+    # floor still contains it whenever it holds MORE THAN HALF the tip floor's draws:
+    # a contiguous sub-window longer than half the parent cannot trim away the parent's
+    # middle draw(s), and the tip is their median/average.
+    #
+    # The count must be the draws whose VALUE lies in the floor — what `_in_range_span`
+    # returns and what `tower_point` takes the median of. The law originally used
+    # `floor(m·S)+1`, the *index span* `_ks` builds a floor from. Those agree only when
+    # draws are distinct: duplicated endpoint values put more draws inside the same
+    # bounds, so the tip floor held more than the formula said and narrower floors were
+    # certified that hold less than half of it. On zero-inflated integer counts — this
+    # platform's primary shape — that failed ~6% of rows, in consumers' own CI.
+    #
+    # Rows differ, so a floor may qualify in one row and not another; it is asserted
+    # only where it qualifies. Floors qualifying nowhere carry NO guarantee and sit
+    # below platform sample resolution (see tower_point.py and the tip_mass study).
+    srt = np.sort(frame.values.reshape(-1, frame.values.shape[-1]), axis=-1)
+    _, n_tip = _in_range_span(srt, np.ravel(tlo), np.ravel(thi))
+    candidates = tuple(float(m) for m in config.canonical_floors())
+    law_tower = hdi_tower(frame, masses=candidates)
+    flat_tip = np.ravel(tip.values[..., 0])
+    for j, m in enumerate(candidates):
+        glo = np.ravel(law_tower[..., j, 0])
+        ghi = np.ravel(law_tower[..., j, 1])
+        _, n_floor = _in_range_span(srt, glo, ghi)
+        qualifies = 2 * n_floor > n_tip
+        if not qualifies.any():
+            continue
+        assert (flat_tip[qualifies] >= glo[qualifies] - 1e-6).all(), (
             f"MAP-containment violated: tip below the {m:.2f} floor"
         )
-        assert (tip.values[..., 0] <= ghi + 1e-6).all(), (
+        assert (flat_tip[qualifies] <= ghi[qualifies] + 1e-6).all(), (
             f"MAP-containment violated: tip above the {m:.2f} floor"
         )
 
