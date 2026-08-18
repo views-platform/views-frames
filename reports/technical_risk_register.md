@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 92                                   |
+| Total Concerns    | 93                                   |
 | Open Concerns     | 10                                   |
-| Resolved Concerns | 82                                   |
+| Resolved Concerns | 83                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -440,6 +440,54 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-96: the wheel's package count drifted in the documents that describe it — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-96 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | Both live sites corrected, and `docs/validate_docs.sh` check 10 added so the documents that describe the wheel are held against `[tool.hatch.build.targets.wheel] packages`. |
+| Source | pre-release falsification audit (2026-08-18, F3) — an unpredicted finding |
+| Cross-refs | C-74 (a check that does not run), C-86 (the README tree, the same drift one document over), C-77 (the evidence discipline this entry is an instance of), ADR-023 (the release that made the count three). |
+
+The wheel has shipped three packages since v1.7.0. Two documents still said two:
+
+- `.github/workflows/publish_package.yml` — a comment in the workflow that **actually
+  publishes**, naming two of the three. It never used a count word, so only a completeness
+  check sees it.
+- `docs/guides/publishing-to-pypi.md` — `# sanity: BOTH packages + their py.typed`, sitting
+  **two lines above** a comment corrected earlier the same day to say "all three". The file
+  names all three packages elsewhere, so only a literal check sees it.
+
+**Tier 4 — no correctness impact.** Both are comments. The reason this is registered at all is
+the second one: that file was corrected on 2026-08-18 and the class was reported as fixed after
+a grep for one remembered phrasing. This is the fourth time this register has recorded a fix
+that reached the instance rather than the class, and the first time the miss was inside a file
+the author had already edited.
+
+**Check 10 has two halves because neither catches the other's case** — completeness (every
+package in the wheel target is named) misses the guide, literal (no stale count word) misses
+the workflow. It is scoped to the documents describing the *current* wheel and excludes ADRs,
+postmortems, this register and the CHANGELOG, all of which state counts that were true when
+written: ADR-017's "Two packages to maintain", C-23's "shipped in both packages". Flagging
+those would make the check noise, and a noisy check gets deleted. Same scoping reasoning as
+check 3, which restricts itself to the constitutional ADRs.
+
+Mutation-tested in five directions: a stale count word reintroduced, a package dropped from
+either document, a **fourth** package added to the wheel target and left undocumented (the
+generalisation test), and an unreadable package list. All five error.
+
+It then caught a real regression within minutes of being written: a `git checkout` used to
+clean up after the first mutation discarded the still-uncommitted fix to the workflow, and the
+check failed on the next run rather than the mistake reaching a commit.
+
+**What it does not catch**, stated in the check's own comment rather than left to be found: a
+novel phrasing that omits a package in a file which names all three somewhere else. The
+completeness half is per-file, not per-claim.
+
+---
 
 ### C-84: the physical-architecture standard described a repository that no longer existed — RESOLVED
 
