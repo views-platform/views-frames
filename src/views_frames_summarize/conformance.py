@@ -143,24 +143,59 @@ def _assert_tower_contract(frame: AnyFrame, n: int) -> None:
     # Rows differ, so a floor may qualify in one row and not another; it is asserted
     # only where it qualifies. Floors qualifying nowhere carry NO guarantee and sit
     # below platform sample resolution (see tower_point.py and the tip_mass study).
-    srt = np.sort(frame.values.reshape(-1, frame.values.shape[-1]), axis=-1)
-    _, n_tip = _in_range_span(srt, np.ravel(tlo), np.ravel(thi))
-    candidates = tuple(float(m) for m in config.canonical_floors())
+    #
+    # Only floors at or below tip_mass are candidates. A wider floor contains the tip by
+    # nesting from the tip_mass floor, which the assertion above already covers.
+    candidates = tuple(
+        float(m) for m in config.canonical_floors() if float(m) <= tip_mass
+    )
     law_tower = hdi_tower(frame, masses=candidates)
+
+    # Nesting across the candidate grid, asserted UNCONDITIONALLY. Qualification is
+    # derived from `law_tower` — the output under test — so without this a broken tower
+    # could disarm the law with its own defect: degenerate narrow floors give a small
+    # in-range count, fail `2·n_floor > n_tip`, and skip themselves. Nesting needs no
+    # qualification (it is true by construction), so it keeps the teeth.
+    lo_grid, hi_grid = law_tower[..., 0], law_tower[..., 1]
+    assert (np.diff(lo_grid, axis=-1) <= 1e-6).all(), (
+        "sub-tip_mass floors must nest: lowers non-increasing"
+    )
+    assert (np.diff(hi_grid, axis=-1) >= -1e-6).all(), (
+        "sub-tip_mass floors must nest: uppers non-decreasing"
+    )
+
+    # Counted block-wise, in the same row blocks `hdi_tower` uses. The published suite
+    # must stay inside the memory discipline of the code it certifies (C-22/C-25/C-71):
+    # sorting the whole grid at once would allocate a full copy of a 1M×1000 frame.
+    #
+    # A `zero_cutoff` row (C-45) collapses to (0, 0) in both tower and tip, so its
+    # in-range counts are 0, nothing qualifies, and the row is skipped — correctly:
+    # containment of tip 0 in floor (0, 0) is trivially true there.
+    s_count = int(frame.values.shape[-1])
+    flat = np.ascontiguousarray(frame.values).reshape(-1, s_count)
+    flat_lo = lo_grid.reshape(-1, len(candidates))
+    flat_hi = hi_grid.reshape(-1, len(candidates))
     flat_tip = np.ravel(tip.values[..., 0])
-    for j, m in enumerate(candidates):
-        glo = np.ravel(law_tower[..., j, 0])
-        ghi = np.ravel(law_tower[..., j, 1])
-        _, n_floor = _in_range_span(srt, glo, ghi)
-        qualifies = 2 * n_floor > n_tip
-        if not qualifies.any():
-            continue
-        assert (flat_tip[qualifies] >= glo[qualifies] - 1e-6).all(), (
-            f"MAP-containment violated: tip below the {m:.2f} floor"
-        )
-        assert (flat_tip[qualifies] <= ghi[qualifies] + 1e-6).all(), (
-            f"MAP-containment violated: tip above the {m:.2f} floor"
-        )
+    tip_lo, tip_hi = np.ravel(tlo), np.ravel(thi)
+    block_rows = int(config.get("row_block"))
+
+    for start in range(0, flat.shape[0], block_rows):
+        stop = min(start + block_rows, flat.shape[0])
+        srt = np.sort(flat[start:stop], axis=-1)
+        _, n_tip = _in_range_span(srt, tip_lo[start:stop], tip_hi[start:stop])
+        for j, m in enumerate(candidates):
+            glo, ghi = flat_lo[start:stop, j], flat_hi[start:stop, j]
+            _, n_floor = _in_range_span(srt, glo, ghi)
+            qualifies = 2 * n_floor > n_tip
+            if not qualifies.any():
+                continue
+            tips = flat_tip[start:stop]
+            assert (tips[qualifies] >= glo[qualifies] - 1e-6).all(), (
+                f"MAP-containment violated: tip below the {m:.2f} floor"
+            )
+            assert (tips[qualifies] <= ghi[qualifies] + 1e-6).all(), (
+                f"MAP-containment violated: tip above the {m:.2f} floor"
+            )
 
     # Reproducibility law: the 50% HDI is independent of the other requested masses.
     just_50 = hdi_tower(frame, masses=(0.5,))

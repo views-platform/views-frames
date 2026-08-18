@@ -904,6 +904,15 @@ loosen the qualification to certify every floor            → FAILED  ✅ the o
 
 **`CONFORMANCE_FLOOR` stays `1.0.0`.** The correction *narrows* what the suite asserts, so consumers who passed still pass and consumers who failed now pass. GOVERNANCE bumps the floor only on a breaking change to the published surface, and nothing here breaks. The published bands (50/90/95/99) qualify as before.
 
+**The first fix introduced a regression, found by review.** Deriving qualification from `law_tower` — the output the law validates — meant a broken tower could **disarm the law with its own defect**: degenerate narrow floors give a small in-range count, fail `2·n_floor > n_tip`, and skip themselves. Demonstrated by collapsing every sub-`tip_mass` floor to the row maximum, a gross violation of both nesting and containment: the *old* law caught it, the first version of the *new* one passed clean.
+
+My mutations had probed the qualification arithmetic and the tip — never the tower output. Fixed by asserting **nesting across the candidate grid unconditionally**, which needs no qualification because it is true by construction, and which catches that mutation (both tests now fail under it).
+
+Two more from the same review:
+
+- **Memory.** The first version sorted the whole grid at once and asked `hdi_tower` for all 25 canonical floors — the discipline C-22/C-25/C-71 exist to protect. Now counted in the same row blocks `hdi_tower` uses, with candidates restricted to floors ≤ `tip_mass` (wider floors contain the tip by nesting from the tip-mass floor, already asserted). Measured on 200k×32: **143 MB peak, against 149 MB on `development`** — below the pre-change baseline, not above it.
+- **`zero_cutoff` rows** (C-45) collapse to `(0, 0)` in both tower and tip, so their in-range counts are 0, nothing qualifies, and they are skipped. That is correct rather than a gap — containment of tip 0 in floor `(0, 0)` is trivially true — and the code now says so.
+
 Prose corrected in the same change: `docs/ADRs/019_...md` (Amendment 3's false parenthetical, plus Amendment 4 recording all of this), `docs/CICs/Summarize.md` (banner and §3), `src/views_frames_summarize/config.py`, `src/views_frames_summarize/tower_point.py`.
 
 ---
