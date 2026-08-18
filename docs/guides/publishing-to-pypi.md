@@ -110,7 +110,7 @@ Trusted-Publishing workflow (recommended) **or** create a new token **scoped to 
 ```bash
 rm -rf dist && uv build
 uvx --from twine twine check dist/*            # both files must say PASSED
-# sanity: BOTH packages + their py.typed are in the wheel
+# sanity: all three packages + their py.typed are in the wheel
 python3 -c "import zipfile,glob; ns=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); \
 print([n for n in ns if n.endswith('py.typed')])"   # expect all three packages' py.typed
 

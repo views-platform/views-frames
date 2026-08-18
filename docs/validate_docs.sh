@@ -284,6 +284,63 @@ fi
 
 fi  # ../src exists
 
+# 10. The documents that describe the CURRENT wheel name every package it ships, and
+#     none of them claims a stale count (register: the package-count drift class).
+#
+#     Two halves, because neither catches the other's case. `.github/workflows/
+#     publish_package.yml` named two of three packages while never using a count word,
+#     so only the completeness half sees it; `docs/guides/publishing-to-pypi.md` said
+#     "BOTH packages" in one comment while naming all three elsewhere in the same file,
+#     so only the literal half sees it. Both were live on 2026-08-18.
+#
+#     SCOPED ON PURPOSE to documents that describe the wheel as it is today. ADRs,
+#     postmortems, the register and the CHANGELOG state counts that were true when
+#     written — "Two packages to maintain" (ADR-017), "shipped in both packages" (a
+#     dated C-23 resolution) — and flagging those would make this check noise, which
+#     is how a check gets deleted. Same reasoning as check 3, which restricts itself
+#     to the constitutional ADRs.
+#
+#     WHAT IT DOES NOT CATCH: a novel phrasing that omits a package in a file which
+#     names all three somewhere else. The completeness half is per-file, not per-claim.
+echo "--- Checking the wheel-describing documents against pyproject.toml ---"
+before=$errors
+WHEEL_DOCS="../.github/workflows/publish_package.yml ../docs/guides/publishing-to-pypi.md"
+if [ ! -f "../pyproject.toml" ]; then
+    echo "  ERROR: no ../pyproject.toml; cannot read the wheel's package list"
+    errors=$((errors + 1))
+else
+    # The source of truth: [tool.hatch.build.targets.wheel] packages = ["src/a", "src/b"]
+    pkgs=$(grep -m1 '^packages = \[' ../pyproject.toml | grep -oE '"[^"]+"' | tr -d '"' | sed 's|.*/||')
+    pkg_count=$(printf '%s\n' "$pkgs" | grep -c .)
+    if [ "$pkg_count" -eq 0 ]; then
+        echo "  ERROR: could not read [tool.hatch.build.targets.wheel] packages from pyproject.toml"
+        errors=$((errors + 1))
+    fi
+    for doc in $WHEEL_DOCS; do
+        if [ ! -f "$doc" ]; then
+            echo "  ERROR: $doc is missing; it is one of the documents that describes the wheel"
+            errors=$((errors + 1))
+            continue
+        fi
+        # (a) completeness — every shipped package is named
+        for pkg in $pkgs; do
+            grep -qE "\b${pkg}\b" "$doc" || {
+                echo "  ERROR: $doc does not name '$pkg', which the wheel ships"
+                errors=$((errors + 1))
+            }
+        done
+        # (b) literal — no stale count word
+        stale=$(grep -niE '\b(both|two) packages\b' "$doc" || true)
+        if [ -n "$stale" ]; then
+            echo "  ERROR: $doc claims a stale package count (the wheel ships $pkg_count):"
+            printf '    %s\n' "$stale"
+            errors=$((errors + 1))
+        fi
+    done
+fi
+[ "$errors" -eq "$before" ] && echo "  OK (wheel ships $pkg_count packages; checked $(printf '%s' "$WHEEL_DOCS" | wc -w) wheel-describing documents)"
+
+
 echo ""
 if [ "$errors" -gt 0 ]; then
     echo "=== FAILED: $errors issue(s) found ==="
