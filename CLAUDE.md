@@ -6,7 +6,9 @@ at the **root of the platform dependency DAG**, plus two sibling operation packa
 in the same wheel. numpy only; depends on nothing internal; every other repo
 depends *toward* it.
 
-> **Status:** **released — v2.x on PyPI**. The v1 API was frozen from v1.0.0 (ADR-018)
+> **Status:** **v2.x — the version in this tree**; see
+> [PyPI](https://pypi.org/project/views-frames/) for what is published. The v1 API was
+> frozen from v1.0.0 (ADR-018)
 > and **broken once, deliberately, in 2.0.0** (ADR-028): a frame's `index` must now
 > actually be a `SpatioTemporalIndex`, and `frame.values` is write-protected.
 > `CONFORMANCE_FLOOR` moved `1.0.0` → `2.0.0` — its first move. Everything else is
@@ -17,10 +19,10 @@ depends *toward* it.
 
 ## Maintenance mode
 
-**This package is finished.** It is released, its public API was frozen at v1.0.0 and has been
-broken exactly once since (2.0.0, ADR-028 — a validation hole found by attacking the claim
-that it was finished),
-and its governance documents have been checked against the code and are now asserted by CI.
+**This package is finished.** It is published on PyPI, its public API was frozen at v1.0.0 and
+has been broken exactly once since (2.0.0, ADR-028 — a validation hole found by attacking the
+claim that it was finished), and its governance documents have been checked against the code
+and are now asserted by CI.
 Work here should be rare, small, and caused by something outside this repository.
 
 **Do not run discovery tooling here.** `repo-assimilation`, `graphify`, `review-base-docs`
