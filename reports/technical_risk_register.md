@@ -846,34 +846,55 @@ The last two came from reviewing the first draft, which hard-coded the two filen
 | ID | C-79 |
 | Tier | 4 |
 | Resolved | 2026-08-18 (Epic #240 / S8 #248) |
-| Resolution | Two parquet fixtures **written by the `save` extracted from the `v1.8.0` tag**, plus tests asserting today's `load` reads them bit-exactly. Mutation-tested three ways. See below. |
+| Resolution | Parquet **and npz** fixtures written by the `save` functions extracted from the `v1.8.0` tag, tests asserting today's `load` reads them bit-exactly at both the codec and the public-API level, and a **behavioural** writer-drift guard that runs in the suite. Six mutations. See below. |
 | Source | test-review (2026-07-31), Kleppmann lens. |
 | Cross-refs | **C-72** (the v1.10.1 validation these fixtures predate — the specific change this gap could not see), C-73 (the same function's memory residual), **C-90** (the codec divergence found in S5 — a silently-stringified metadata value is exactly what a same-version round-trip cannot see), C-46, views-postprocessing ADR-013, views-faoapi #100. |
 
 Every arrow IO test wrote a file and read it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that matters for a data-contract package: that a file written by an earlier release still loads.
 
-**The fixtures are written by released code, not by code believed equal to it.** `scripts/gen_arrow_crossversion_fixture.py` extracts `src/views_frames/io/arrow.py` from the **`v1.8.0` tag**, loads it as its own module, and writes with *that* `save`. A fixture produced by current code would only prove the codec round-trips itself — which `test_io.py` already covered.
+**The fixtures are written by released code, not by code believed equal to it.** `scripts/gen_arrow_crossversion_fixture.py` extracts `io/arrow.py` and `io/npz.py` from the **`v1.8.0` tag**, loads each as its own module, and writes with *those* `save` functions. A fixture produced by current code would only prove the codec round-trips itself — which `test_io.py` already covered.
 
-`v1.8.0` is the right writer because it **predates v1.10.1**, which added three `ValueError` paths to `load` rejecting row orders that violate the wire contract (C-72). Those rules were derived from what `save` writes *today*; the fixtures are the evidence they accept a file written before they existed.
+`v1.8.0` predates **v1.10.1**, which added three `ValueError` paths to `arrow.load` rejecting row orders that violate the wire contract (C-72). Those rules were derived from what `save` writes *today*; the fixtures are the evidence they accept a file written before they existed.
 
 ```
 $ uv run --extra arrow python scripts/gen_arrow_crossversion_fixture.py
-wrote tests/fixtures/arrow_v1_8_0_prediction.parquet (1766 bytes, writer v1.8.0)
-wrote tests/fixtures/arrow_v1_8_0_feature.parquet    (2054 bytes, writer v1.8.0)
+wrote tests/fixtures/arrow_v1_8_0_prediction.parquet (1817 bytes, writer v1.8.0)
+wrote tests/fixtures/arrow_v1_8_0_feature.parquet (2078 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/header.json (103 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/identifiers.npz (566 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/values.npy (176 bytes, writer v1.8.0)
 ```
 
-**C-79's original measurement re-confirmed**: `save` extracted from `v1.8.0` and from `HEAD` and diffed — **byte-identical**. So the fixtures are also what any release since v1.8.0 would produce. The generator asserts this on every run and **refuses to write** if `save` has changed, with a message saying to regenerate from the last release that still carries the old writer *before* the change lands — because afterwards no unmodified writer exists to produce one. **That is the trigger this entry always carried, now enforced by the tool rather than by remembering.**
+**Three things the code review corrected, and the first is this entry lying about itself.**
 
-**Mutation-tested** — a fixture test that has never failed guards nothing:
+**1. The trigger was not enforced.** The first version put a `save`-unchanged guard *inside the generator script* and this entry claimed the trigger was "now enforced by the tool rather than by remembering". **Nothing invokes the generator** — no test, no CI job, no hook (verified by grep across `*.yml`, `*.py`, `*.sh`). The exact failure it was meant to prevent — someone edits `save`, CI stays green, the change merges, the last unmodified writer is gone — played out exactly as before. That is C-77, in the resolution of the entry whose entire value is a trigger.
+
+**2. The guard compared source text, so it was wrong in both directions.** A `ruff format` sweep inside `save` would have tripped it for a change altering no written byte — and this repo did precisely such a sweep in `8501622`. Meanwhile a module-level change that *does* alter the bytes (a `compression=` default, a swapped import) passed it untouched.
+
+Both are fixed by making the guard **behavioural and a test**: `test_todays_writer_still_reproduces_the_v1_8_0_fixture` writes with today's `save` and byte-compares against the committed fixture. Verified:
 
 ```
-simulate a new wire rule the old file violates   → FAILED  ✅
-transpose the reshape (plausible floats,
-  wrong sample slots — the C-72 failure mode)    → FAILED  ✅
-drop feature_names on load                       → FAILED (the 3-D test)  ✅
+reformat inside save (old guard wrongly tripped)   → 4 passed   ✅ not tripped
+pq.write_table(..., compression="gzip")            → 1 failed   ✅ caught
+  (the old guard missed this one entirely)
 ```
 
-The digests are of `values.tobytes()`, which is why the second one fails: a reshape producing plausible-but-wrong sample slots passes every shape assertion and fails the digest.
+**3. The evidence stopped at the codec.** The path a consumer actually uses to revive archived data is `PredictionFrame.load` → `npz.load` → `SpatioTemporalIndex(...)` → `FrameMetadata.from_dict`, and none of it was covered — a future construction-time invariant would reject archived files with nothing to catch it. `npz.save` is byte-identical since v1.8.0 too, so an npz fixture and a public-API test were added in the same window. Verified by adding a construction-time invariant that rejects the archived frame: **1 failed**.
+
+Fixture metadata now carries `timestamp` and `seed` as **ints**, not just strings. A JSON type drift on a non-string header field crossing versions is the bug class **C-90** records, and string-only fixtures would not have exercised it.
+
+**Mutation-tested throughout** — a fixture test that has never failed guards nothing:
+
+```
+simulate a new wire rule the old file violates        → FAILED  ✅
+transpose the reshape (plausible floats, wrong slots) → FAILED  ✅
+drop feature_names on load                            → FAILED  ✅
+reformat save                                          → passed  ✅ (correctly tolerated)
+alter the written bytes                                → FAILED  ✅
+tighten a construction invariant                       → FAILED  ✅ (npz path)
+```
+
+The digests are of `values.tobytes()`, which is why the transpose is caught: plausible floats in the wrong sample slots pass every shape and dtype assertion — the C-72 failure mode exactly.
 
 **Tier 4 was right and remains right.** Exposure was measured at zero when the entry was written and still is — `save` has not changed. This closes a **preventive** gap, and its value is entirely in the trigger: the moment `save` changes, the generator now stops the change rather than letting the opportunity pass silently.
 

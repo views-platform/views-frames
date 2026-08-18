@@ -8,7 +8,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from views_frames import FeatureFrame, SpatialLevel, SpatioTemporalIndex
+from views_frames import (
+    FeatureFrame,
+    PredictionFrame,
+    SpatialLevel,
+    SpatioTemporalIndex,
+)
 from views_frames.io import arrow, npz
 
 
@@ -241,22 +246,32 @@ def test_arrow_load_whole_cell_reorder_still_loads(tmp_path):
     assert np.array_equal(out["values"][0], np.array([2.0, 3.0], dtype=np.float32))
 
 
-# 🟩 Cross-version load (register C-79). Every other arrow test writes and reads in
-# ONE process at ONE version. That proves the codec is self-consistent and nothing
-# about the property that matters for a data-contract package: that a file written by
-# an EARLIER release still loads.
+# 🟩 Cross-version load (register C-79). Every other IO test writes and reads in ONE
+# process at ONE version. That proves the codec is self-consistent and nothing about
+# the property that matters for a data-contract package: that a file written by an
+# EARLIER release still loads.
 #
-# The fixtures were written by the `save` extracted from the `v1.8.0` tag (see
-# `scripts/gen_arrow_crossversion_fixture.py`), which predates the three `ValueError`
-# wire-contract paths v1.10.1 added to `load` (register C-72). So they are evidence
-# that those rules — derived from what `save` writes today — accept a file written
-# before they existed. Consumers on this path hold archived shards
+# The fixtures were written by the `save` functions extracted from the `v1.8.0` tag
+# (see `scripts/gen_arrow_crossversion_fixture.py`), which predates the three
+# `ValueError` wire-contract paths v1.10.1 added to `arrow.load` (register C-72). So
+# they are evidence that those rules — derived from what `save` writes today — accept a
+# file written before they existed. Consumers on this path hold archived shards
 # (views-postprocessing, views-faoapi #100).
+#
+# Metadata deliberately carries `timestamp` and `seed` **ints**, not just strings: a
+# JSON type drift on a non-string header field crossing versions is the bug class
+# register C-90 is about, and string-only fixtures would not exercise it.
 #
 # The digests are of `values.tobytes()`, so a reshape producing plausible-but-wrong
 # sample slots fails here even though every shape assertion would still pass.
 
 _FIXTURES = Path(__file__).parent / "fixtures"
+
+_ARROW_PREDICTION_SHA = (
+    "ed1b8370ff480a85a4f6a81847c194b87a8c8db7c57e4afe5c57bb1b35c15f39"
+)
+_ARROW_FEATURE_SHA = "5b65d2161fab1cf85c83eaaeadadcb76ca171d2d00006136e727ac170d4ebf15"
+_NPZ_PREDICTION_SHA = "74330ba96baa66dc5c6e8bf53d1b00bfe2e46b0749b9ac84cee8b4559fb3815f"
 
 
 def test_v1_8_0_prediction_parquet_still_loads():
@@ -265,13 +280,17 @@ def test_v1_8_0_prediction_parquet_still_loads():
     assert state["values"].shape == (4, 3)
     assert state["values"].dtype == np.float32
     assert state["level"] == "pgm"
-    assert state["metadata"] == {"model": "fixture", "run_id": "c79-crossversion"}
+    assert state["metadata"] == {
+        "model": "fixture",
+        "run_id": "c79",
+        "timestamp": 202608,
+        "seed": 7,
+    }
     assert state["feature_names"] is None
     np.testing.assert_array_equal(state["time"], np.array([1, 1, 2, 2]))
     np.testing.assert_array_equal(state["unit"], np.array([10, 11, 10, 11]))
     assert (
-        hashlib.sha256(state["values"].tobytes()).hexdigest()[:32]
-        == "ed1b8370ff480a85a4f6a81847c194b8"
+        hashlib.sha256(state["values"].tobytes()).hexdigest() == _ARROW_PREDICTION_SHA
     )
 
 
@@ -281,11 +300,64 @@ def test_v1_8_0_feature_parquet_still_loads():
     assert state["values"].shape == (4, 2, 3)
     assert state["values"].dtype == np.float32
     assert state["level"] == "pgm"
-    assert state["metadata"] == {"model": "fixture", "data_version": "c79"}
+    assert state["metadata"] == {
+        "model": "fixture",
+        "data_version": "c79",
+        "seed": 11,
+    }
     assert state["feature_names"] == ["ged_sb", "pop"]
-    np.testing.assert_array_equal(state["time"], np.array([1, 1, 2, 2]))
-    np.testing.assert_array_equal(state["unit"], np.array([10, 11, 10, 11]))
-    assert (
-        hashlib.sha256(state["values"].tobytes()).hexdigest()[:32]
-        == "5b65d2161fab1cf85c83eaaeadadcb76"
+    assert hashlib.sha256(state["values"].tobytes()).hexdigest() == _ARROW_FEATURE_SHA
+
+
+def test_v1_8_0_npz_frame_still_loads_through_the_public_api():
+    """The path a consumer actually uses to revive archived data.
+
+    `arrow` is checked above at the codec level. This goes through the whole public
+    route — `PredictionFrame.load` -> `npz.load` -> `SpatioTemporalIndex(...)` ->
+    `FrameMetadata.from_dict` — so a future construction-time invariant or a
+    `SpatialLevel`/dtype tightening that would reject an archived file fails here.
+    """
+    frame = PredictionFrame.load(_FIXTURES / "npz_v1_8_0_prediction")
+
+    assert frame.values.shape == (4, 3)
+    assert frame.values.dtype == np.float32
+    assert frame.index.level is SpatialLevel.PGM
+    assert frame.metadata.model == "fixture"
+    assert frame.metadata.run_id == "c79-npz"
+    assert frame.metadata.timestamp == 202608
+    assert frame.metadata.seed == 3
+    np.testing.assert_array_equal(frame.index.time, np.array([1, 1, 2, 2]))
+    assert hashlib.sha256(frame.values.tobytes()).hexdigest() == _NPZ_PREDICTION_SHA
+
+
+def test_todays_writer_still_reproduces_the_v1_8_0_fixture(tmp_path):
+    """The writer-drift guard (register C-79) — and the reason it is a *test*.
+
+    C-79's value was always its trigger: the moment `save` changes, an unmodified
+    writer no longer exists to produce a fixture from, so the chance to capture one
+    is gone. The first version of this guard compared the *source text* of `save`
+    inside the generator script — which nothing ran, so it enforced nothing, and which
+    a `ruff format` sweep would have tripped while a module-level change altering the
+    written bytes slipped past it.
+
+    This compares **bytes**: today's writer, given the fixture's inputs, must still
+    produce the committed file exactly. Reformatting cannot trip it; any change that
+    alters output does.
+    """
+    rng = np.random.default_rng(20260818)
+    out = tmp_path / "today.parquet"
+    arrow.save(
+        out,
+        values=rng.random((4, 3), dtype=np.float32),
+        time=np.array([1, 1, 2, 2], dtype=np.int64),
+        unit=np.array([10, 11, 10, 11], dtype=np.int64),
+        level="pgm",
+        metadata={"model": "fixture", "run_id": "c79", "timestamp": 202608, "seed": 7},
+    )
+    committed = (_FIXTURES / "arrow_v1_8_0_prediction.parquet").read_bytes()
+    assert out.read_bytes() == committed, (
+        "today's `arrow.save` no longer reproduces the v1.8.0 fixture. Before landing "
+        "the change to `save`, regenerate the cross-version fixtures from the LAST "
+        "release that still carries the old writer — afterwards no unmodified writer "
+        "exists to produce one (register C-79)."
     )

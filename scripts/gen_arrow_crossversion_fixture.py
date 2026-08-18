@@ -35,7 +35,6 @@ change, the cross-version test stops testing what it says it tests.
 
 from __future__ import annotations
 
-import ast
 import importlib.util
 import subprocess
 import sys
@@ -49,52 +48,27 @@ FIXTURES = REPO_ROOT / "tests" / "fixtures"
 WRITER_TAG = "v1.8.0"
 
 
-def _load_released_arrow(tag: str) -> types.ModuleType:
-    """Import `io/arrow.py` as it existed at `tag`, without touching the working tree."""
+def _load_released(tag: str, relpath: str) -> types.ModuleType:
+    """Import a module as it existed at `tag`, without touching the working tree."""
     source = subprocess.run(
-        ["git", "show", f"{tag}:src/views_frames/io/arrow.py"],
+        ["git", "show", f"{tag}:{relpath}"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    module = types.ModuleType(f"_arrow_{tag.replace('.', '_')}")
-    module.__file__ = f"<{tag}:src/views_frames/io/arrow.py>"
+    name = relpath.rsplit("/", 1)[-1].removesuffix(".py")
+    module = types.ModuleType(f"_{name}_{tag.replace('.', '_')}")
+    module.__file__ = f"<{tag}:{relpath}>"
     exec(compile(source, module.__file__, "exec"), module.__dict__)  # noqa: S102
     return module
-
-
-def _assert_save_unchanged_since(tag: str) -> None:
-    """Fail loudly if `save` has changed since `tag` — the fixtures would be misleading."""
-
-    def extract(src: str) -> str:
-        lines = src.splitlines(True)
-        for node in ast.parse(src).body:
-            if isinstance(node, ast.FunctionDef) and node.name == "save":
-                return "".join(lines[node.lineno - 1 : node.end_lineno])
-        raise SystemExit(f"no save() found in {tag}")
-
-    released = subprocess.run(
-        ["git", "show", f"{tag}:src/views_frames/io/arrow.py"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    current = (REPO_ROOT / "src" / "views_frames" / "io" / "arrow.py").read_text()
-    if extract(released) != extract(current):
-        raise SystemExit(
-            f"save() has changed since {tag}. Regenerate these fixtures from the LAST "
-            "release that still carries the old writer, before that change lands — "
-            "afterwards no unmodified writer exists to produce one (register C-79)."
-        )
 
 
 def main() -> int:
     if importlib.util.find_spec("pyarrow") is None:
         raise SystemExit("pyarrow is required: uv run --extra arrow python scripts/...")
-    _assert_save_unchanged_since(WRITER_TAG)
-    arrow = _load_released_arrow(WRITER_TAG)
+    arrow = _load_released(WRITER_TAG, "src/views_frames/io/arrow.py")
+    npz = _load_released(WRITER_TAG, "src/views_frames/io/npz.py")
     FIXTURES.mkdir(parents=True, exist_ok=True)
 
     rng = np.random.default_rng(20260818)
@@ -108,7 +82,7 @@ def main() -> int:
         time=time,
         unit=unit,
         level="pgm",
-        metadata={"model": "fixture", "run_id": "c79-crossversion"},
+        metadata={"model": "fixture", "run_id": "c79", "timestamp": 202608, "seed": 7},
     )
 
     # 3-D (N, F, S): a FeatureFrame's state, with feature_names.
@@ -118,13 +92,38 @@ def main() -> int:
         time=time,
         unit=unit,
         level="pgm",
-        metadata={"model": "fixture", "data_version": "c79"},
+        metadata={"model": "fixture", "data_version": "c79", "seed": 11},
         feature_names=["ged_sb", "pop"],
     )
 
-    for name in ("arrow_v1_8_0_prediction.parquet", "arrow_v1_8_0_feature.parquet"):
+    # npz — the format `PredictionFrame.save`/`load` actually use. A consumer reviving an
+    # archived frame goes through `npz.load` -> `SpatioTemporalIndex(...)` ->
+    # `FrameMetadata.from_dict`, so a construction-time tightening would reject old files
+    # with nothing to catch it. `npz.save` is byte-identical since v1.8.0 too.
+    npz.save(
+        FIXTURES / "npz_v1_8_0_prediction",
+        values=rng.random((4, 3), dtype=np.float32),
+        time=time,
+        unit=unit,
+        level="pgm",
+        metadata={
+            "model": "fixture",
+            "run_id": "c79-npz",
+            "timestamp": 202608,
+            "seed": 3,
+        },
+    )
+
+    for name in (
+        "arrow_v1_8_0_prediction.parquet",
+        "arrow_v1_8_0_feature.parquet",
+    ):
         size = (FIXTURES / name).stat().st_size
         print(f"wrote tests/fixtures/{name} ({size} bytes, writer {WRITER_TAG})")
+    for f in sorted((FIXTURES / "npz_v1_8_0_prediction").iterdir()):
+        print(
+            f"wrote tests/fixtures/npz_v1_8_0_prediction/{f.name} ({f.stat().st_size} bytes, writer {WRITER_TAG})"
+        )
     return 0
 
 
