@@ -110,10 +110,18 @@ tf.values[:] = 0          # unsupported: silent shared-buffer corruption, no err
 
 ## 10. Test Alignment
 
-- **Green:** construction validation (`(N, 1)`, dtype, identifiers); save/load round-trip.
+- **Green:** construction validation (`(N, 1)`, dtype, identifiers) and save/load
+  round-trip — `tests/test_frames.py`; row ops and cross-frame parity —
+  `tests/test_select.py`, `tests/test_frame_parity.py`; the metadata round-trip —
+  `tests/test_frames.py::test_metadata_survives_save_load_for_all_three_frames`.
 - **Beige:** serves through the same protocol surface as `PredictionFrame`
-  (`is_sample == False`).
-- **Red:** `(N,)` or `(N, S>1)` input raises; no-pandas import-enforcement.
+  (`is_sample == False`) — `tests/test_falsification_twin_parity.py`; copy-vs-view —
+  `tests/test_properties.py`.
+- **Red:** `(N,)` or `(N, S>1)` input raises — `tests/test_construction_red.py`;
+  no-pandas import-enforcement — `tests/test_import_enforcement.py`.
+
+(This section named no pinning test file until 2026-08-18, where the other CICs name
+one to five — register C-80.)
 
 ---
 

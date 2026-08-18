@@ -21,6 +21,8 @@ from views_frames_summarize.summarize_tower import summarize_tower
 from views_frames_summarize.tower import _in_range_span, hdi_tower
 from views_frames_summarize.tower_point import tower_point
 
+__all__ = ["assert_summarizer_contract"]
+
 
 def _require_assertions() -> None:
     """Fail loud if assertions are stripped (``python -O``/``-OO``).

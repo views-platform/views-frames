@@ -19,6 +19,8 @@ from numpy.typing import NDArray
 from views_frames import PredictionFrame, SpatialLevel
 from views_frames_reconcile.module import ReconciliationModule
 
+__all__ = ["assert_reconcile_contract"]
+
 
 def _require_assertions() -> None:
     """Fail loud if assertions are stripped (``python -O``/``-OO``).

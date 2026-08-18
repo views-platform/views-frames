@@ -68,6 +68,10 @@ dev = [
     # Enforces [tool.importlinter] below. All three packages are cycle-free today;
     # this keeps them that way rather than discovering otherwise in six months.
     "import-linter>=2.0",
+    # tomllib is stdlib from 3.11; the 3.10 floor needs the backport, or
+    # tests/test_packaging.py collects nothing on the leg the floor job exists for
+    # (register C-80).
+    "tomli>=2; python_version<'3.11'",
 ]
 
 # Both contracts record the dependency direction the code already has — they are not a

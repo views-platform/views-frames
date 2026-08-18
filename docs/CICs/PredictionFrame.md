@@ -124,8 +124,12 @@ pf.values[:] = 0          # unsupported: silent shared-buffer corruption, no err
 
 - **Green:** construction validation; `select`/`reindex` parity (`test_frame_parity.py`);
   save/load round-trip.
-- **Beige:** `mmap` load keeps peak RAM at the working set; `with_metadata` allocates
-  no second `values` buffer (the copy-vs-view property, C-07).
+- **Beige:** `mmap` load returns an `np.memmap` and is read-only
+  (`tests/test_io.py::test_npz_mmap_returns_memmap`) — a **type** check, not a memory
+  measurement. Memmap implies lazy paging by definition, so the proxy is sound, but
+  §10 previously read as though peak RAM were measured here; it is not (register
+  C-80). `with_metadata` allocates no second `values` buffer — that one *is* measured
+  (`tests/test_properties.py::test_with_metadata_shares_the_values_buffer`, C-07).
 - **Red:** object-dtype / wrong-dtype / NaN-identifier construction raises;
   no-pandas import-enforcement.
 

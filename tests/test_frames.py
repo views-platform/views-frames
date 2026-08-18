@@ -180,3 +180,55 @@ def test_target_frame_save_load_roundtrip(tmp_path):
     loaded = TargetFrame.load(tmp_path)
     assert np.array_equal(loaded.values, tf.values)
     assert loaded.is_sample is False
+
+
+# 🟩 Three guarantees `docs/CICs/FrameMetadata.md` §3 states that nothing pinned
+# (register C-80). Found by writing that contract, recorded in its §10 as gaps.
+
+
+def test_metadata_unknown_keys_are_dropped_not_stored():
+    # `test_metadata_ignores_unknown_keys` above only asserts that `from_dict` does not
+    # raise. The behaviour with the durable consequence — a header written by a newer
+    # version loses fields when read by an older one, and re-saving persists the loss —
+    # is that the key is DISCARDED. That is what this pins.
+    md = FrameMetadata.from_dict({"model": "x", "future_field": 1})
+    assert not hasattr(md, "future_field")
+    assert "future_field" not in md.to_dict()
+
+
+def test_frame_without_metadata_exposes_an_empty_header_not_none():
+    # §3: `frame.metadata` always returns a FrameMetadata. Every consumer reading
+    # provenance depends on it, and nothing asserted it.
+    for frame in (
+        PredictionFrame(np.zeros((2, 3), dtype=np.float32), _index(2)),
+        TargetFrame(np.zeros((2, 1), dtype=np.float32), _index(2)),
+        FeatureFrame(
+            np.zeros((2, 1, 3), dtype=np.float32), _index(2), feature_names=["a"]
+        ),
+    ):
+        assert isinstance(frame.metadata, FrameMetadata)
+        assert frame.metadata.to_dict() == {}
+
+
+def test_metadata_survives_save_load_for_all_three_frames(tmp_path):
+    # The round-trip was pinned for PredictionFrame only; Feature and Target had no
+    # equivalent — `test_feature_frame_save_load_preserves_names` covers feature_names,
+    # not the header.
+    md = FrameMetadata(model="m", run_id="r", timestamp=7, seed=3)
+    cases = (
+        (PredictionFrame(np.zeros((2, 3), dtype=np.float32), _index(2), md), {}),
+        (TargetFrame(np.zeros((2, 1), dtype=np.float32), _index(2), md), {}),
+        (
+            FeatureFrame(
+                np.zeros((2, 1, 3), dtype=np.float32),
+                _index(2),
+                feature_names=["a"],
+                metadata=md,
+            ),
+            {},
+        ),
+    )
+    for i, (frame, _) in enumerate(cases):
+        directory = tmp_path / f"f{i}"
+        frame.save(directory)
+        assert type(frame).load(directory).metadata == md
