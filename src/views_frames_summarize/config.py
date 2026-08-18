@@ -35,7 +35,8 @@ TOWER_CONFIG: Final[dict[str, Any]] = {
     # passes the real-cell C-44 gate with margin — the tip floor's median is safe as
     # long as a duplicate stack is under half the floor (k > 2·duplicates; at S=32,
     # k=8 tolerates the observed 2-3-zero stacks). Containment law: every HDI of mass
-    # > tip_mass/2 provably contains the tip (asserted in conformance.py).
+    # > tip_mass/2 provably contains the tip (asserted in conformance.py, which counts a
+    # floor's occupancy rather than computing it from the mass — register C-88).
     "tip_mass": 0.25,
     # Optional magnitude zero rule, OFF by default (``None``). When set to a float, a
     # row whose every draw is <= it collapses to 0 — a *count* opt-in (sub-1 ⇒ 0).

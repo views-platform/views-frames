@@ -7,6 +7,7 @@ amendment 2026-07-24, evidence in `research/map_hdi/tip_mass_study.py`). Zero-in
 is handled by that floor's density (a zero-majority row reads 0); the optional,
 off-by-default magnitude cutoff applies too if set (C-45). Containment law: every HDI
 whose floor holds more than half the tip floor's draws provably contains the tip
+(occupancy counted from the draws in range, not computed from the mass — register C-88)
 (asymptotically, mass > `tip_mass`/2 — a nested contiguous window longer than half
 the parent cannot trim away the parent's median); narrower floors carry no guarantee
 and are below platform sample resolution. Asserted in ``conformance.py``.

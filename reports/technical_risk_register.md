@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
 | Total Concerns    | 89                                   |
-| Open Concerns     | 19                                   |
-| Resolved Concerns | 70                                   |
+| Open Concerns     | 18                                   |
+| Resolved Concerns | 71                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -157,43 +157,6 @@ That is a constructor signature inside a description of a *function*. There is n
 **Tier 4.** The type is a `NamedTuple` whose fields are self-describing and whose components (`tower_point`, `hdi_tower`, `bimodality`) are each contracted individually in the same document — so a reader is not left without recourse, only without a direct answer. Registered because it is the one known false pass of a check this epic added, and leaving it unrecorded would make that check's INFO output look like noise rather than a pointer at something real.
 
 **Resolved when** `Summarize.md` either contracts the type — fields, guarantees, and the "provably equal to the trio" claim stated as a law — or records why a bundle of already-contracted components needs no separate entry.
-
----
-
-### C-88: the published MAP-containment law is wrong on tied draws — it fails on ~6% of ordinary count posteriors
-
-| Field | Value |
-|-------|-------|
-| ID | C-88 |
-| Tier | 2 |
-| Status | **actionable** — the fix is local to the law's arithmetic, but it touches ADR-019's 2026-07-24 amendment and the published suite, so it needs a decision on *which* correction |
-| Source | code-review (2026-08-17), during S4 of epic #240; reproduced independently before registering. |
-| Trigger | **When any consumer wires `assert_summarizer_contract` into its CI against real count data** — views-postprocessing and views-faoapi both hold zero-inflated integer fatality draws, which is the shape that fires it. Their CI goes red on correct data. Also fires for us the moment a test uses tie-heavy integer draws; none currently does, which is why the suite has never caught it. |
-| Location | `src/views_frames_summarize/conformance.py:128-152` (the MAP-containment law: `n_tip = int(np.floor(tip_mass * s_count)) + 1` and the `2 * (floor(m·S)+1) > n_tip` guarantee filter); `src/views_frames_summarize/tower.py:82-93` (`_in_range_span`, which counts by **value**, not by index span); `src/views_frames_summarize/tower_point.py` (`_median_in` consumes it); `docs/ADRs/019_coherent_posterior_summary_hdi_tower.md` (Amendment 3, where the law is stated). |
-| Cross-refs | **C-44** (the tower's minority-duplicate collapse — the same tie-sensitivity, one layer down), C-45, C-32/C-34 (the #89 estimator-coherence cluster this joins), **C-67** (a published conformance suite that reported green while checking nothing — this is its mirror image: one that reports red while nothing is wrong), C-46 / ADR-016 (the published-surface obligation that gives it cross-repo blast radius). |
-
-The MAP-containment law (ADR-019, Amendment 3) certifies which HDI floors are *guaranteed* to contain the tower tip, and asserts containment for each. Its arithmetic assumes **a floor of mass `m` spans exactly `floor(m·S)+1` draws** — true of the *index span* `_ks` builds the floor from, since that counts inter-draw steps.
-
-But the tip is computed by `tower_point` → `_median_in` → **`_in_range_span`**, which counts every draw whose **value** falls inside the floor's bounds. When the floor's endpoint values are duplicated — routine in integer count data — the real count exceeds `floor(m·S)+1`. `n_tip` is understated, the "holds more than half the tip floor's draws" filter admits floors that do not, and the assertion those floors were certified to pass then fails.
-
-**Measured, not argued.** 500 trials of `assert_summarizer_contract` on single-row `PredictionFrame`s of `Poisson(λ ∈ [0.5, 6])` draws, half of them zero-inflated at 30%, `S ∈ {32, 64, 128}`:
-
-```
-failures: 30/500  (6.0%)
-  S=64 lam=3.27  MAP-containment violated: tip above the 0.15 floor
-  S=64 lam=2.71  MAP-containment violated: tip above the 0.15 floor
-  S=64 lam=3.65  MAP-containment violated: tip above the 0.15 floor
-```
-
-The reviewer's independent probe reported 116/2000 (5.8%) on the same shape. **Zero-inflated integer counts are this platform's primary data shape** — they are conflict fatality draws.
-
-**Tier 2, not 1.** No number is wrong and nothing is silent: the estimator is fine, the failure is a loud `AssertionError`, and what is defective is the *guarantee* the law publishes about it. **Tier 2 rather than 3** because `assert_summarizer_contract` is published under ADR-016 and every consumer is required to run it in their own CI — so the failure mode is other repositories going red on correct data, with the cause sitting in ours. It is structural fragility with a concrete, already-identified trigger.
-
-**Why the suite never caught it:** no test in `tests/` uses tie-heavy integer draws. The estimator tests build float posteriors from continuous distributions, where endpoint ties are measure-zero. This is C-44's lesson recurring — "a numerical special case silently wrong on a subdomain the tests never sampled" — and it is why C-44 and C-68 were linked by the graph pass as semantically similar despite living in different packages.
-
-**Two candidate corrections, and choosing between them is the work:** derive `n_tip` and each floor's count from the actual `_in_range_span` counts rather than from `floor(m·S)+1`; or restrict the law to strictly-distinct draws and state that limit in ADR-019. The first keeps the guarantee general and costs a recount; the second is honest but narrows a published law to a case the platform's own data does not satisfy. **Not fixed in epic #240**, which scoped `src/` out.
-
-**Resolved when** the law's guarantee holds on tied draws — demonstrated by a red test built from integer count draws that passes after the fix — and ADR-019's amendment records whichever correction was chosen.
 
 ---
 
@@ -897,6 +860,60 @@ tighten a construction invariant                       → FAILED  ✅ (npz path
 The digests are of `values.tobytes()`, which is why the transpose is caught: plausible floats in the wrong sample slots pass every shape and dtype assertion — the C-72 failure mode exactly.
 
 **Tier 4 was right and remains right.** Exposure was measured at zero when the entry was written and still is — `save` has not changed. This closes a **preventive** gap, and its value is entirely in the trigger: the moment `save` changes, the generator now stops the change rather than letting the opportunity pass silently.
+
+---
+
+### C-88: the published MAP-containment law was wrong on tied draws — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-88 |
+| Tier | 2 |
+| Resolved | 2026-08-18 |
+| Resolution | The law now **counts** each floor's occupancy with `_in_range_span` instead of computing it as `floor(m·S)+1`. Measured on the reproduction that found it: **0/500 failures, was 30/500 (6.0%)**. ADR-019 Amendment 4 records the correction. `CONFORMANCE_FLOOR` stays `1.0.0`. |
+| Source | code-review (2026-08-17); reproduced independently before registering. |
+| Cross-refs | **C-44** (the tower's minority-duplicate collapse — the same tie-sensitivity one layer down), C-45, C-32/C-34 (#89 estimator coherence), **C-67** (a published suite reporting green while checking nothing — this was its mirror image, reporting red while nothing was wrong), C-46 / ADR-016 (the published-surface obligation that gave it cross-repo reach). |
+
+The law certified which HDI floors are *guaranteed* to contain the tower tip using `floor(m·S)+1` — the floor's **index span**, which `_ks` builds it from. The tip is the median of the draws whose **value** lies inside the floor (`_in_range_span`). Those agree only when draws are distinct. Duplicated endpoint values — routine in integer count data — put more draws inside the same bounds, so the tip floor held more than the formula allowed and narrower floors were certified that hold less than half of it.
+
+**Why it mattered.** `assert_summarizer_contract` is published under ADR-016 and every consumer runs it in their own CI. The failure mode was *another repository's CI going red on correct data*, with the cause here — and views-postprocessing has volunteered to be the first adopter. Zero live exposure when found; the deadline was the first adoption, not the calendar.
+
+**Why the suite never caught it:** no test in `tests/` used integer or tied draws (`grep -rln "poisson\|astype(np.int" tests/` returned nothing). The estimator tests build posteriors from continuous distributions, where endpoint ties are measure-zero. That is C-44's lesson recurring — *a numerical special case silently wrong on a subdomain the tests never sampled*.
+
+**The correction: count, do not compute.** Both the tip floor's and each candidate floor's occupancy now come from `_in_range_span`, the same quantity `tower_point` takes the median of. Because occupancy is row-dependent once ties exist, a floor may qualify in one row and not another, so the law asserts a floor only on the rows where it qualifies.
+
+**Verification.**
+
+```
+red test first (tests/test_summarize_conformance.py::test_map_containment_holds_on_tied_integer_draws)
+  before: FAILED — "MAP-containment violated: tip above the 0.15 floor"
+  after:  passed
+
+the reproduction, 500 zero-inflated Poisson posteriors, S ∈ {32,64,128}
+  failures: 0/500   (was 30/500 = 6.0%)
+```
+
+**Mutation-tested, because a corrected law that never fires is worse than a wrong one:**
+
+```
+push the tip outside its floor (tower_point * 1.5 + 0.5)  → FAILED  ✅ still has teeth
+loosen the qualification to certify every floor            → FAILED  ✅ the old bug's shape
+```
+
+0.15 was the narrowest floor the old arithmetic certified at `S=64` (`n_tip = floor(0.25·64)+1 = 17`, admitting every `m ≥ 0.125`) — and 0.15 is the floor named in every measured failure. The diagnosis and the symptom matched exactly.
+
+**`CONFORMANCE_FLOOR` stays `1.0.0`.** The correction *narrows* what the suite asserts, so consumers who passed still pass and consumers who failed now pass. GOVERNANCE bumps the floor only on a breaking change to the published surface, and nothing here breaks. The published bands (50/90/95/99) qualify as before.
+
+**The first fix introduced a regression, found by review.** Deriving qualification from `law_tower` — the output the law validates — meant a broken tower could **disarm the law with its own defect**: degenerate narrow floors give a small in-range count, fail `2·n_floor > n_tip`, and skip themselves. Demonstrated by collapsing every sub-`tip_mass` floor to the row maximum, a gross violation of both nesting and containment: the *old* law caught it, the first version of the *new* one passed clean.
+
+My mutations had probed the qualification arithmetic and the tip — never the tower output. Fixed by asserting **nesting across the candidate grid unconditionally**, which needs no qualification because it is true by construction, and which catches that mutation (both tests now fail under it).
+
+Two more from the same review:
+
+- **Memory.** The first version sorted the whole grid at once and asked `hdi_tower` for all 25 canonical floors — the discipline C-22/C-25/C-71 exist to protect. Now counted in the same row blocks `hdi_tower` uses, with candidates restricted to floors ≤ `tip_mass` (wider floors contain the tip by nesting from the tip-mass floor, already asserted). Measured on 200k×32: **143 MB peak, against 149 MB on `development`** — below the pre-change baseline, not above it.
+- **`zero_cutoff` rows** (C-45) collapse to `(0, 0)` in both tower and tip, so their in-range counts are 0, nothing qualifies, and they are skipped. That is correct rather than a gap — containment of tip 0 in floor `(0, 0)` is trivially true — and the code now says so.
+
+Prose corrected in the same change: `docs/ADRs/019_...md` (Amendment 3's false parenthetical, plus Amendment 4 recording all of this), `docs/CICs/Summarize.md` (banner and §3), `src/views_frames_summarize/config.py`, `src/views_frames_summarize/tower_point.py`.
 
 ---
 
