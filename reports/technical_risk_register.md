@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
 | Total Concerns    | 89                                   |
-| Open Concerns     | 20                                   |
-| Resolved Concerns | 69                                   |
+| Open Concerns     | 19                                   |
+| Resolved Concerns | 70                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -296,30 +296,6 @@ The falsification guards rewritten in epic #208 are real and catch the regressio
 3. **`cl_03`/`cl_04` see instance state only.** A module-level cache in `index.py` populated with a *copy* of an injected mapping would hold domain reference data invisibly to both.
 
 None of these is a defect to fix now. Every one requires someone to work around a guard deliberately, and this package has one maintainer whose regressions are honest — the discarded `gid_patch` branch, the case that motivated `sl_01`, made no attempt to hide. **Tier 4** — recorded so the guards are not over-trusted, not because action is needed. Deepening them (AST inspection, package-wide scans, module-state introspection) would buy protection against an adversary this repository does not have, at the cost of tests that are harder to read than the code they guard.
-
----
-
-### C-79: nothing tests that today's loader can read a file written by an older release
-
-| Field | Value |
-|-------|-------|
-| ID | C-79 |
-| Tier | 4 |
-| Status | **actionable** — freeze one parquet fixture and assert a later version loads it. **Preventive, not corrective:** the gap this closes is currently costing nothing (measured, see below) |
-| Source | test-review (2026-07-31), Kleppmann lens. |
-| Trigger | **Before the next change to `io/arrow.py::save` or `io/arrow.py::load`** — and especially before adding another validation rule to `load`. Write a parquet with the *current* release, commit it as a fixture, and assert a later version still reads it to the same values. The `.npz` fixtures under `tests/fixtures/` already establish the pattern. |
-| Location | `tests/test_io.py` (every arrow test writes and reads in one process at one version); `tests/fixtures/` (holds `reconciliation_parity.npz` and `reconciliation_e2e_parity.npz` — but no parquet); `src/views_frames/io/arrow.py::save` / `::load`. |
-| Cross-refs | **C-72** (the v1.10.1 validation added to `load` — the specific change this gap cannot see), C-73 (the same function's memory residual), **C-46** (adjacent: it already tracks a versioned wire schema, but scoped to the views-evaluation boundary rather than this package's own parquet across its own versions), views-postprocessing ADR-013 (the wire contract), views-faoapi #100. |
-
-Every arrow IO test writes a file and reads it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that actually matters for a data-contract package: that a file written by an earlier release still loads.
-
-**Measured 2026-07-31, before the v1.10.2 tag — the current exposure is zero.** The `save` function was extracted from tag `v1.8.0` and from `HEAD` and diffed: **byte-identical**. The writer has not changed since v1.8.0, so every file any consumer holds was produced by the same code today's checks were derived from. Confirmed empirically as well as structurally: v1.8.0's `save` was loaded from git as its own module, used to write both a 2-D prediction parquet and a 3-D feature parquet, and both were read back by today's `load` with values bit-identical and metadata intact.
-
-So this entry tracks a **missing test**, not a live defect — and the distinction matters, because it was first written as though the two were the same. What remains true: **v1.10.1 added validation to `load`** — three new `ValueError` paths rejecting row orders that violate the written wire contract. Those rules were derived from what `save` writes *today*. Nothing checks that a parquet written by v1.8.0 or v1.10.0 satisfies them, and the consumers on that path (views-postprocessing, views-faoapi #100) hold archived shards written by earlier releases.
-
-**Tier 4, recalibrated from 3 on the evidence above.** It was filed Tier 3 on the reasoning that a consumer's archived data could become unreadable after a routine upgrade. Measurement removed the premise: no such file exists, because the writer never changed. What is left is a genuine but purely preventive test gap — no correctness or reliability impact today, and the failure it would eventually catch is loud (a `ValueError` with a clear message, never a wrong number).
-
-**The trigger is what carries the value here**, not the tier: the moment `save` changes, this stops being preventive. Anyone editing it should commit a fixture written by the previous release first, while an unmodified writer still exists to produce one. **Resolved when** a parquet fixture written by a released version is committed and read by a test.
 
 ---
 
@@ -860,6 +836,67 @@ The last two came from reviewing the first draft, which hard-coded the two filen
 **The job comment's first draft also gave a wrong reason for a right decision.** It said one job / one Python version was justified "for the same reason as `docs`, `format` and `imports`: nothing here depends on the Python version." That is true of those three and false of this one — `cross_level.py` calls `hdi()`, which is exactly the code the `floor` job exists for (C-24). The real reason is that these scripts smoke-test the **documented on-ramp**, not behaviour; version coverage belongs to the matrix and the floor job. The comment now says that.
 
 **Known non-coverage, stated rather than left to infer:** `examples/` is linted (the `check` matrix runs `ruff check .` and does not exclude it) but **not type-checked** — CI runs `mypy src/`. `uv run mypy examples/` passes today; nothing keeps it passing. Adding it would be a different guarantee from "these scripts run", so it is recorded here rather than folded in.
+
+---
+
+### C-79: nothing tested that today's loader can read a file written by an older release — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-79 |
+| Tier | 4 |
+| Resolved | 2026-08-18 (Epic #240 / S8 #248) |
+| Resolution | Parquet **and npz** fixtures written by the `save` functions extracted from the `v1.8.0` tag, tests asserting today's `load` reads them bit-exactly at both the codec and the public-API level, and a **behavioural** writer-drift guard that runs in the suite. Six mutations. See below. |
+| Source | test-review (2026-07-31), Kleppmann lens. |
+| Cross-refs | **C-72** (the v1.10.1 validation these fixtures predate — the specific change this gap could not see), C-73 (the same function's memory residual), **C-90** (the codec divergence found in S5 — a silently-stringified metadata value is exactly what a same-version round-trip cannot see), C-46, views-postprocessing ADR-013, views-faoapi #100. |
+
+Every arrow IO test wrote a file and read it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that matters for a data-contract package: that a file written by an earlier release still loads.
+
+**The fixtures are written by released code, not by code believed equal to it.** `scripts/gen_arrow_crossversion_fixture.py` extracts `io/arrow.py` and `io/npz.py` from the **`v1.8.0` tag**, loads each as its own module, and writes with *those* `save` functions. A fixture produced by current code would only prove the codec round-trips itself — which `test_io.py` already covered.
+
+`v1.8.0` predates **v1.10.1**, which added three `ValueError` paths to `arrow.load` rejecting row orders that violate the wire contract (C-72). Those rules were derived from what `save` writes *today*; the fixtures are the evidence they accept a file written before they existed.
+
+```
+$ uv run --extra arrow python scripts/gen_arrow_crossversion_fixture.py
+wrote tests/fixtures/arrow_v1_8_0_prediction.parquet (1817 bytes, writer v1.8.0)
+wrote tests/fixtures/arrow_v1_8_0_feature.parquet (2078 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/header.json (103 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/identifiers.npz (566 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/values.npy (176 bytes, writer v1.8.0)
+```
+
+**Three things the code review corrected, and the first is this entry lying about itself.**
+
+**1. The trigger was not enforced.** The first version put a `save`-unchanged guard *inside the generator script* and this entry claimed the trigger was "now enforced by the tool rather than by remembering". **Nothing invokes the generator** — no test, no CI job, no hook (verified by grep across `*.yml`, `*.py`, `*.sh`). The exact failure it was meant to prevent — someone edits `save`, CI stays green, the change merges, the last unmodified writer is gone — played out exactly as before. That is C-77, in the resolution of the entry whose entire value is a trigger.
+
+**2. The guard compared source text, so it was wrong in both directions.** A `ruff format` sweep inside `save` would have tripped it for a change altering no written byte — and this repo did precisely such a sweep in `8501622`. Meanwhile a module-level change that *does* alter the bytes (a `compression=` default, a swapped import) passed it untouched.
+
+Both are fixed by making the guard **behavioural and a test**: `test_todays_writer_still_reproduces_the_v1_8_0_fixture` writes with today's `save` and byte-compares against the committed fixture. Verified:
+
+```
+reformat inside save (old guard wrongly tripped)   → 4 passed   ✅ not tripped
+pq.write_table(..., compression="gzip")            → 1 failed   ✅ caught
+  (the old guard missed this one entirely)
+```
+
+**3. The evidence stopped at the codec.** The path a consumer actually uses to revive archived data is `PredictionFrame.load` → `npz.load` → `SpatioTemporalIndex(...)` → `FrameMetadata.from_dict`, and none of it was covered — a future construction-time invariant would reject archived files with nothing to catch it. `npz.save` is byte-identical since v1.8.0 too, so an npz fixture and a public-API test were added in the same window. Verified by adding a construction-time invariant that rejects the archived frame: **1 failed**.
+
+Fixture metadata now carries `timestamp` and `seed` as **ints**, not just strings. A JSON type drift on a non-string header field crossing versions is the bug class **C-90** records, and string-only fixtures would not have exercised it.
+
+**Mutation-tested throughout** — a fixture test that has never failed guards nothing:
+
+```
+simulate a new wire rule the old file violates        → FAILED  ✅
+transpose the reshape (plausible floats, wrong slots) → FAILED  ✅
+drop feature_names on load                            → FAILED  ✅
+reformat save                                          → passed  ✅ (correctly tolerated)
+alter the written bytes                                → FAILED  ✅
+tighten a construction invariant                       → FAILED  ✅ (npz path)
+```
+
+The digests are of `values.tobytes()`, which is why the transpose is caught: plausible floats in the wrong sample slots pass every shape and dtype assertion — the C-72 failure mode exactly.
+
+**Tier 4 was right and remains right.** Exposure was measured at zero when the entry was written and still is — `save` has not changed. This closes a **preventive** gap, and its value is entirely in the trigger: the moment `save` changes, the generator now stops the change rather than letting the opportunity pass silently.
 
 ---
 
