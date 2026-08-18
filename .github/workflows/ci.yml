@@ -86,10 +86,12 @@ jobs:
   # runnable and executed by nothing (register C-83), while notebooks/ has had a drift
   # check since #151 — an asymmetry that looked like oversight rather than decision.
   #
-  # This job FAILS on a broken example — it is not `continue-on-error` like the notebooks
-  # job, which stays green regardless. (Note that no branch protection or ruleset exists on
-  # `main` or `development` today, so a red check does not mechanically prevent a merge
-  # anywhere in this repo; register C-92. "Fails" here means a red X, not an enforced gate.)
+  # This job BLOCKS on a broken example — it is not `continue-on-error` like the notebooks
+  # job, which stays green regardless. Blocks literally: since 2026-08-18 the `Required
+  # checks` ruleset requires this job on both `main` and `development`, so a red run holds
+  # the merge (register C-92). Until then nothing in this repo was required and every such
+  # claim meant "a red X beside a working merge button" — do not write "gate" here again
+  # without checking `gh api repos/.../rules/branches/<branch>`.
   #
   # The difference from notebooks.yml is deliberate. That job is `continue-on-error` because
   # "a slow or flaky notebook never blocks a merge — the notebooks are un-gated dev
