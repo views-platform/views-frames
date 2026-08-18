@@ -129,3 +129,28 @@ def test_reindex_round_trips_with_self():
     out = pf.reindex(pf.index)
     assert np.array_equal(out.values, pf.values)
     assert np.array_equal(out.identifiers["time"], pf.identifiers["time"])
+
+
+# --- alignment ops fail loud on a non-index argument -------------------------
+#
+# Before 2.0.0 these leaked `AttributeError: '...' object has no attribute
+# '_level'` from `SpatioTemporalIndex._require_same_level` — a private attribute
+# of a class the caller never named, where ADR-008 requires ValueError/TypeError
+# (falsify audit 2026-08-18).
+
+
+@pytest.mark.parametrize("method", ["reindex", "reindex_fill"])
+def test_frame_alignment_rejects_a_non_index_argument(method):
+    frame = PredictionFrame(np.ones((2, 3), dtype=np.float32), _index([1, 2], [10, 11]))
+    other = PredictionFrame(np.ones((2, 3), dtype=np.float32), _index([1, 2], [10, 11]))
+    kwargs = {"fill_value": 0.0} if method == "reindex_fill" else {}
+    with pytest.raises(TypeError, match="expected a SpatioTemporalIndex"):
+        getattr(frame, method)(other, **kwargs)
+
+
+def test_index_binary_ops_reject_a_non_index_argument():
+    """One guard covers the family — they all route through `_require_same_level`."""
+    index = _index([1, 2], [10, 11])
+    for op in (index.searchsorted, index.is_superset_of, index.intersect):
+        with pytest.raises(TypeError, match="expected a SpatioTemporalIndex"):
+            op("not an index")

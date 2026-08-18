@@ -44,6 +44,14 @@ def map_estimate(
     on such distributions; a robust mode estimator is tracked separately (#89).
     """
     values = frame.values
+    if not bool(np.isfinite(values).all()):
+        raise ValueError(
+            "map_estimate is undefined on non-finite draws (NaN or ±inf); strip or "
+            "impute upstream. Until 2.0.0 an inf draw reached the histogram and "
+            "crashed with an obscure IndexError from an integer overflow in the bin "
+            "index — loud, but it named neither the cause nor the caller. This is the "
+            "same guard exceedance and expected_shortfall carry (register C-57/C-50)"
+        )
     lead = values.shape[:-1]
     s = values.shape[-1]
     # Bin in the input dtype, exactly as the v0.2.0 per-row np.histogram did —

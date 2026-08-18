@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 89                                   |
-| Open Concerns     | 11                                   |
-| Resolved Concerns | 78                                   |
+| Total Concerns    | 92                                   |
+| Open Concerns     | 10                                   |
+| Resolved Concerns | 82                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -96,7 +96,7 @@ None of these is a defect to fix now. Every one requires someone to work around 
 |-------|-------|
 | ID | C-13 |
 | Tier | 3 (recalibrated from 2 on 2026-07-31, `review-rr` strategic) |
-| Status | **awaiting** — the next MAJOR bump (this entry *is* its pre-tag checklist) |
+| Status | **awaiting** — the next MAJOR bump **after 2.0.0** (this entry *is* its pre-tag checklist; it was executed once, on 2026-08-18 — see the execution record below) |
 | Source | expert-review (2026-06-20) |
 | Trigger | **When a MAJOR bump is opened — before tagging:** confirm every consumer repo has an adoption issue filed and a pinned floor per GOVERNANCE §coordinated-bump, and pair the bump with the **freeze-cluster rider list** (C-66's `setflags` enforce + its red test, C-57's `np.isfinite` guard on `map_estimate`, C-43's shared-binning extraction) — a MAJOR that fans out without carrying its riders spends the coordination budget for nothing. |
 | Location | `README.md` §12 (~12 register items, 3+ repos); `GOVERNANCE.md` (coordinated-bump process) |
@@ -104,7 +104,29 @@ None of these is a defect to fix now. Every one requires someone to work around 
 
 The leaf's breadth is both its value and an inherent concentration risk (critique_01 §3.7): it is structurally the single point every consumer pins. **Mitigation shipped** — a minimal, stable, **frozen v1.0.0** (ADR-018) gives consumers a contract that will not churn, and ADR-016 / GOVERNANCE name the owner and the coordinated MAJOR-bump process (C-05, C-10 resolved). **Residual is accepted and monitored:** the fan-out cost of any future MAJOR is irreducible; the control is the GOVERNANCE process, watched as consumers adopt.
 
-**Tier 3, recalibrated 2026-07-31.** Originally Tier 2, but Tier 2 means *structural fragility that will cause failures under realistic change scenarios* — this entry describes an irreducible **cost** incurred under a process that already exists and has never failed, not a fragility. It is an **accepted standing condition** kept in Open solely so the coordinated-bump discipline stays visible, and its trigger now does real work: it is the pre-tag checklist for the one event that makes concentration bite. See also D-06.
+**Tier 3, recalibrated 2026-07-31.** Originally Tier 2, but Tier 2 means *structural fragility that will cause failures under realistic change scenarios* — this entry describes an irreducible **cost** incurred under a process that already exists and has never failed, not a fragility. It is an **accepted standing condition** kept in Open solely so the coordinated-bump
+discipline stays visible, and its trigger now does real work: it is the pre-tag checklist for
+the one event that makes concentration bite. See also D-06.
+
+**Execution record — 2.0.0, 2026-08-18 (ADR-028).** The first time this checklist ran. What
+it produced:
+
+- **Riders carried:** C-66 (value-buffer write-protection, though as a read-only view rather
+  than the recorded one-liner — see that entry) and C-57 (`map_estimate`'s non-finite guard).
+- **Rider declined, in writing:** C-43. The reason is recorded in that entry and its
+  precondition rewritten, because "#89 or a MAJOR" silently became false the moment 2.0.0
+  tagged.
+- **Fan-out measured, not assumed:** three consumers are lockfile-pinned and constrained
+  `<2` — views-faoapi (`uv.lock`), views-postprocessing (`poetry.lock`), views-crafdapi
+  (`uv.lock`). All three reach 2.0.0 only by changing the constraint and re-locking.
+- **`CONFORMANCE_FLOOR` moved `1.0.0` → `2.0.0`** — the first move since the freeze, per
+  GOVERNANCE's MAJOR process step 3.
+- **Adoption issues:** the maintainer's action; this repo cannot open issues in sibling
+  repos. The checklist's "confirm every consumer repo has an adoption issue filed" is what
+  gates tagging, not merging.
+
+The checklist earned its keep: it is what caused C-43 to be declined explicitly rather than
+forgotten, and what turned "the consumers will pick it up" into three named lockfiles.
 
 ---
 
@@ -152,12 +174,32 @@ Note the estimator is **already semi-parametric**: the `zero_mass_threshold` rul
 |-------|-------|
 | ID | C-43 |
 | Tier | 4 |
-| Status | **awaiting** — #89 or a MAJOR; `point.py` is frozen and ulp-sensitive (C-24) |
+| Status | **awaiting** — #89. (Was "#89 or a MAJOR" until 2026-08-18: the 2.0.0 MAJOR came and **declined this rider on purpose** — see below — so a MAJOR alone no longer discharges it.) |
 | Source | tech-debt-cleanup (2026-06-24) |
 | Trigger | When `map_estimate` is unfrozen or reworked (#89), or the bimodality binning needs to change — at that point extract a shared row-blocked binning helper. It is **not** safely de-dupable now: `point._batched_map` is frozen (ADR-018) and its bin edges are ~1-ulp-sensitive across numpy versions (the C-24 portability saga), so touching it risks a behaviour change to `map_estimate`. |
 | Location | `src/views_frames_summarize/bimodality.py` (`_coarse_counts`); `src/views_frames_summarize/point.py` (`_batched_map`). |
 
-Both functions implement per-row histogram binning over a row-block. `_coarse_counts` (v1.1.0) is a deliberately simplified clipped-linear bucket for a heuristic flag; `_batched_map` (frozen v1.0.0) reproduces `numpy.histogram`'s edge-exact path bit-for-bit for the MAP. The two are **independently correct and tested** — the "debt" is the maintenance cost of two binning implementations to keep mentally aligned. **Tier 4** — no correctness or reliability impact; bounded because `point.py` is frozen and won't drift. Intentionally **not** unified now (extracting a shared helper would touch frozen, C-24-ulp-sensitive code — a stability risk the tech-debt protocol says to defer). See C-24 (resolved — the binning portability constraint), ADR-018 (the freeze that blocks the fix), #89.
+Both functions implement per-row histogram binning over a row-block. `_coarse_counts` (v1.1.0) is a deliberately simplified clipped-linear bucket for a heuristic flag; `_batched_map` (frozen v1.0.0) reproduces `numpy.histogram`'s edge-exact path bit-for-bit for the MAP. The two are **independently correct and tested** — the "debt" is the maintenance cost of two binning implementations to keep mentally aligned. **Tier 4** — no correctness or reliability impact; bounded because `point.py` is frozen and won't drift. Intentionally **not** unified now (extracting a shared helper would touch frozen,
+C-24-ulp-sensitive code — a stability risk the tech-debt protocol says to defer). See C-24
+(resolved — the binning portability constraint), ADR-018 (the freeze that blocks the fix), #89.
+
+**Declined as a rider on the 2.0.0 MAJOR (2026-08-18, ADR-028).** C-13's pre-tag checklist
+names this entry on the freeze-cluster rider list, so passing it over silently would be the
+"claimed enforcement that does not exist" failure this register has recorded three times.
+The reason it was declined:
+
+The two functions are not two implementations of one concept. `_coarse_counts` is a clipped
+linear bucket, deliberately approximate, sized for a heuristic flag. `_batched_map`
+reproduces `numpy.histogram`'s edge-exact path bit-for-bit and is ~1-ulp sensitive across
+numpy versions. Extracting a shared helper forces one onto the other's path, which changes
+the output of either `bimodality` or the frozen `map_estimate` — a behaviour change bought
+for a Tier-4 entry this register itself describes as having no correctness or reliability
+impact. WET-before-DRY asks whether the shared concept is real; here it is superficial.
+
+The MAJOR that this entry was half-waiting for has now been spent, and spending it again is
+not cheap, so the precondition is #89 alone: when `map_estimate` is reworked there, the
+edge-exact constraint is on the table anyway and the extraction becomes free rather than
+risky.
 
 ---
 
@@ -177,22 +219,6 @@ Under Option B (the ratified boundary; C-01), `MetricFrame` lives in `views-eval
 
 ---
 
-### C-57: `map_estimate` raises an obscure `IndexError` (not a clean error) on ±inf draws
-
-| Field | Value |
-|-------|-------|
-| ID | C-57 |
-| Tier | 3 |
-| Status | **awaiting** — a cross-estimator non-finite hardening pass (additive MINOR) |
-| Source | falsify audit (2026-06-25, P5b — discovered while widening the exceedance/ES guards) |
-| Trigger | When a consumer feeds a frame containing an `inf` draw (a valid float32 the leaf does **not** ban — e.g. an upstream model bug) to the frozen `map_estimate`: the histogram span is `inf`, the bin index divides to `nan`, and the `astype(intp)` cast overflows to the int-min sentinel, so `np.take_along_axis` raises `IndexError: index -9223372036854775808 is out of bounds` instead of a clean `ValueError` or a finite result. |
-| Location | `src/views_frames_summarize/point.py::_batched_map` (the `astype(np.intp)` cast feeding `np.take_along_axis`) (`_batched_map`). |
-| Cross-refs | ADR-018 (frozen v1 surface — behavior is locked), C-50/C-56 (the new estimators now fail loud cleanly on non-finite via `np.isfinite`; `map_estimate` is the frozen sibling that does **not**), ADR-008 (fail-loud posture). |
-
-The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` propagates `inf` (visible), the new `exceedance`/`expected_shortfall` now **fail loud** on it (C-50/C-56), but `map_estimate` **crashes with an obscure `IndexError`** rather than a clean, actionable error. This is **not** silent corruption (it is loud, and `inf` draws are out-of-contract upstream bugs), so it is **not** a publish blocker for v1.6.0 — and `map_estimate`'s behavior is **locked by the ADR-018 freeze**, so it cannot change without an additive hardening pass. **Tier 3** — ungraceful failure on a leaf-permitted input; a future cross-estimator non-finite hardening (a reserved additive MINOR) should give `map_estimate` the same clean `np.isfinite` guard. **Open** — watch-item, no fix shipped in v1.6.0.
-
----
-
 ### C-62: `reconcile_proportional` is an information-losing per-draw approximation (no joint-calibration guarantee)
 
 | Field | Value |
@@ -206,22 +232,6 @@ The frozen surface is **inconsistent** on non-finite draws: `collapse(np.mean)` 
 | Cross-refs | ADR-024 (the design + deferral), ADR-023 (sibling charter; future-sibling-module open question), views-postprocessing C-37 (the cross-repo principled-reconciliation lineage), views-pipeline-core C-198 / C-200b (consumer-side), C-60 (the notebook presentation of this — resolved), D-12 (mode reporting). GH #145 / #142. |
 
 `reconcile_proportional` rescales grid cells to sum, **per draw**, to the country total — pairing grid-draw `s` with country-draw `s`. When the grid and country models are trained **independently** (the current platform reality), draw index `s` has **no shared identity** across them, so the pairing is arbitrary and the reconciled **joint** distribution (the joint country tails an FAO-style worst-case keys on) is not guaranteed calibrated — even though conservation (sum-to-country per draw, zeros preserved, non-negative) holds **exactly**. This is **not silent** (hence **Tier 3**, not Tier 1): it is documented at every layer — the `proportional.py` docstring, ADR-024, the `03_reconciliation.ipynb` bit-identity-≠-method-quality panel (C-60), and surfaced at runtime as the `reconcile_result` mode `aligned-draws` (D-12). It is a **known method-quality limitation with a designed upgrade path** (ADR-024), deliberately deferred until its preconditions hold. **Open** — the limitation persists until the principled sibling module is built.
-
----
-
-### C-66: value-buffer write-protection is deferred to the next MAJOR (the C-63 enforce-rider)
-
-| Field | Value |
-|-------|-------|
-| ID | C-66 |
-| Tier | 3 |
-| Status | **awaiting** — the next MAJOR (the one-line enforce + red test are pre-written) |
-| Source | review-diff + register-risk (2026-06-28, epic #179 / S2) — the residual of the C-63 resolution-by-decision (ADR-025). |
-| Trigger | When a MAJOR bump is opened for **any** reason — add `self._values.setflags(write=False)` after the `self._values = ...` assignment in the three frame constructors (`prediction_frame.py::PredictionFrame.__init__`, `target_frame.py::TargetFrame.__init__`, `feature_frame.py::FeatureFrame.__init__`) **and** a red test (`frame.values.flags.writeable is False`; mirror `tests/test_properties.py::test_with_metadata_shares_the_values_buffer`), riding that MAJOR for free. **Or** sooner, if a consumer is found applying an in-place `.values` mutation (`frame.values[mask] = 0`, `*=`, a clamp) on a `with_metadata`/`select` buffer-sharing frame — promote/expedite the enforce then. |
-| Location | the `self._values = values` assignment in each of `src/views_frames/prediction_frame.py::PredictionFrame.__init__`, `target_frame.py::TargetFrame.__init__` and `feature_frame.py::FeatureFrame.__init__` (bare assignment, no `setflags`); `src/views_frames/_validation.py::coerce_values` (`coerce_values` returns float32 without copy); contrast `src/views_frames/index.py::SpatioTemporalIndex.__init__` (the two `setflags(write=False)` calls) (the index **is** write-protected). Decision in `docs/ADRs/025_value_buffer_immutability_by_convention.md`. |
-| Cross-refs | **C-63** (RESOLVED by contract correction — this entry tracks the *deferred enforce* it left open), **ADR-025** (the decision + the exact one-line-per-constructor change), ADR-018 (`values` is frozen-surface, so the enforce is a MAJOR), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), C-07 (the zero-copy reason the buffer is left writeable). |
-
-C-63 was resolved by **correcting the contract** (ADR-025): the value buffer is documented as immutable *by convention* and the docs no longer claim an unenforced guarantee. But the **code** is unchanged — `frame.values.flags.writeable` is still `True`, and `with_metadata` shares the buffer — so the underlying mechanism (an in-place `.values` mutation **silently corrupts every frame sharing the buffer**, the Tier-2 basis of C-63) is **mitigated, not removed**. The mitigation is documentation (three frame CICs §9 + README design principle 3 say it is unsupported) + the empirical fact that **nothing in `src/` or `tests/` mutates `.values`**. The actual write-protection (`setflags(write=False)`) is deliberately deferred because, on the frozen-surface `values`, it is a **MAJOR** (GOVERNANCE/ADR-018) and does not justify a standalone cross-repo coordinated bump. **Tier 3** — this entry tracks the *accepted deferral* of a documented-and-unexercised exposure (the acute silent-corruption path requires a consumer to ignore the published contract); it is a governance/safety-tracking item, not a current defect, and exists so the deferred enforce stays visible in the **Open** section rather than buried in a resolved entry. **Open** — until the enforce rides the next MAJOR.
 
 ---
 
@@ -254,6 +264,38 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 | Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. | **Also on the load path (added 2026-08-17, code-review during S4):** the v1.10.1 wire-contract validation allocates three full-table temporaries — `np.tile(np.arange(s), n)` as int32, plus two `(N, S)` boolean comparisons — on *every* load. On a 10M-row × 100-sample pgm frame that is roughly 4 GB + 1 GB + 1 GB of transient peak **on top of** the table this entry is already about. The same guarantees are checkable without full-size temporaries (a strided `sample_col[::s]` comparison, or `np.array_equiv` against a broadcast view). This makes the entry's memory ceiling worse than it reads, and it arrived with the fix for C-72.
 
 `arrow` is the platform's **interchange** codec — the format the FAO/postprocessing path actually ships forecasts in — and `load` reads the entire parquet into RAM, then copies it again to reshape. ADR-013 §8 states the mitigation as **per-month sharding** (a consumer-side contract obligation) and names mmap/partitioned reading as the long-term fix while explicitly declaring it **NOT a contract dependency** — so this is deliberately open, not neglected: shipping FAO data does not wait on it. **Tier 3** — the failure mode is a loud `MemoryError`/OOM-kill under a footprint the consumer controls, never a wrong number; the cost is operational, and the mitigation already exists. Deliberately **not designed yet**: the leaf does not guess a streaming API for a wall nobody has hit. The receipt that would change this — a consumer OOM *despite* sharding, or a shard size that cannot be reduced further — is the thing to wait for; a design without it risks a speculative, frozen surface (ADR-018, C-52).
+
+---
+
+### C-95: `SpatioTemporalIndex` write-protects the caller's identifier arrays, and its comment says otherwise
+
+| Field | Value |
+|-------|-------|
+| ID | C-95 |
+| Tier | 4 |
+| Status | **awaiting** — the next MAJOR after 2.0.0 (changing it is a behaviour change on frozen surface; the comment half is already corrected) |
+| Source | falsify audit follow-up (2026-08-18) — found while shipping C-66, which had to solve the same problem for the frames |
+| Trigger | When a consumer reports that constructing a `SpatioTemporalIndex` made their own `time`/`unit` array read-only — or, sooner, when the next MAJOR is opened for another reason, at which point aligning the index with the frames is a two-line rider. |
+| Location | `src/views_frames/index.py::SpatioTemporalIndex.__init__` (the two `setflags(write=False)` calls after `np.ascontiguousarray`). |
+| Cross-refs | C-66 (the frames' version of the same problem, solved with a read-only view), C-07 (the zero-copy reason the input is not copied), ADR-025, ADR-028. |
+
+`np.ascontiguousarray` returns the **same object** when its input is already contiguous, so
+`self._time.setflags(write=False)` also write-protects the caller's array. Constructing an
+index silently makes the arrays you passed in read-only, for the rest of their life.
+
+This is exactly the hazard C-66 had to avoid for the frames, where it matters more (a value
+buffer is larger and likelier to be reused across batches). The frames now take a read-only
+*view*; the index still does not, so the two now differ.
+
+**Tier 4, and deliberately left alone.** No consumer has reported it, identifier arrays are
+small and rarely reused, and the behaviour has been shipped since v0.1.0 — so changing it is
+a behaviour change on frozen surface, i.e. another MAJOR, for a hole nothing is known to hit.
+That is ADR-025's reasoning applied consistently rather than an exception made for
+convenience.
+
+**The half that *was* fixed in 2.0.0 is the comment.** It read "store as read-only views",
+which is not what `ascontiguousarray` returns for contiguous input — a false statement in
+code, costing nothing to correct. It now says what the code does and points here.
 
 ---
 
@@ -844,6 +886,82 @@ The beige-marker item is the one **not** done: applying 🟨 across the suite me
 
 ---
 
+### C-93: a frame's `index` was never type-checked, and the published checker certified the result — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-93 |
+| Tier | 2 |
+| Resolved | 2026-08-18 |
+| Resolution | Fixed in 2.0.0 (ADR-028): the three constructors raise `TypeError` on a non-`SpatioTemporalIndex` `index`, and `assert_summarizer_contract` asserts its frame's index is real. |
+| Source | falsify audit (2026-08-18) — an unpredicted finding, surfaced while correcting my own caller error in a probe |
+| Cross-refs | ADR-028 (the MAJOR), ADR-008 (validation in `__init__`), ADR-016 (why a false pass is a cross-repo defect), ADR-011 (why the guard is written three times), C-66 (the rider it shipped beside), C-94. |
+
+Construction validated `y_pred` four times — coerced it, checked dtype, ndim, row count — and
+never checked `index` at all. It read exactly one attribute off it, `n_rows`, and a frame has
+one. So `PredictionFrame(values, another_frame)` constructed silently, as did any object
+exposing `n_rows`:
+
+```
+PredictionFrame(v, a_frame)                  -> constructed, no error
+FeatureFrame(v, a_frame)                     -> constructed, no error
+TargetFrame(v, a_frame)                      -> constructed, no error
+PredictionFrame(v, obj_with_only_n_rows)     -> constructed, no error
+```
+
+**Tier 2 because of the second half.** Every summarizer reads `.values` and `.n_rows` and
+none reads `.index`, so the malformed frame produced *numerically correct* answers from
+`collapse`, `map_estimate` and `hdi` — and `assert_summarizer_contract` **returned None for
+it**. That checker is published under ADR-016 and consumers run it in their own CI, and
+`docs/CICs/Conformance.md` names "a checker that cannot detect a violation" as the failure
+mode this module must never have. A false pass in a contract checker is worse than no
+checker, because it is evidence a consumer is entitled to rely on.
+
+Not Tier 1: nothing is silently *corrupted*. The frame fails as soon as anything touches the
+index — it fails late and far from the cause, not never.
+
+The guard is written three times rather than extracted. `_validation.py` is imported **by**
+`index.py`, so it cannot import `SpatioTemporalIndex` back without a cycle that
+`tests/test_import_enforcement.py` and the import-linter contracts exist to prevent; and
+ADR-011 Option C already accepts WET across the three siblings. A `Protocol` check was
+rejected on the facts: `SpatioTemporalIndexed` describes a *frame*, `SpatioTemporalIndex`
+does not even satisfy it (no `.index`), and `runtime_checkable` checks member presence only
+— the exact weak duck-type that caused this.
+
+The checker keeps its own assertion despite construction making it unreachable by ordinary
+means, because `with_metadata` already builds frames through `__new__`, and consumers run
+the suite against their own factories.
+
+---
+
+### C-94: same-level alignment leaked a private attribute instead of failing loud — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-94 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | Fixed in 2.0.0 (ADR-028): one `TypeError` guard at the top of `SpatioTemporalIndex._require_same_level`, which every same-level binary op routes through. |
+| Source | falsify audit (2026-08-18) |
+| Cross-refs | ADR-008 (fail loud, `ValueError`/`TypeError`), ADR-028, C-93 (the same audit; the same missing type check one layer down). |
+
+`_require_same_level` read `other._level` with no type check, so `reindex`, `reindex_fill`,
+`is_superset_of` and `intersect` — and the frame-level `reindex`/`reindex_fill` that delegate
+to them — raised `AttributeError: 'PredictionFrame' object has no attribute '_level'`.
+
+That names a **private attribute of a class the caller never mentioned**. ADR-008 requires
+`ValueError`/`TypeError` at every validation guard, and `docs/CICs/SpatioTemporalIndex.md` §6
+claimed "Nothing fails silently" — true of the *values*, false here in the sense that
+mattered: the error told the caller nothing about what they did wrong.
+
+**Tier 3, not 2** — it always failed, and immediately. Only the diagnostic was bad.
+
+One guard fixes the family because all four ops already funnel through this one private
+helper. That was worth checking rather than assuming: the alternative reading was four
+guards in four methods, which would have been four places to drift.
+
+---
+
 ### C-92: eleven CI checks ran and none was required — RESOLVED
 
 | Field | Value |
@@ -890,6 +1008,73 @@ The control is what makes the "after" column mean anything: all three rows would
 same if the endpoint simply reported every ruleset in the repository. This is the C-77
 discipline applied to a repository setting — configuration existing and configuration
 applying are different claims, and only the second one is the guarantee.
+
+---
+
+### C-66: value-buffer write-protection is deferred to the next MAJOR — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-66 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | Shipped in 2.0.0 (ADR-028), riding the MAJOR exactly as this entry planned — but as a read-only **view**, not the `setflags` one-liner ADR-025 recorded. |
+| Source | review-diff + register-risk (2026-06-28, epic #179 / S2) — the residual of the C-63 resolution-by-decision (ADR-025). |
+| Cross-refs | **C-63** (RESOLVED by contract correction — this entry tracks the *deferred enforce* it left open), **ADR-025** (the decision + the exact one-line-per-constructor change), ADR-018 (`values` is frozen-surface, so the enforce is a MAJOR), GOVERNANCE.md (SemVer: "tightening an invariant" = MAJOR), C-07 (the zero-copy reason the buffer is left writeable). |
+
+The 2.0.0 MAJOR happened for another reason (the index type guard, ADR-028), so this rode
+it for free — which is precisely the outcome this entry was written to wait for.
+
+**It did not ship as written, and the difference matters.** ADR-025 and this entry both
+record the fix as `self._values.setflags(write=False)` after the assignment. That would have
+been a defect. `coerce_values` returns the caller's *own* array when it is already `float32`
+— the C-07 zero-copy guarantee — so the one-liner silently makes the **caller's** array
+read-only as well. Measured rather than reasoned about:
+
+```
+caller = np.zeros((2,3), np.float32)
+arr = np.asanyarray(caller)      # what coerce_values returns
+arr.setflags(write=False)
+caller.flags.writeable  ->  False        # action at a distance, outside this contract
+```
+
+The frames take `values.view()` and lock the view instead. Verified: the frame's buffer is
+read-only, the caller's array stays writeable, `np.shares_memory` is still True, and a
+`np.memmap` keeps its subclass and its zero-copy through `.view()`.
+
+Pinned by three tests in `tests/test_properties.py` — the buffer is read-only for all three
+frames, the caller's array is not, and the buffer is still shared. The middle one is the one
+that would have failed under the one-liner.
+
+Left standing on purpose: `SpatioTemporalIndex` still write-protects its identifier arrays
+in place and so *does* reach into the caller's arrays. Long-standing behaviour, out of
+2.0.0's scope, now recorded as **C-95**.
+
+---
+
+### C-57: `map_estimate` raises an obscure `IndexError` on ±inf draws — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-57 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | Shipped in 2.0.0 as a rider on ADR-028: `map_estimate` now raises `ValueError` on non-finite draws, the same guard `exceedance` and `expected_shortfall` carry. |
+| Source | falsify audit (2026-06-25, P5b — discovered while widening the exceedance/ES guards) |
+| Cross-refs | ADR-018 (frozen v1 surface — behavior is locked), C-50/C-56 (the new estimators now fail loud cleanly on non-finite via `np.isfinite`; `map_estimate` is the frozen sibling that does **not**), ADR-008 (fail-loud posture). |
+
+`map_estimate` was the last estimator without the `np.isfinite` guard, because `point.py`
+is frozen surface (ADR-018) and this entry was therefore waiting on a release that touched
+it. Named on C-13's freeze-cluster rider list; 2.0.0 carried it.
+
+Nothing that succeeded before now fails: an `inf` draw already crashed, via a `nan` bin
+index whose `astype(intp)` cast overflowed to the int-min sentinel and produced
+`IndexError: index -9223372036854775808 is out of bounds`. That named neither the cause nor
+the caller. It now raises `ValueError` naming both.
+
+This is why C-57 was classifiable as additive while C-66 was not — the test this register
+applies is *"does any currently-succeeding call start raising?"*, and here the answer was
+always no. Pinned in `tests/test_summarize_estimators.py` for `inf`, `-inf` and `NaN`.
 
 ---
 

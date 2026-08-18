@@ -87,3 +87,22 @@ def test_map_containment_holds_on_tied_integer_draws():
         f"{len(failures)}/500 tied-draw posteriors violate the MAP-containment law; "
         f"first: {failures[0]}"
     )
+
+
+# --- the checker must fail on a frame that misreports itself -----------------
+
+
+def test_conformance_rejects_a_frame_whose_index_is_not_an_index():
+    """A published checker must never issue a false pass (docs/CICs/Conformance.md).
+
+    Built through `__new__` on purpose: since 2.0.0 the constructor rejects a
+    non-index, so this frame cannot be built the ordinary way. That bypass is not
+    contrived — `with_metadata` uses exactly it, and consumers run this suite
+    against their own frame factories under ADR-016 (falsify audit 2026-08-18).
+    """
+    malformed = PredictionFrame.__new__(PredictionFrame)
+    malformed._values = np.zeros((2, 4), dtype=np.float32)
+    malformed._index = _pf([[1.0, 2.0], [3.0, 4.0]])  # a frame, not an index
+    malformed._metadata = None
+    with pytest.raises(AssertionError, match="misreports itself"):
+        assert_summarizer_contract(malformed)

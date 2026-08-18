@@ -219,6 +219,19 @@ re-derive (ADR-017).
 
 - A reducer producing the wrong shape fails loud via the rebuilt frame's validation.
 - `aggregate_distributions` without a mapping is an error (mirrors `cross_level_align`).
+- `map_estimate` raises `ValueError` on non-finite draws (`NaN`/`±inf`) as of 2.0.0 — the
+  same guard `exceedance` and `expected_shortfall` have carried since v1.5.0/v1.6.0.
+  Before that it overflowed the integer bin index and crashed with a bare `IndexError`
+  naming neither the cause nor the caller (register C-57, shipped as a rider on ADR-028).
+- **`assert_summarizer_contract` asserts its frame is structurally sound before asserting
+  anything about the summarizers.** Every estimator here reads `frame.values` and
+  `frame.n_rows` and none reads `frame.index`, so until 2.0.0 the checker returned cleanly
+  for a frame whose index was not an index at all — a published checker issuing a **false
+  pass**, which `docs/CICs/Conformance.md` names as the failure mode this family must never
+  have. Construction now rejects such a frame, so the assertion is unreachable by ordinary
+  means; it is kept because consumers run this suite against their own frame factories
+  (ADR-016) and `with_metadata` already builds frames through `__new__` rather than
+  `__init__` (ADR-028, falsify audit 2026-08-18).
 - **Silent caveat, not a loud failure (register C-32):** `map_estimate`'s lowest-index
   tie-break is statistically biased toward zero on right-skewed, zero-inflated, low-sample
   posteriors. It does not raise — it returns a defensible-but-biased mode; consumers must

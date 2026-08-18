@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from views_frames import PredictionFrame, SpatialLevel, SpatioTemporalIndex
 from views_frames_summarize import hdi, map_estimate, quantiles
@@ -80,3 +81,17 @@ def test_quantiles_are_monotonic():
     pf = PredictionFrame(rng.random((4, 200), dtype=np.float32), _index(4))
     out = quantiles(pf, [0.1, 0.5, 0.9])
     assert np.all(np.diff(out, axis=-1) >= 0)
+
+
+# --- C-57: map_estimate fails loud on non-finite draws -----------------------
+
+
+def test_map_estimate_rejects_non_finite_draws():
+    """Shipped with 2.0.0 as a rider on the MAJOR (register C-57).
+
+    Before it, an inf draw overflowed the integer bin index and crashed with a bare
+    `IndexError` naming neither the cause nor the caller.
+    """
+    for bad in (np.inf, -np.inf, np.nan):
+        with pytest.raises(ValueError, match="non-finite draws"):
+            map_estimate(_pf([[0.0, 1.0, bad]]))

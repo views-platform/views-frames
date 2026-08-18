@@ -36,11 +36,21 @@ class TargetFrame:
                 "TargetFrame y_true must have shape (N, 1) with an explicit "
                 f"trailing axis (ADR-012), got shape {values.shape}"
             )
+        if not isinstance(index, SpatioTemporalIndex):
+            raise TypeError(
+                f"index must be a SpatioTemporalIndex, got {type(index).__name__}"
+            )
         if values.shape[0] != index.n_rows:
             raise ValueError(
                 f"y_true has {values.shape[0]} rows but index has {index.n_rows}"
             )
-        self._values = values
+        # A read-only *view*, not `values.setflags(write=False)` (register C-66).
+        # `coerce_values` returns the caller's own array when it is already float32
+        # (the C-07 zero-copy guarantee), so locking it in place would silently make
+        # the CALLER's array read-only — action at a distance well outside this
+        # contract. The view shares the buffer, so zero-copy and mmap are preserved.
+        self._values: NDArray[np.float32] = values.view()
+        self._values.setflags(write=False)
         self._index = index
         self._metadata = metadata if metadata is not None else FrameMetadata()
 

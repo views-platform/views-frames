@@ -1,11 +1,32 @@
 
 # ADR-025: Value-buffer immutability is by convention; only the index is enforced
 
-**Status:** Accepted
+**Status:** Accepted — superseded in part by ADR-028 (2026-08-18); see *Amendment*
 **Date:** 2026-06-28
 **Deciders:** VIEWS platform maintainers
 **Consulted:** repo-assimilation + test-review (2026-06-27, the audit that surfaced C-63)
 **Informed:** views-pipeline-core, views-datafactory (consumers that hold frames)
+
+> **Amendment (2026-08-18, ADR-028 / register C-66).** **The deferred enforce has shipped.**
+> `frame.values` is write-protected as of 2.0.0, so the "by convention" half of this ADR's
+> title now describes history rather than current behaviour. The reasoning below for *why*
+> it was deferred — that tightening frozen surface is a MAJOR disproportionate to a hole no
+> code in the ecosystem hits — was correct and is why it waited; 2.0.0 happened for another
+> reason and carried it for free, exactly as C-66 planned.
+>
+> **It did not ship as the one-liner recorded below.** This ADR names the fix as
+> `self._values.setflags(write=False)`. That would have been wrong: `coerce_values` returns
+> the caller's own array when it is already `float32` — the C-07 zero-copy guarantee — so
+> the one-liner silently makes the **caller's** array read-only too. Measured, not assumed:
+> the naive form flips `caller.flags.writeable` to `False`. The frames take a **read-only
+> view** instead, which locks the frame's buffer, leaves the caller's array writeable, and
+> still shares memory; the memmap path keeps its subclass and zero-copy through `.view()`.
+>
+> One inconsistency is left standing on purpose: `SpatioTemporalIndex` still write-protects
+> the identifier arrays in place, so it *does* reach back into the caller's arrays, and its
+> comment called them "views" when `ascontiguousarray` returns the same object for
+> already-contiguous input. The comment now says what the code does; the behaviour is
+> long-standing and out of 2.0.0's scope.
 
 ---
 
