@@ -5,16 +5,17 @@ via Trove classifiers — their absence was the soft falsification found by `/fa
 (P3, register C-40). These guard against a silent regression of the published metadata.
 
 `tomllib` is stdlib only on Python 3.11+, so this module is skipped on the 3.10 floor
-(the metadata is still asserted by the 3.11/3.12/3.13 CI jobs).
+(these assertions run on every CI leg including the 3.10 floor; register C-80).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-tomllib = pytest.importorskip("tomllib")  # py3.11+; skipped on the 3.10 floor
+try:  # py3.11+ ships tomllib; the 3.10 floor needs tomli (dev group)
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - only taken on py3.10
+    import tomli as tomllib
 
 _PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 

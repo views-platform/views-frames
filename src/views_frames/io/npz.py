@@ -36,7 +36,13 @@ def save(
     header: dict[str, Any] = {"level": level, "metadata": metadata}
     if feature_names is not None:
         header["feature_names"] = feature_names
-    payload = json.dumps(header, sort_keys=True, default=str)
+    # No `default=` on purpose (register C-90). It used to be `default=str`, which
+    # silently stringified a non-JSON header value — a `datetime` timestamp reloaded as
+    # "2026-01-01 00:00:00", where the field is declared `int | None`. `io/arrow` has
+    # never had it, so the same frame persisted lossily through one codec and raised
+    # through the other: the storage backend decided whether the run failed. ADR-008
+    # says fail loud, so both now raise.
+    payload = json.dumps(header, sort_keys=True)
     (directory / "header.json").write_text(payload)
 
 

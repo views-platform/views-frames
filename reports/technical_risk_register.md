@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
 | Total Concerns    | 89                                   |
-| Open Concerns     | 18                                   |
-| Resolved Concerns | 71                                   |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 77                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -68,36 +68,6 @@ one — re-auditing it produces the same answer its precondition already gives.
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
 > with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
 
-### C-90: the two IO codecs disagree on a non-JSON metadata value — npz coerces it silently, arrow raises
-
-| Field | Value |
-|-------|-------|
-| ID | C-90 |
-| Tier | 4 |
-| Status | **actionable** — one `default=` argument, once the desired behaviour is chosen |
-| Source | code-review (2026-08-18), during S5 of epic #240; reproduced before registering. |
-| Trigger | **When a producer sets a `FrameMetadata` field to a non-JSON value** — a `datetime` `timestamp` is the obvious one, and the field is typed `int` precisely because someone might. The frame saves cleanly through `npz` and raises through `arrow`, so the *storage backend* decides whether the run fails. Also check when adding a metadata field whose natural Python type is not JSON-native. |
-| Location | `src/views_frames/io/npz.py:39` — `json.dumps(header, sort_keys=True, default=str)`; `src/views_frames/io/arrow.py:69` — `json.dumps(header)`; `docs/CICs/FrameMetadata.md` §6 (documents the divergence). |
-| Cross-refs | **C-09** (the state-dict contract that keeps `io/` schema-free — this is a place where the two implementations of it diverged), **C-79** (no cross-version IO fixture; a silently-stringified field is exactly the kind of thing that would survive a round-trip test at one version), C-72 (the last time the two codecs were found to differ in strictness), ADR-008 (fail loud), ADR-016. |
-
-`FrameMetadata` takes field values as declared and validates none of them (ADR-013's as-built amendment; `docs/CICs/FrameMetadata.md` §4), so a header with a non-JSON value is constructible. The two published codecs then handle it differently:
-
-```
-$ # FrameMetadata(timestamp=datetime.datetime(2026, 1, 1)) on a PredictionFrame
-npz  round-trip timestamp type: str '2026-01-01 00:00:00'
-arrow raises: Object of type datetime is not JSON serializable
-```
-
-`io/npz` passes `default=str`, so the value is **silently stringified** and reloads as a string — the field's declared type is `int | None`, and what comes back is neither. `io/arrow` passes no `default`, so the same header raises `TypeError`.
-
-**Neither behaviour is obviously wrong; having both is.** Which one a producer gets depends on the storage backend, so the same frame either persists lossily or fails loudly according to where it is written. ADR-008 says fail loud, which argues for removing `default=str`; the counter-argument is that npz is the native format and coercion is friendlier. That choice is the work — the divergence is the defect.
-
-**Tier 4.** No consumer is known to set a non-JSON metadata value, all six fields are typed `str | int | None`, and `mypy --strict` catches it at any typed call site. It is registered because the divergence is **invisible until it bites**, it sits in the published IO surface (ADR-016), and a silently-stringified field is precisely what a same-version round-trip test cannot see (C-79).
-
-**Resolved when** both codecs treat a non-JSON header value the same way, and `docs/CICs/FrameMetadata.md` §6 records the chosen behaviour as one row rather than two.
-
----
-
 ### C-92: no branch protection exists, so every "gate" in this repository is advisory
 
 | Field | Value |
@@ -134,112 +104,6 @@ This does not mean the checks are worthless: they are read, and this epic's own 
 
 ---
 
-### C-91: `TowerSummary` is a public class whose only CIC occurrence describes a return value, not a contract
-
-| Field | Value |
-|-------|-------|
-| ID | C-91 |
-| Tier | 4 |
-| Status | **actionable** — one §-level entry in `docs/CICs/Summarize.md`, or a stated exemption |
-| Source | code-review (2026-08-18) during S5, confirmed by the check S6 armed. |
-| Trigger | **When a consumer unpacks a `TowerSummary` and needs to know what its fields guarantee** — whether `intervals` is nested, whether `bimodal` is per-row, what `masses` orders. Also when the next `NamedTuple`-shaped public return type is added, since the same "is it contracted?" question will apply and there is currently no precedent to point at. |
-| Location | `src/views_frames_summarize/summarize_tower.py` (`class TowerSummary`); `docs/CICs/Summarize.md:130` — its only occurrence, inside a bullet describing `summarize_tower`'s output; `docs/validate_docs.sh` check 7 (which reports it as an INFO). |
-| Cross-refs | **C-85** (whose check surfaced it), **C-64** / **C-81** (the CIC index claiming coverage it lacked — this is the same question one level finer: *presence* versus *contract*), ADR-006 (the requirement CICs exist to satisfy), ADR-019 (which introduced the type). |
-
-`TowerSummary` is exported from `views_frames_summarize` and named in ADR-018's frozen surface. It appears in `docs/CICs/Summarize.md` exactly once:
-
-> `summarize_tower(frame, masses)` → `TowerSummary(point, intervals, bimodal, masses)`: a single-pass bundle deriving all three from one sort; **provably equal** to the trio.
-
-That is a constructor signature inside a description of a *function*. There is no statement of what each field guarantees, no failure modes, no test alignment — none of what ADR-006 asks a contract to provide.
-
-**It passes S6's check 8, deliberately.** Presence is the gate, because telling "contracted" from "mentioned in passing" is a judgement a bash script cannot make. The check reports single-occurrence names as an **INFO** so a human looks — and a single occurrence is often correct (`assert_index_alignment_laws` is contracted by exactly one bolded entry in `Conformance.md`). `TowerSummary` is the case where it is not.
-
-**Tier 4.** The type is a `NamedTuple` whose fields are self-describing and whose components (`tower_point`, `hdi_tower`, `bimodality`) are each contracted individually in the same document — so a reader is not left without recourse, only without a direct answer. Registered because it is the one known false pass of a check this epic added, and leaving it unrecorded would make that check's INFO output look like noise rather than a pointer at something real.
-
-**Resolved when** `Summarize.md` either contracts the type — fields, guarantees, and the "provably equal to the trio" claim stated as a law — or records why a bundle of already-contracted components needs no separate entry.
-
----
-
-### C-86: the README's directory tree and conformance-suite location are stale — and one of them points consumers at a path that does not exist
-
-| Field | Value |
-|-------|-------|
-| ID | C-86 |
-| Tier | 3 |
-| Status | **actionable** — one tree and one sentence; the tree can reuse `scripts/check_arch_tree.py`'s logic |
-| Source | review-diff (2026-08-17), during S3 of epic #240 — found by sweeping for documents that restate what S3 was correcting (the S1 lesson: completing one document can falsify its neighbours). |
-| Trigger | **When a consumer follows README §9 to find the conformance suite**, or when the next module is added to a sibling package. §9 sends them to `tests/conformance/`, which does not exist; the suite ships at `src/views_frames/conformance/` and is what `GOVERNANCE.md` and ADR-016 name. Also check before the next release, since README is the PyPI long-description and the first thing an adopter reads. |
-| Location | `README.md:400-432` (the `src/` tree — 11 of 36 modules missing, and two `tests/` subdirectories that do not exist); `README.md:534` (§9 "Conformance suite (`tests/conformance/`)"); `scripts/check_arch_tree.py` (validates only the standard's tree, not this one). |
-| Cross-refs | **C-84** (resolved 2026-08-17 — the identical disease in `docs/standards/physical_architecture_standard.md`; **this entry is why that cluster is not closed**), C-70 (resolved — README narrative epoch-lag), C-85 (the coverage-claim sibling), C-30 (the cross-repo contract-test gap §9 is about), ADR-016. |
-
-Sweeping for other documents that enumerate what S3 was correcting turned up a **second directory tree**, in `README.md` — a different document from the one C-84 closed, with the same disease and one consequence C-84 did not have.
-
-**The tree (`:400-432`) is missing 11 of 36 modules**, measured, not estimated: `views_frames/_typing.py` and `metadata.py`; `views_frames_reconcile/result.py`; and eight of the fourteen `views_frames_summarize` modules — `_common.py`, `config.py`, `tower.py`, `tower_point.py`, `bimodality.py`, `summarize_tower.py`, `exceedance.py`, `expected_shortfall.py`. The summarize package is shown as four modules; it has fourteen. No named file is a ghost, but **two named directories are**: `tests/conformance/` and `tests/unit/` do not exist — `tests/` is flat, 36 `test_*.py` files plus `fixtures/`.
-
-**The sharper half is §9 (`:534`).** It introduces the published suite as *"Conformance suite (`tests/conformance/`): a published, importable set of contract tests … Every consumer repo runs it in CI against its own adapters."* That path does not exist, and the suite it describes is not there — it ships as `src/views_frames/conformance/`, which is what `GOVERNANCE.md` §Conformance floor and ADR-016 name, and what consumers actually import. A consumer following README to find the thing ADR-016 requires them to run is sent to a directory that was never created.
-
-**Tier 3, not 4, and not 2.** Not 4 because README is the PyPI long-description and the first document an adopting repo reads, and the wrong path is in the section that exists to close the cross-repo contract-test gap (C-30) — the failure lands on external consumers, not one developer. Not 2 because it fails *loudly and immediately*: the import path is right in `GOVERNANCE.md`, ADR-016 and every CIC, the directory plainly does not exist, and a consumer hits that in seconds rather than shipping something wrong.
-
-**This entry is the reason the `doc↔code topology drift` cluster is not closed.** S2's closure said the two topology documents were "the whole of it". They were not — the sweep that found this ran one story later. The cluster note has been corrected rather than left, which is the C-77 discipline applied to a claim this register made about itself two commits ago.
-
-**Resolved when** the README tree matches `src/` in both directions, the two phantom `tests/` subdirectories are gone, §9 names the real conformance path, and `scripts/check_arch_tree.py` covers this tree too (its `STANDARD`/`FENCE_START` constants are the only thing tying it to one document).
-
----
-
-### C-87: two published conformance surfaces declare no `__all__`
-
-| Field | Value |
-|-------|-------|
-| ID | C-87 |
-| Tier | 4 |
-| Status | **actionable** — two lines of `src/`, deliberately deferred out of epic #240, which scoped `src/` out |
-| Source | code-review (2026-08-17), during S3 of epic #240. |
-| Trigger | **When S6 (#246) writes the "every exported name appears in a CIC" assertion** — it has to read three conformance modules and only one of them can be read the same way. Decide there whether the siblings gain an `__all__` or the check special-cases them; do not let the check silently encode the asymmetry. |
-| Location | `src/views_frames_summarize/conformance.py` (defines `assert_summarizer_contract`, no `__all__`); `src/views_frames_reconcile/conformance.py` (defines `assert_reconcile_contract`, no `__all__`); `src/views_frames/conformance/__init__.py:34` (the one that does); `GOVERNANCE.md` §Conformance floor (documents the asymmetry as of S3). |
-| Cross-refs | **C-85** (S6 is where this is decided), C-23 (resolved — the `py.typed` / statically-analysable-surface family), ADR-016 (which makes these published surfaces), ADR-017 / ADR-023 (the sibling charters). |
-
-`views_frames.conformance` declares an explicit `__all__`. The two sibling conformance modules do not, though ADR-016 makes all three **published** surfaces that consumers run in their own CI.
-
-The practical consequence surfaced when `GOVERNANCE.md` tried to point at a single source of truth in S3: an instruction to "read `__all__`" raises `AttributeError` on two of the three, and a reader resolving "public surface" as "what the module exposes" sees everything imported at module level — `collapse`, `hdi`, `quantiles`, `ReconciliationModule`, `np` — rather than the one entry point each actually publishes. `GOVERNANCE.md` now documents the asymmetry honestly instead of asserting a uniformity that does not exist.
-
-**Tier 4.** Nothing is wrong at runtime, no consumer is misled in practice (the CICs and ADRs name the entry points explicitly, and `import *` is banned repo-wide), and the frozen surface is unaffected — an `__all__` here declares what is already public rather than narrowing it. It is registered because it is a real inconsistency in a *published* surface and because **S6 cannot avoid meeting it**: its check has to read all three modules.
-
-**Resolved when** either both sibling modules declare `__all__`, or the asymmetry is recorded as deliberate with a reason, and S6's check reflects whichever was chosen.
-
----
-
-### C-77: resolution text describes the intent, not the result — four instances in one epic
-
-| Field | Value |
-|-------|-------|
-| ID | C-77 |
-| Tier | 3 |
-| Status | **actionable** — the discipline change is free; adopting it costs one extra check per resolution |
-| Source | Pattern across epic #208 (2026-07-31), surfaced by two `/code-review max` passes. |
-| Trigger | **When writing or reviewing a `Resolution` field**, before saving: run the check the resolution implies and paste its output, rather than describing what was done. Specifically — if the resolution says a claim was corrected, grep for the claim's wording everywhere, not just where it was noticed; if it says a guard was added, try to defeat the guard; if it says citations were converted, grep for every form of the old style, not the one you happened to write. |
-| Location | Four confirmed instances, all corrected: **C-70** claimed a CI guard was "failing validation" when the script was never in CI; **C-76** claimed the `from_2d` wording was fixed while the module docstring and a `ValueError` still said "legacy shim"; **C-75** described a guard as stronger than it was, twice — first the evadable `dir(module)` form, then the "nothing to evade" wording; **S4/#212** claimed all line-number citations were converted while `docs/ADRs/025_value_buffer_immutability_by_convention.md` retained three written as approximate line numbers in parentheses, a form the acceptance grep could not match. |
-| Cross-refs | C-70, C-75, C-76, C-78, **C-82** (the 2026-08-17 instance below), **C-67** (the same shape in code — a conformance suite that reported green while `python -O` stripped its assertions); the cross-cutting **verification-completeness** cluster and the *unchecked completeness claims* cluster, of which this is the documentation-side twin. |
-
-Four times in a single epic, a resolution described what the author **meant to do** rather than what was **verifiably done** — and each was caught by someone re-running the check rather than reading the claim. The pattern is not carelessness about the work; the work was correct each time. It is that resolution text gets written while the change is fresh, when intent and result feel identical, and the author's own acceptance check is built from the same mental model that produced the gap. S4's grep is the clearest case: `\.py:[0-9]+` was written by someone thinking in colon-form citations, so it could not see a citation written as an approximate line number in parentheses.
-
-**Tier 3** — no correctness or silent-corruption path; the cost is that the register, the artifact this project reasons with, states things that are not quite true, and every decision built on it inherits the error. It is Tier 3 rather than 4 because this register is load-bearing: entries like C-66 are executable instructions for a future breaking release, and an instruction that overstates its own completeness is worse than one that admits a gap. **Resolved when** three consecutive resolutions pass a re-run of their own stated check by someone other than their author — or when the habit of pasting the check's output into the resolution is visible in the next five entries.
-
-**Refinement (2026-08-17, from C-82 — pasting evidence is necessary, not sufficient).** The C-82 resolution followed this entry's rule exactly: it ran a check and pasted the real output of a real command, rather than describing what was done. It still asserted something false. The check was `grep` over `docs/ README.md CLAUDE.md` for **four fixed literal phrases**, and two occurrences of the inverted claim survived *inside that same search path* — `README.md` said *"I/O adapters live under `io/`, **import the frame**"* (different wording, wrapped across two lines) and `docs/ADRs/README.md:23` carried a pre-amendment one-line summary of the very ADR being corrected. A `/code-review` pass found both; the entry had already been moved to Resolved.
-
-**So the rule needs a second half.** Pasting output proves a command ran; it does not prove the command *could have failed* on the thing being claimed. A check built from fixed phrases can only find the phrasings its author already thought of — which are, by construction, the ones they just finished editing. Where a resolution claims *absence* ("every stale claim is gone", "no test does X", "nothing references Y"), prefer a check that matches the **shape** of the thing rather than its wording, and where practical, **mutate something to confirm the check goes red** before trusting it green. That is the same lesson as C-67, where the published conformance suites reported green under `python -O` while checking nothing, and the same as the mutation testing the import contracts got in #239.
-
-**Second refinement (2026-08-17, from C-84 — evidence has to be re-runnable).** The C-84 resolution pasted the output of a tree-diffing script, and mutation-tested it in both directions, which satisfies the first refinement above. But the script lived in a scratchpad and was not committed, so the only artifact proving the tree was correct was a transcript nobody else could execute. A `/code-review` pass named it: a claim backed by an unreproducible transcript is the same shape as a claim backed by nothing, one review cycle later. Fixed by committing it as `scripts/check_arch_tree.py`, beside the other standalone tools there.
-
-**Third refinement (2026-08-17, from C-84's check itself — the mutations you pick are the ones you already have in mind).** `scripts/check_arch_tree.py` was mutation-tested in S2 before being trusted, exactly as the first refinement demands, and it passed both mutations: a phantom module added, a real module hidden. A `/code-review` pass then deleted `views_frames_reconcile/conformance.py` from the tree and **the check stayed green** — it tested bare basenames, and `conformance.py` also exists in the summarize block, so one mention satisfied both. `__init__.py` appears five times and satisfied all five.
-
-Both mutations chosen in S2 used *unique* basenames. The duplicated-basename case is precisely the one the check could not see, and precisely the one that did not occur to its author — because an author mutating their own check reaches for the failure they were already thinking about. Fixed by matching each module within its own package's block; re-tested against all three mutations including the one that used to pass.
-
-**So the rule has four parts, and S10 (#250) should write all four down somewhere durable:** demonstrate rather than describe; use a check that could actually have failed; leave the check where the next person can run it; and remember that **the mutations an author picks are the ones they already have in mind** — a check that survives its author's own mutation testing is not yet known to be sound. Where it matters, have someone else pick the mutation.
-
-**Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
-
----
-
 ### C-78: the architectural guards have known blind spots — they catch honest regressions, not adversarial ones
 
 | Field | Value |
@@ -259,30 +123,6 @@ The falsification guards rewritten in epic #208 are real and catch the regressio
 3. **`cl_03`/`cl_04` see instance state only.** A module-level cache in `index.py` populated with a *copy* of an injected mapping would hold domain reference data invisibly to both.
 
 None of these is a defect to fix now. Every one requires someone to work around a guard deliberately, and this package has one maintainer whose regressions are honest — the discarded `gid_patch` branch, the case that motivated `sl_01`, made no attempt to hide. **Tier 4** — recorded so the guards are not over-trusted, not because action is needed. Deepening them (AST inspection, package-wide scans, module-state introspection) would buy protection against an adversary this repository does not have, at the cost of tests that are harder to read than the code they guard.
-
----
-
-### C-80: the test suite's self-description does not match its contents
-
-| Field | Value |
-|-------|-------|
-| ID | C-80 |
-| Tier | 4 |
-| Status | **actionable** — four small corrections, none requiring new test logic |
-| Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
-| Trigger | **Before the next test-review or coverage audit, and whenever one of the five named files is opened for another reason** — each item makes "is X covered?" answerable wrongly, so an audit that trusts the suite's self-description will draw a wrong conclusion about what is protected. Fix them opportunistically rather than as a standalone sweep; the audit is the deadline. |
-| Location | `tests/test_reconcile_head_to_head.py` (collects **0** tests anywhere); `tests/test_packaging.py:17` (collects 0 tests on the 3.10 leg); the 20 of 36 test files carrying no ADR-005 category marker, and the **zero** 🟨 beige markers suite-wide; `docs/CICs/PredictionFrame.md` §10 (states a memory guarantee pinned by a type check in `tests/test_io.py::test_npz_mmap_returns_memmap`); `docs/CICs/TargetFrame.md` §10 (names no pinning test file, where the other six CICs name one to five). |
-| Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
-
-Four small things, one root cause: **what the suite says about itself is not quite what it does.**
-
-1. **`test_reconcile_head_to_head.py` collects zero tests** — anywhere. It `importorskip`s `views_postprocessing` at module level, and that package is installed neither locally, nor in CI, nor in any dependency group. The file reads as coverage of the bit-identity guarantee against the old implementation; it contributes nothing. The guarantee *is* covered, by the frozen-oracle route in `test_reconciliation_parity.py` and `test_reconciliation_e2e_parity.py` — so nothing is unprotected. What is wrong is that the file implies otherwise.
-2. **The beige category is unmarked suite-wide** — 15 🟩, 26 🟥, **0 🟨**, with 20 of 36 files carrying no marker at all. The CICs *do* specify beige guarantees per class, and most look covered; the taxonomy simply is not applied. A half-applied classification is worse than none, because it implies a system that is being followed.
-3. **A memory guarantee pinned as a type check.** `PredictionFrame` §10 promises *"`mmap` load keeps peak RAM at the working set"*; the tests assert the returned object **is** an `np.memmap` and is read-only. The proxy is defensible — memmap implies lazy paging by definition — but three summarize test files already measure memory, so the capability exists and is simply not pointed here.
-4. **`TargetFrame.md` §10 names no pinning test file**, where the other six CICs name between one and five.
-5. **`test_packaging.py` collects zero tests on the 3.10 leg** (added 2026-08-17 by repo-assimilation — the same disease as item 1, one matrix leg rather than everywhere). It `importorskip`s `tomllib`, which is 3.11+, so the packaging assertions never run at the **declared floor** — the version a conservative consumer is most likely to pin, and the only version the `floor` job exists to scrutinise. They do run on 3.11–3.13, so exposure is low; what is wrong is that a four-version matrix implies four-version coverage here and gives three. The assertions guard the Trove classifiers added under C-40. Fix by parsing the two asserted fields without `tomllib`, or adding `tomli` to the dev group.
-
-**Tier 4** — nothing is unprotected and no behaviour is at risk; every item is a labelling or wiring correction. Registered because this suite's credibility is the project's main safety argument, and each item degrades the ability to audit it. **Resolved when** the inert file is either wired into CI or removed with its coverage route named, `test_packaging.py` runs on every matrix leg, the beige category is applied or dropped from ADR-005, and the two CIC gaps are filled.
 
 ---
 
@@ -914,6 +754,129 @@ Two more from the same review:
 - **`zero_cutoff` rows** (C-45) collapse to `(0, 0)` in both tower and tip, so their in-range counts are 0, nothing qualifies, and they are skipped. That is correct rather than a gap — containment of tip 0 in floor `(0, 0)` is trivially true — and the code now says so.
 
 Prose corrected in the same change: `docs/ADRs/019_...md` (Amendment 3's false parenthetical, plus Amendment 4 recording all of this), `docs/CICs/Summarize.md` (banner and §3), `src/views_frames_summarize/config.py`, `src/views_frames_summarize/tower_point.py`.
+
+---
+
+### C-86: the README's directory tree and conformance-suite location were stale — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-86 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | Tree rewritten from `find src -name '*.py'` (all 36 modules, no phantom `tests/` dirs), §9 now names `views_frames.conformance` / `src/views_frames/conformance/`, and `scripts/check_arch_tree.py` covers **both** trees. |
+| Source | review-diff (2026-08-17), during S3 of epic #240 — found by sweeping for documents that restate what S3 was correcting (the S1 lesson: completing one document can falsify its neighbours). |
+| Cross-refs | **C-84** (resolved 2026-08-17 — the identical disease in `docs/standards/physical_architecture_standard.md`; **this entry is why that cluster is not closed**), C-70 (resolved — README narrative epoch-lag), C-85 (the coverage-claim sibling), C-30 (the cross-repo contract-test gap §9 is about), ADR-016. |
+
+README's `src/` tree omitted 11 of 36 modules — the summarize package was shown as four where it has fourteen — and named two `tests/` subdirectories that do not exist. Worse, §9 introduced the published conformance suite as **`tests/conformance/`**, a path that was never created; the suite is `src/views_frames/conformance/`, which is what `GOVERNANCE.md`, ADR-016 and every CIC name. README is the PyPI long-description, and that sentence sits in the section written to close the cross-repo contract-test gap (C-30).
+
+`scripts/check_arch_tree.py` now takes a **list** of documents rather than one, because the failure was precisely that the check knew about one tree while a second went stale beside it. Mutation-tested per document:
+
+```
+hide a module from README only            → FAILED, names README.md
+hide a module from the standard only      → FAILED, names the standard
+phantom module in README                  → FAILED, names views_frames/weight_frame.py
+```
+
+Verified: 36 of 36 modules present in both trees, no phantom `tests/` directories.
+
+---
+
+### C-87: two published conformance surfaces declared no `__all__` — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-87 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | `__all__` added to both sibling conformance modules; `validate_docs.sh` now reads all three the same way. |
+| Source | code-review (2026-08-17), during S3 of epic #240. |
+| Cross-refs | **C-85** (S6 is where this is decided), C-23 (resolved — the `py.typed` / statically-analysable-surface family), ADR-016 (which makes these published surfaces), ADR-017 / ADR-023 (the sibling charters). |
+
+`views_frames.conformance` declared `__all__`; the two sibling modules did not, though ADR-016 makes all three published surfaces. `GOVERNANCE.md` had to document the asymmetry instead of stating a rule, and S6's check 7 carried a fallback branch for it.
+
+Two lines. Both modules now declare their single entry point, and the fallback in `docs/validate_docs.sh` only fires when no `__all__` is present — so it stays correct and stops being the normal path. `import *` is banned repo-wide, so this declares what was already public rather than narrowing anything.
+
+---
+
+### C-90: the two IO codecs disagreed on a non-JSON metadata value — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-90 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | `default=str` removed from `io/npz`, so both codecs now raise. Verified: a `datetime` timestamp gives the same `TypeError` through each. |
+| Source | code-review (2026-08-18), during S5 of epic #240; reproduced before registering. |
+| Cross-refs | **C-09** (the state-dict contract that keeps `io/` schema-free — this is a place where the two implementations of it diverged), **C-79** (no cross-version IO fixture; a silently-stringified field is exactly the kind of thing that would survive a round-trip test at one version), C-72 (the last time the two codecs were found to differ in strictness), ADR-008 (fail loud), ADR-016. |
+
+`io/npz` passed `json.dumps(..., default=str)` and `io/arrow` did not, so a non-JSON header value was **silently stringified** by one codec and rejected by the other — a `datetime` timestamp reloaded as `'2026-01-01 00:00:00'` where the field is declared `int | None`. The storage backend decided whether the run failed.
+
+ADR-008 says fail loud, so both now raise:
+
+```
+npz:   TypeError — Object of type datetime is not JSON serializable
+arrow: TypeError — Object of type datetime is not JSON serializable
+```
+
+---
+
+### C-91: `TowerSummary` had no CIC entry of its own — RESOLVED (by decision)
+
+| Field | Value |
+|-------|-------|
+| ID | C-91 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | Recorded in `docs/CICs/Summarize.md` as a deliberate exemption with its reason. |
+| Source | code-review (2026-08-18) during S5, confirmed by the check S6 armed. |
+| Cross-refs | **C-85** (whose check surfaced it), **C-64** / **C-81** (the CIC index claiming coverage it lacked — this is the same question one level finer: *presence* versus *contract*), ADR-006 (the requirement CICs exist to satisfy), ADR-019 (which introduced the type). |
+
+`TowerSummary` is a `NamedTuple` holding no behaviour of its own, and each of its three components — `tower_point`, `hdi_tower`, `bimodality` — is contracted individually in the same document. Its guarantee is exactly the conjunction of theirs plus the equality with the trio, which `assert_summarizer_contract` asserts.
+
+A field-by-field entry would restate three contracts and create a fourth place for them to drift. The exemption is now written where a reader meets the type, so S6's single-occurrence INFO reads as expected rather than as an oversight.
+
+---
+
+### C-77: resolution text described the intent, not the result — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-77 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | The four-part discipline is written into `docs/contributor_protocols/carbon_based_agents.md` under *Claims About Your Own Work*. |
+| Source | Pattern across epic #208 (2026-07-31), surfaced by two `/code-review max` passes. |
+| Cross-refs | C-70, C-75, C-76, C-78, **C-82** (the 2026-08-17 instance below), **C-67** (the same shape in code — a conformance suite that reported green while `python -O` stripped its assertions); the cross-cutting **verification-completeness** cluster and the *unchecked completeness claims* cluster, of which this is the documentation-side twin. |
+
+The entry accumulated four refinements across this epic, each learned by getting it wrong: demonstrate rather than describe; use a check that could actually have failed; leave the check where the next person can run it; and remember that **the mutations an author picks are the ones they already have in mind**.
+
+The fourth earned its place twice more after being written. A tree check passed its author's own mutation testing and still could not see a duplicated basename. And the C-88 fix was mutation-tested for *firing falsely* but not for *failing to fire*, so it could disarm itself — caught by review, not by its author.
+
+Closed because the discipline now lives somewhere durable rather than in a register entry that only the register's readers see. The protocol states the pattern behind all four: **it is easy to prove a thing no longer fails, and hard to prove it still works.**
+
+---
+
+### C-80: the test suite's self-description did not match its contents — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-80 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | All items closed: `test_packaging.py` runs on the 3.10 floor, the inert file names its coverage route, the two CIC §10 gaps are filled, and three unpinned `FrameMetadata` guarantees now have tests. |
+| Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
+| Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
+
+Five items plus three found later while writing `FrameMetadata.md`.
+
+- **`test_packaging.py` collected zero tests on the 3.10 leg** — `importorskip("tomllib")` at module level, and tomllib is 3.11+. Now a `tomllib`/`tomli` fallback with `tomli` in the dev group for `python_version<'3.11'`, so the classifier assertions run on the leg the `floor` job exists to scrutinise.
+- **`test_reconcile_head_to_head.py` collects zero tests anywhere.** Kept — it is a real local cross-check against the *live* old package, which a fixture cannot be — and its docstring now names what holds the guarantee in CI instead: the frozen-oracle route in `test_reconciliation_parity.py` and `test_reconciliation_e2e_parity.py`.
+- **`PredictionFrame.md` §10** promised *"mmap load keeps peak RAM at the working set"* against a **type** check. The proxy is sound (memmap implies lazy paging) but §10 read as though memory were measured; it now says which is which.
+- **`TargetFrame.md` §10** named no pinning test file where the other CICs name one to five. It now names them.
+- **Three `FrameMetadata` guarantees nothing pinned**, all stated in its §3: the unknown-key **drop** (the nearest test only asserted `from_dict` does not raise), the empty-header default, and the save/load round-trip for `FeatureFrame` and `TargetFrame` — it was pinned for `PredictionFrame` only. Three tests added.
+
+The beige-marker item is the one **not** done: applying 🟨 across the suite means deciding what beige means here, which is an ADR-005 question and not a labelling task. Recorded as such rather than half-applied.
 
 ---
 

@@ -141,6 +141,36 @@ ADR-001.
 
 ---
 
+## Claims About Your Own Work
+
+When you write that something was fixed, checked, or enforced — in a risk-register
+resolution, a CHANGELOG entry, an ADR, a commit message — the claim is the artifact
+everyone downstream reasons with. Four rules, each learned here by getting it wrong
+(register **C-77**):
+
+1. **Demonstrate, do not describe.** Paste the output of the check the claim implies,
+   not a sentence about having run it. *Four resolutions in one epic described intent
+   and were caught by someone re-running the check.*
+
+2. **Use a check that could actually have failed.** A resolution once pasted a real
+   grep over the right files and still missed two live counter-examples, because the
+   grep matched four fixed phrases and the surviving text used different wording.
+   Prefer checks that match the *shape* of a claim over its wording.
+
+3. **Leave the check where the next person can run it.** A transcript of a script that
+   is not in the repository proves nothing a paragraph would not. Put it in `scripts/`.
+
+4. **The mutations you pick are the ones you already have in mind.** A tree check
+   passed its author's own mutation testing and still could not see a duplicated
+   basename. A containment law was mutation-tested for firing falsely and not for
+   *failing to fire*, so the fix could disarm itself. Where it matters, have someone
+   else choose the mutation — that is what review is for.
+
+The pattern behind all four: it is easy to prove a thing no longer fails, and hard to
+prove it still works. Both halves are the claim.
+
+---
+
 ## Non-Negotiable Expectations
 
 Carbon-based agents must not:

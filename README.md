@@ -401,24 +401,36 @@ views-frames/
 ├── LICENSE
 ├── src/views_frames/              # the pure data contract (numpy only, depends on nothing)
 │   ├── __init__.py                # EXPLICIT re-exports only (no `import *`)
-│   ├── index.py                   # SpatioTemporalIndex value object + alignment
+│   ├── _typing.py                 # IntArray / Float32Array aliases (private)
+│   ├── metadata.py                # FrameMetadata — the typed provenance header
 │   ├── spatial_level.py           # SpatialLevel enum (cm/pgm) — relocated here
-│   ├── protocols.py               # Frame / SpatioTemporalIndexed / Sampled / Persistable
 │   ├── _validation.py             # shared construction-time invariants (private helper)
+│   ├── index.py                   # SpatioTemporalIndex value object + alignment
+│   ├── protocols.py               # Frame / SpatioTemporalIndexed / Sampled / Persistable
 │   ├── feature_frame.py           # FeatureFrame              ── one concept per file
 │   ├── prediction_frame.py        # PredictionFrame
 │   ├── target_frame.py            # TargetFrame
 │   ├── conformance/               # the published contract suite consumers re-run (§9)
-│   └── io/                        # serialization adapters — SEPARATE from frames (SRP)
+│   │   └── __init__.py
+│   └── io/                        # serialization adapters — raw arrays in, files out
 │       ├── __init__.py
 │       ├── npz.py                 # native save()/load() (.npy + .npz)
 │       └── arrow.py               # flat columnar (.parquet) — the scalable disk format
 ├── src/views_frames_summarize/    # sample-axis summarization OVER frames (ADR-017)
 │   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
+│   ├── _common.py                 # block_apply / rebuild — the package's shared spine
+│   ├── config.py                  # tower-family tunables; fail-loud, no defaults
 │   ├── collapse.py                # collapse(frame, reducer) — generic point fold
 │   ├── point.py                   # map_estimate (histogram MAP)
 │   ├── interval.py                # hdi, quantiles  → arrays aligned to the frame index
-│   └── aggregate.py               # conservation-correct cross-level aggregation
+│   ├── tower.py                   # the constrained-nested HDI tower (ADR-019)
+│   ├── tower_point.py             # the tower-tip point estimate
+│   ├── bimodality.py              # per-row multimodality flag
+│   ├── summarize_tower.py         # single-pass coherent summary → TowerSummary
+│   ├── exceedance.py              # threshold exceedance probabilities (ADR-021)
+│   ├── expected_shortfall.py      # worst-case tail mean (ADR-022)
+│   ├── aggregate.py               # conservation-correct cross-level aggregation
+│   └── conformance.py             # assert_summarizer_contract
 ├── src/views_frames_reconcile/    # forecast reconciliation OVER frames (ADR-023)
 │   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
 │   ├── proportional.py            # reconcile_proportional — per-draw top-down scaling
@@ -426,10 +438,11 @@ views-frames/
 │   ├── frames.py                  # prediction_frame_from_arrays adapter
 │   ├── validation.py              # fail-loud input guards
 │   ├── module.py                  # ReconciliationModule (holds the injected mapping)
+│   ├── result.py                  # ReconciliationResult — the frame plus HOW it was made
 │   └── conformance.py             # assert_reconcile_contract
-└── tests/
-    ├── conformance/               # the published contract suite consumers re-run (see §9)
-    └── unit/
+├── scripts/                       # standalone dev tools, none wired into CI
+├── examples/                      # runnable quickstarts (run by CI)
+└── tests/                         # flat: test_*.py + fixtures/
 ```
 
 Layout rules (these *are* the screaming-architecture requirements):
@@ -531,7 +544,8 @@ Because everyone depends on this, breakage is expensive — version it as a
 
 ## 9. Testing strategy (closes the cross-repo contract-test gap, C-30)
 
-- **Conformance suite (`tests/conformance/`):** a *published*, importable set of
+- **Conformance suite (`views_frames.conformance`, shipped in the wheel at
+  `src/views_frames/conformance/`):** a *published*, importable set of
   contract tests asserting the invariants of each Protocol (round-trip
   save/load, identifier completeness, collapse semantics, alignment laws). Every
   consumer repo runs it in CI against its own adapters. This is the missing

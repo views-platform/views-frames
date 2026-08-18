@@ -135,6 +135,12 @@ re-derive (ADR-017).
   clearly separated modes). It is a heuristic, not a formal test.
 - `summarize_tower(frame, masses)` → `TowerSummary(point, intervals, bimodal, masses)`: a
   single-pass bundle deriving all three from one sort; **provably equal** to the trio.
+  `TowerSummary` is a `NamedTuple` and deliberately has **no separate contract entry**
+  (register C-91): it holds no behaviour of its own, and each of its three components is
+  contracted individually above — `tower_point`, `hdi_tower`, `bimodality`. Its guarantee
+  is exactly the conjunction of theirs, plus the equality with the trio asserted in
+  `assert_summarizer_contract`. A field-by-field entry here would restate three contracts
+  and add a fourth place for them to drift.
 
 ### Threshold exceedance probabilities (ADR-021)
 

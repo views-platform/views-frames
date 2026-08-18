@@ -31,8 +31,15 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-STANDARD = REPO_ROOT / "docs" / "standards" / "physical_architecture_standard.md"
-FENCE_START = "```\nsrc/views_frames/"
+
+# Every document carrying an authoritative tree, and the line its fence opens on. There
+# are two: the standard's §2 and README's layout section. The README one was stale for
+# months after the standard's was fixed, because the check only knew about one of them
+# (register C-86) — so the list is the thing to extend, not the logic.
+TREES: tuple[tuple[str, str], ...] = (
+    ("docs/standards/physical_architecture_standard.md", "```\nsrc/views_frames/"),
+    ("README.md", "views-frames/\n"),
+)
 PACKAGES = (
     "src/views_frames/",
     "src/views_frames_summarize/",
@@ -40,14 +47,14 @@ PACKAGES = (
 )
 
 
-def _tree_block(document: str) -> str:
-    """Return the fenced §2 tree, or raise if the fence has moved."""
+def _tree_block(document: str, fence: str, name: str) -> str:
+    """Return the fenced tree, or exit if the fence has moved."""
     try:
-        start = document.index(FENCE_START)
+        start = document.index(fence)
     except ValueError as exc:  # pragma: no cover - guards a doc restructure
         raise SystemExit(
-            f"could not find the §2 tree fence in {STANDARD.name}; "
-            "if the document was restructured, update FENCE_START"
+            f"could not find the tree fence in {name}; if the document was "
+            "restructured, update TREES"
         ) from exc
     return document[start : document.index("```", start + 3)]
 
@@ -70,18 +77,15 @@ def _package_blocks(tree: str) -> dict[str, str]:
     return blocks
 
 
-def main() -> int:
-    """Diff the standard's §2 tree against `src/` and report both directions."""
-    tree = _tree_block(STANDARD.read_text(encoding="utf-8"))
-    modules = sorted(
-        str(p.relative_to(REPO_ROOT / "src")) for p in (REPO_ROOT / "src").rglob("*.py")
-    )
+def _check_one(relpath: str, fence: str, modules: list[str]) -> int:
+    """Diff one document's tree against `modules`; return the error count."""
+    document = (REPO_ROOT / relpath).read_text(encoding="utf-8")
+    tree = _tree_block(document, fence, relpath)
+    print(f"--- {relpath}")
+
     absent_packages = [p for p in PACKAGES if p not in tree]
     if absent_packages:  # cannot attribute modules to blocks that are not there
-        print(f"packages absent from tree: {absent_packages}")
-        print(
-            "\nFAILED: docs/standards/physical_architecture_standard.md §2 is out of date."
-        )
+        print(f"    packages absent from tree: {absent_packages}")
         return 1
 
     blocks = _package_blocks(tree)
@@ -96,18 +100,28 @@ def main() -> int:
         for pkg, n in named
         if not any(m.split("/", 1)[0] == pkg and m.split("/")[-1] == n for m in modules)
     )
+    print(f"    missing from tree: {missing or 'none'}")
+    print(f"    in tree but absent from src/: {ghosts or 'none'}")
+    return 1 if (missing or ghosts) else 0
 
-    print(f"source modules: {len(modules)}")
-    print(f"missing from tree: {missing or 'none'}")
-    print(f"in tree but absent from src/: {ghosts or 'none'}")
-    print(f"packages absent from tree: {absent_packages or 'none'}")
 
-    if missing or ghosts or absent_packages:
+def main() -> int:
+    """Diff every authoritative tree against `src/`, in both directions."""
+    modules = sorted(
+        str(p.relative_to(REPO_ROOT / "src")) for p in (REPO_ROOT / "src").rglob("*.py")
+    )
+    if not modules:
         print(
-            "\nFAILED: docs/standards/physical_architecture_standard.md §2 is out of date."
+            "FAILED: no modules found under src/; the check cannot be vacuously true."
         )
         return 1
-    print("\nPASSED: the tree matches src/.")
+    print(f"source modules: {len(modules)}")
+
+    stale = [rel for rel, fence in TREES if _check_one(rel, fence, modules)]
+    if stale:
+        print(f"\nFAILED: out of date — {', '.join(stale)}")
+        return 1
+    print(f"\nPASSED: {len(TREES)} trees match src/.")
     return 0
 
 
