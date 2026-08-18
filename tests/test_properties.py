@@ -80,3 +80,36 @@ def test_frames_satisfy_runtime_checkable_protocols(protocol):
         assert isinstance(frame, protocol), (
             f"{type(frame).__name__} must satisfy the {protocol.__name__} protocol"
         )
+
+
+# --- C-66: the value buffer is write-protected, the caller's array is not -----
+
+
+@pytest.mark.parametrize("frame", _frames())
+def test_values_buffer_is_read_only(frame):
+    """ADR-025's enforce, shipped in 2.0.0 (register C-66)."""
+    assert frame.values.flags.writeable is False
+    with pytest.raises(ValueError, match="read-only"):
+        frame.values[...] = 0.0
+
+
+def test_write_protection_does_not_reach_back_into_the_callers_array():
+    """The frame takes a read-only *view*; it must not lock the caller's array.
+
+    `coerce_values` returns the caller's own array when it is already float32 (the
+    C-07 zero-copy guarantee), so `values.setflags(write=False)` — the literal
+    one-liner C-66 proposed — would silently make the CALLER's array read-only.
+    """
+    caller = np.ones((4, 3), dtype=np.float32)
+    frame = PredictionFrame(caller, _index(4))
+    assert caller.flags.writeable is True
+    assert frame.values.flags.writeable is False
+    caller[0, 0] = 9.0  # the caller still owns their array
+
+
+def test_write_protection_preserves_the_shared_buffer():
+    """A view, not a copy — C-07's zero-copy guarantee survives the enforce."""
+    caller = np.ones((4, 3), dtype=np.float32)
+    frame = PredictionFrame(caller, _index(4))
+    assert np.shares_memory(frame.values, caller)
+    assert frame.with_metadata(FrameMetadata()).values.flags.writeable is False

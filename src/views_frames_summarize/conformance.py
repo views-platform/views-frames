@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from views_frames import SpatioTemporalIndex
 from views_frames_summarize import config
 from views_frames_summarize._common import AnyFrame
 from views_frames_summarize.bimodality import bimodality
@@ -44,6 +45,23 @@ def assert_summarizer_contract(frame: AnyFrame) -> None:
         AssertionError: a summarizer violates its output contract.
     """
     _require_assertions()
+
+    # The frame must be structurally sound before any law about it means anything.
+    # Every summarizer below reads `frame.values` and `frame.n_rows` and none reads
+    # `frame.index`, so before 2.0.0 this suite returned cleanly for a frame whose
+    # index was not an index at all — a published checker issuing a false pass, which
+    # `docs/CICs/Conformance.md` names as the failure mode this module must never
+    # have (falsify audit 2026-08-18).
+    #
+    # Construction now rejects such a frame, so this is unreachable through the
+    # ordinary constructors. It is kept because consumers run this suite against
+    # *their own* frame factories under ADR-016, and `with_metadata` already builds
+    # frames through `Frame.__new__` rather than `__init__` — so a bypass path exists
+    # today and more may be added.
+    assert isinstance(frame.index, SpatioTemporalIndex), (
+        "frame.index must be a SpatioTemporalIndex, got "
+        f"{type(frame.index).__name__} — the frame misreports itself"
+    )
     n = frame.n_rows
 
     point = collapse(frame, np.mean)

@@ -4,6 +4,116 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [2.0.0] — 2026-08-18
+
+**A frame's index must actually be an index.** Until now you could hand a frame anything as
+its `index` — a different frame, or a bare object with an `n_rows` attribute — and it was
+accepted. The frame was built, it looked fine, and the published conformance suite said it
+was fine. That now raises `TypeError`.
+
+**If you pass a `SpatioTemporalIndex`, you will not notice this release.** That is what the
+type hint has always said and what every example does. Change your version constraint,
+re-lock, and carry on:
+
+```diff
+- views-frames = ">=1.10.2,<2"
++ views-frames = ">=2.0.0,<3"
+```
+
+This is the package's **first MAJOR** and the first move of `CONFORMANCE_FLOOR` since the
+v1.0.0 freeze (`1.0.0` → `2.0.0`). The decision, the full migration table and the reasoning
+are in **ADR-028**.
+
+### What actually breaks
+
+| If your code… | Before | Now |
+|---|---|---|
+| passes a `SpatioTemporalIndex` as `index` | works | **works, unchanged** |
+| passes a frame or other object as `index` | silently constructed | `TypeError` |
+| passes a non-index to `reindex`/`reindex_fill` | `AttributeError` on `_level` | `TypeError`, naming what was expected |
+| mutates `frame.values` in place | silently corrupted buffer-sharing frames | `ValueError: assignment destination is read-only` |
+| calls `map_estimate` on `inf`/`NaN` draws | bare `IndexError` | `ValueError` naming the cause |
+
+Only the fourth row can plausibly stop working code, and ADR-025 already documented that
+operation as unsupported.
+
+**No `from_legacy_*` shim.** GOVERNANCE's MAJOR process asks for one where a consumer format
+changes. Nothing here changes a wire format, a serialized layout or a signature — only the
+set of inputs that were never valid narrows, so a shim would have nothing to translate.
+
+### Fixed
+
+- **The three frame constructors never type-checked `index`** (register C-93, Tier 2). They
+  validated `y_pred` four times — coerced it, checked dtype, ndim, row count — and read
+  exactly one attribute off `index`: `n_rows`. A frame has one. So
+  `PredictionFrame(values, another_frame)` constructed silently, as did any object exposing
+  `n_rows`.
+
+  The half that made it Tier 2: every summarizer reads `.values` and `.n_rows` and none
+  reads `.index`, so a malformed frame returned **numerically correct** answers from
+  `collapse`, `map_estimate` and `hdi` — and **`assert_summarizer_contract` certified it**.
+  That checker is published under ADR-016 and consumers run it in their own CI, and
+  `docs/CICs/Conformance.md` names "a checker that cannot detect a violation" as the failure
+  mode it must never have. A false pass is worse than no checker, because it is evidence a
+  consumer is entitled to rely on.
+
+  The checker keeps its own assertion even though construction now makes it unreachable by
+  ordinary means: consumers run the suite against their own frame factories, and
+  `with_metadata` already builds frames through `__new__` rather than `__init__`.
+
+  Found by a falsification audit run against the claim that this package was finished.
+
+- **Same-level alignment leaked a private attribute** (register C-94).
+  `reindex`, `reindex_fill`, `is_superset_of` and `intersect` raised
+  `AttributeError: '...' object has no attribute '_level'` — naming a private attribute of a
+  class the caller never mentioned — where ADR-008 requires `ValueError`/`TypeError`. All
+  four route through one private helper, so one guard fixes the family.
+
+- **`map_estimate` crashed obscurely on non-finite draws** (register C-57). An `inf` draw
+  produced a `nan` bin index whose `astype(intp)` cast overflowed to the int-min sentinel,
+  giving `IndexError: index -9223372036854775808 is out of bounds`. It now raises
+  `ValueError` naming the cause, like `exceedance` and `expected_shortfall` have since
+  v1.5.0 and v1.6.0.
+
+### Changed
+
+- **`frame.values` is write-protected** (register C-66) — the enforce ADR-025 deferred,
+  riding this MAJOR exactly as planned.
+
+  It did not ship as the one-liner ADR-025 recorded. `self._values.setflags(write=False)`
+  would have been a defect: `coerce_values` returns the caller's *own* array when it is
+  already `float32` — the zero-copy guarantee — so it silently makes **the caller's** array
+  read-only too. Measured, not reasoned about: the naive form does flip
+  `caller.flags.writeable` to `False`. The frames take a read-only **view** instead, which
+  locks the frame's buffer, leaves your array alone, and still shares memory. A `np.memmap`
+  keeps its subclass and its zero-copy.
+
+- **`CONFORMANCE_FLOOR` `1.0.0` → `2.0.0`.** The first move since the freeze, because
+  `assert_summarizer_contract` now rejects a frame that misreports its own index. Every
+  consumer's CI will assert a new contract version — that is what the constant is for, but
+  it has never happened before.
+
+### Changed — governance
+
+- **ADR-028** records the decision, the migration and the alternatives — including the three
+  that were rejected and why (deferring it as C-66 was deferred; fixing only the checker;
+  using a `Protocol` check, which fails because `SpatioTemporalIndexed` describes a *frame*
+  and `SpatioTemporalIndex` does not even satisfy it).
+- **ADR-018 amended** — the freeze it declares has now been broken once, deliberately.
+- **ADR-025 amended** — its "by convention" title is history, and the one-line fix it
+  recorded would have been wrong.
+- **C-43 declined as a rider, in writing.** C-13's pre-tag checklist names it, so passing it
+  over silently would have been the failure this register has recorded three times. The two
+  binning functions are not two implementations of one concept: one is a deliberately
+  approximate clipped-linear bucket for a heuristic flag, the other reproduces
+  `numpy.histogram`'s edge-exact path bit-for-bit and is ulp-sensitive across numpy
+  versions. Its precondition is rewritten to `#89` alone, because "#89 or a MAJOR" became
+  false the moment this released.
+- **New: register C-95** — `SpatioTemporalIndex` still write-protects the caller's
+  identifier arrays in place, the hazard C-66 had to avoid for the frames. Left alone
+  deliberately: that is ADR-025's own reasoning applied consistently rather than an
+  exception made because a MAJOR was already open.
+
 ## [1.11.0] — 2026-08-18
 
 **The published MAP-containment law was wrong on tied draws, and the governance documents

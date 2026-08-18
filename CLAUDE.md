@@ -6,15 +6,20 @@ at the **root of the platform dependency DAG**, plus two sibling operation packa
 in the same wheel. numpy only; depends on nothing internal; every other repo
 depends *toward* it.
 
-> **Status:** **released — v1.11.x on PyPI**, public API **frozen since v1.0.0**
-> (ADR-018; everything after is additive, `CONFORMANCE_FLOOR` stays `1.0.0`).
+> **Status:** **released — v2.x on PyPI**. The v1 API was frozen from v1.0.0 (ADR-018)
+> and **broken once, deliberately, in 2.0.0** (ADR-028): a frame's `index` must now
+> actually be a `SpatioTemporalIndex`, and `frame.values` is write-protected.
+> `CONFORMANCE_FLOOR` moved `1.0.0` → `2.0.0` — its first move. Everything else is
+> additive, and the bar for a further MAJOR stays deliberately high.
 > Consumers install `views-frames` and validate against the published conformance
 > suite (`views_frames.conformance`, ADR-016). See `CHANGELOG.md` for the release
 > history and `README.md` §status for the version chronicle.
 
 ## Maintenance mode
 
-**This package is finished.** It is released, its public API has been frozen since v1.0.0,
+**This package is finished.** It is released, its public API was frozen at v1.0.0 and has been
+broken exactly once since (2.0.0, ADR-028 — a validation hole found by attacking the claim
+that it was finished),
 and its governance documents have been checked against the code and are now asserted by CI.
 Work here should be rare, small, and caused by something outside this repository.
 
@@ -102,8 +107,9 @@ CI additionally gates 100% line+branch coverage
    *only* under `io/`. Enforced by `tests/test_import_enforcement.py` (ADR-002).
 2. **Immutable value objects.** Operations return new frames; structural ops share
    the buffer (zero-copy); only reductions allocate (register C-07). Enforced for the
-   *index*; **by convention** for the value buffer (writeable on purpose to preserve
-   zero-copy/mmap — mutating `.values` in place is unsupported; ADR-025, C-66 rider).
+   *index* and, since 2.0.0, for the value buffer too — a read-only **view**, so
+   zero-copy and mmap survive and the caller's own array stays writeable (ADR-028,
+   register C-66; convention-only until then, ADR-025).
 3. **Fail loud.** Invariants raise `ValueError`/`TypeError` at construction and at
    every validation guard; the guarantee is *structural*, not temporal (`time` is
    opaque; register C-11).

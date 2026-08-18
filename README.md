@@ -4,7 +4,7 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.11.0 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
+> **Status:** **v2.0.0 — published to PyPI** (frozen at v1.0.0, ADR-018, and broken once in 2.0.0, ADR-028; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
@@ -21,7 +21,7 @@
 > `research/figures/` tower-figure toolkit; v1.10.0 adds the **dense-grid fill**
 > primitive — `reindex_fill(other, *, fill_value)` on all three frames +
 > `SpatioTemporalIndex.cartesian` + the published `assert_reindex_fill_law`, ADR-026,
-> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching). This
+> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching; **v2.0.0 is the first MAJOR** — a falsification audit found that a frame's `index` was never type-checked, so a frame (or any object with an `n_rows`) was accepted silently and the published `assert_summarizer_contract` then certified the result, and it now raises `TypeError`; riding it, `frame.values` becomes read-only (C-66) and `map_estimate` rejects non-finite draws (C-57), and `CONFORMANCE_FLOOR` moves to `2.0.0` — a correct consumer changes its version constraint and re-locks, nothing else, ADR-028). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
@@ -233,13 +233,14 @@ makes it safe to depend on from everywhere (SDP).
 3. **Immutable value objects.** A frame is validated at construction and then
    treated as read-only. Operations (`collapse`, `select`, `with_metadata`)
    **return new frames**; they never mutate in place. (Directly forbids the
-   C-184 cross-repo-mutation anti-pattern.) **Enforced for the index, by
-   convention for the value buffer:** the identifier arrays (`time`/`unit`) are
-   write-protected (`setflags(write=False)`); the `values` buffer is left
-   **writeable on purpose** — so structural ops can share it zero-copy — and is
-   immutable *by convention*: mutating `.values` in place is unsupported and may
-   silently corrupt buffer-sharing frames (ADR-025 / register C-63; enforcing it
-   is a deferred MAJOR-rider). **Copy-vs-view:** structural and
+   C-184 cross-repo-mutation anti-pattern.) **Enforced for the index, and since 2.0.0
+   for the value buffer too:** the identifier arrays (`time`/`unit`) are
+   write-protected (`setflags(write=False)`); the `values` buffer was left
+   **writeable on purpose** — so structural ops can share it zero-copy — and was
+   immutable *by convention* **until 2.0.0**, which enforced it: `values` is now a
+   read-only **view**, so an in-place mutation raises instead of silently corrupting
+   buffer-sharing frames, while zero-copy, mmap and the caller's own array are all
+   preserved (ADR-028 / register C-66; the convention-only era is ADR-025 / C-63). **Copy-vs-view:** structural and
    metadata-only operations (`with_metadata`, contiguous `select`) return frames
    that **share** the underlying `values` buffer (numpy view / zero-copy), and a
    `mmap`-backed frame stays `mmap`-backed — a new frame must never copy a

@@ -89,7 +89,14 @@ Assumptions that do not hold **must raise** at construction (ADR-009), never fal
   `SpatialLevel`.
 - `cross_level_align` raises if called without an injected mapping — it must **never**
   silently fetch or assume one (the defining boundary of ADR-014).
-- Nothing fails silently.
+- Raises `TypeError` when a same-level binary op is handed something that is not a
+  `SpatioTemporalIndex` — `searchsorted`/`reindex`, `is_superset_of` and `intersect` all
+  route through one guard in `_require_same_level` (since 2.0.0, ADR-028).
+- Nothing fails silently. **That claim was false until 2026-08-18**: the same-level ops
+  read `other._level` unchecked, so a non-index argument raised
+  `AttributeError: '...' object has no attribute '_level'` — a private attribute of a
+  class the caller never named, which ADR-008 does not count as failing loud. It is true
+  again now, and `tests/test_select.py` pins it rather than leaving it asserted.
 
 ---
 

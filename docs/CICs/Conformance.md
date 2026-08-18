@@ -73,9 +73,11 @@ target units. A mapping keyed by unit alone would pass every other check here an
 be wrong, because borders move.
 
 **`CONFORMANCE_FLOOR`** — the version string this suite belongs to. It moves only when the
-contract itself changes, **not** when the package version does. It has stayed `"1.0.0"`
-across every release since the freeze (ADR-018), which is the intended behaviour, not an
-oversight.
+contract itself changes, **not** when the package version does. It stayed `"1.0.0"` across
+every release from the freeze (ADR-018) until **2026-08-18**, when 2.0.0 moved it to
+`"2.0.0"` — the first move, and the proof the constant is governed rather than decorative.
+It moved because `assert_summarizer_contract` began rejecting a frame whose index is not a
+`SpatioTemporalIndex`, which narrows what the suite accepts (ADR-028).
 
 **Assertions must be enabled.** Every entry point calls `_require_assertions()` first and
 raises `RuntimeError` under `python -O`. Without it the entire suite would silently pass

@@ -39,7 +39,10 @@ for name, mod in (('views_frames', c), ('views_frames_summarize', s), ('views_fr
 "
 ```
 
-- **Conformance-floor version:** `1.0.0` (`views_frames.conformance.CONFORMANCE_FLOOR`).
+- **Conformance-floor version:** `2.0.0` (`views_frames.conformance.CONFORMANCE_FLOOR`).
+  Moved from `1.0.0` on 2026-08-18 with the 2.0.0 MAJOR (ADR-028) — the first move since
+  the freeze, because `assert_summarizer_contract` now rejects a frame that misreports
+  its own index.
 - The floor is a **single governed version every consumer runs regardless of its
   runtime pin** — this is what makes the suite test "all consumers agree," not
   "my adapter vs my pin" (closes register C-10). The floor is bumped deliberately,

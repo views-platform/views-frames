@@ -35,8 +35,9 @@ boundary array-native, replacing the pandas actuals the eval adapter takes today
   trailing sample axis is explicit with `S == 1` (ADR-012); no object dtype;
   identifiers integer, length-`N`, complete.
 - Immutable with the same copy-vs-view semantics as the other frames (register C-07):
-  the **index is enforced** read-only; the **value buffer is immutable by convention**
-  (writeable for zero-copy — in-place `.values` mutation is unsupported; ADR-025 / C-63).
+  the **index is enforced** read-only, and **since 2.0.0 so is the value buffer** — a
+  read-only *view*, preserving zero-copy and `mmap` while leaving the caller's array
+  writeable (ADR-028 / C-66; convention-only until then, ADR-025 / C-63).
 - Carries a typed `metadata` header (ADR-013) and the same row/metadata surface as the
   sibling frames: `with_metadata`, `select(positions | mask)`, `reindex(other)` (raises
   unless this index is a superset of `other`), and the dense-grid companion
@@ -101,9 +102,12 @@ TargetFrame(y_true=actuals_1d, index=idx)        # raises
 
 # WRONG: treating it as a sampled frame and asking for many quantiles
 
-# WRONG: mutating the value buffer in place — immutable *by convention*, not
-# write-protected, so it does NOT raise; build a new frame (ADR-025 / register C-63).
-tf.values[:] = 0          # unsupported: silent shared-buffer corruption, no error
+# WRONG: mutating the value buffer in place — write-protected since 2.0.0, so this
+# now raises rather than silently corrupting buffer-sharing frames (ADR-028 / C-66).
+tf.values[:] = 0          # ValueError: assignment destination is read-only
+
+# WRONG: passing something that is not an index — raises since 2.0.0 (ADR-028)
+TargetFrame(y_true=actuals, index=some_other_frame)      # TypeError
 ```
 
 ---
@@ -117,8 +121,10 @@ tf.values[:] = 0          # unsupported: silent shared-buffer corruption, no err
 - **Beige:** serves through the same protocol surface as `PredictionFrame`
   (`is_sample == False`) — `tests/test_falsification_twin_parity.py`; copy-vs-view —
   `tests/test_properties.py`.
-- **Red:** `(N,)` or `(N, S>1)` input raises — `tests/test_construction_red.py`;
-  no-pandas import-enforcement — `tests/test_import_enforcement.py`.
+- **Red:** `(N,)` or `(N, S>1)` input raises, and a non-`SpatioTemporalIndex` `index`
+  raises — `tests/test_construction_red.py`; the value buffer is read-only —
+  `tests/test_properties.py`; no-pandas import-enforcement —
+  `tests/test_import_enforcement.py`.
 
 (This section named no pinning test file until 2026-08-18, where the other CICs name
 one to five — register C-80.)
