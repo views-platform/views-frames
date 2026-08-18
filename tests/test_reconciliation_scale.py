@@ -38,7 +38,10 @@ def _many_group_frames(n_countries=2000, cells_per=8, month=528, samples=20):
 
     pgm = prediction_frame_from_arrays(times, grids, pg, level=SpatialLevel.PGM)
     cm = prediction_frame_from_arrays(
-        np.full(n_countries, month), np.asarray(cm_units), cm_vals, level=SpatialLevel.CM
+        np.full(n_countries, month),
+        np.asarray(cm_units),
+        cm_vals,
+        level=SpatialLevel.CM,
     )
     map_keys = np.stack([times, grids], axis=1)
     return cm, pgm, map_keys, gcountry, month

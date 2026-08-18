@@ -101,7 +101,8 @@ class TestF4SoftEmptyIndexSearchsorted:
             np.array([], dtype=np.int64), np.array([], dtype=np.int64), SpatialLevel.PGM
         )
         full = SpatioTemporalIndex(
-            np.array([1, 2], dtype=np.int64), np.array([10, 20], dtype=np.int64),
+            np.array([1, 2], dtype=np.int64),
+            np.array([10, 20], dtype=np.int64),
             SpatialLevel.PGM,
         )
         # Green post-fix: all -1 (the not-found value), matching searchsorted's

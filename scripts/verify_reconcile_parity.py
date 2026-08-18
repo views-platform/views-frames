@@ -67,17 +67,25 @@ def _oracle_leaf() -> bool:
         country = data[f"country_{i}"]
         got = reconcile_proportional(grid, country)
         a, r, ok = _stats(got, data[f"expected_{i}"])
-        worst_abs, worst_rel, all_ok = max(worst_abs, a), max(worst_rel, r), all_ok and ok
+        worst_abs, worst_rel, all_ok = (
+            max(worst_abs, a),
+            max(worst_rel, r),
+            all_ok and ok,
+        )
         # conservation: each active (non-all-zero) draw sums to its country total
         g2, adj = np.atleast_2d(grid), np.atleast_2d(got)
         active = g2.sum(axis=1) > 0
         if active.any():
             tot = np.atleast_1d(country).astype(np.float64).reshape(-1)[active]
-            cons = max(cons, float(np.abs(adj.sum(axis=1)[active] - tot).max(initial=0.0)))
+            cons = max(
+                cons, float(np.abs(adj.sum(axis=1)[active] - tot).max(initial=0.0))
+            )
         zero_ok = zero_ok and bool(np.all(adj[g2 == 0] == 0))
     print(f"  leaf reconcile_proportional ({n} oracle cases):")
     print(f"    max abs err   = {worst_abs:.3e}    max rel err = {worst_rel:.3e}")
-    print(f"    conservation  = {cons:.3e} (worst |sum(adjusted) - country| on active draws)")
+    print(
+        f"    conservation  = {cons:.3e} (worst |sum(adjusted) - country| on active draws)"
+    )
     print(f"    zeros preserved = {zero_ok}")
     return all_ok and zero_ok
 
@@ -105,7 +113,11 @@ def _oracle_e2e() -> bool:
         )
         got = module.reconcile(cm, pgm).values
         a, r, ok = _stats(got, data[f"recon__{tgt}"])
-        worst_abs, worst_rel, all_ok = max(worst_abs, a), max(worst_rel, r), all_ok and ok
+        worst_abs, worst_rel, all_ok = (
+            max(worst_abs, a),
+            max(worst_rel, r),
+            all_ok and ok,
+        )
     print(f"  end-to-end ReconciliationModule ({len(targets)} targets {targets}):")
     print(f"    max abs err = {worst_abs:.3e}    max rel err = {worst_rel:.3e}")
     return all_ok
@@ -156,12 +168,20 @@ def run_compare(old_path: str, new_path: str, keys: list[str]) -> int:
     # comparable rows/columns, so nothing was checked. Reporting PASS here would defeat the
     # tool's purpose (catching drift the consumer would otherwise serve silently).
     if len(merged) == 0 or not cols:
-        why = "no rows matched on the keys" if len(merged) == 0 else "no shared numeric columns"
-        print(f"\n  VERDICT: FAIL — nothing to compare ({why}); check --keys and the inputs.")
+        why = (
+            "no rows matched on the keys"
+            if len(merged) == 0
+            else "no shared numeric columns"
+        )
+        print(
+            f"\n  VERDICT: FAIL — nothing to compare ({why}); check --keys and the inputs."
+        )
         return 1
     all_ok = True
     for col in cols:
-        a, r, ok = _stats(merged[f"{col}_new"].to_numpy(), merged[f"{col}_old"].to_numpy())
+        a, r, ok = _stats(
+            merged[f"{col}_new"].to_numpy(), merged[f"{col}_old"].to_numpy()
+        )
         all_ok = all_ok and ok
         flag = "" if ok else "   <-- beyond tolerance"
         print(f"    {col:<28} max abs = {a:.3e}   max rel = {r:.3e}{flag}")
@@ -173,7 +193,9 @@ def run_compare(old_path: str, new_path: str, keys: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Reconciliation parity verifier (Epic 11).")
+    parser = argparse.ArgumentParser(
+        description="Reconciliation parity verifier (Epic 11)."
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--oracle",

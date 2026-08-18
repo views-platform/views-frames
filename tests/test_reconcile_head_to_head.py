@@ -7,8 +7,16 @@ fresh random synthetic seeds (point + probabilistic + edge cases), at both the l
 
 One-shot / transitional: it needs **both** packages importable, so it runs locally (vpp
 checked out adjacently, or ``VIEWS_POSTPROCESSING_SRC`` set) and is **skipped** in CI,
-where vpp is absent. numpy + views-frames only (the old reconciler imports the same
-``views_frames`` types).
+where vpp is absent — so this file collects **zero tests in CI and reports nothing**.
+
+**What covers the guarantee when this does not** (register C-80): the bit-identity
+claim is held in CI by the frozen-oracle route — ``test_reconciliation_parity.py``
+(leaf vs the views-reporting torch oracle) and ``test_reconciliation_e2e_parity.py``
+(the orchestrator end to end), both driven by committed fixtures under
+``tests/fixtures/``. Nothing is unprotected by this file's silence; it is a local
+cross-check against the *live* old package, which the fixtures cannot be.
+
+numpy + views-frames only (the old reconciler imports the same ``views_frames`` types).
 """
 
 from __future__ import annotations
@@ -31,9 +39,12 @@ def _import_old():
         str(Path(__file__).resolve().parents[2] / "views-postprocessing"),
     ]
     for cand in candidates:
-        if cand and (
-            Path(cand) / "views_postprocessing" / "reconciliation" / "__init__.py"
-        ).exists():
+        if (
+            cand
+            and (
+                Path(cand) / "views_postprocessing" / "reconciliation" / "__init__.py"
+            ).exists()
+        ):
             if cand not in sys.path:
                 sys.path.insert(0, cand)
             break

@@ -41,7 +41,10 @@ class TestGroupingParity:
         pgm, cm, mk, mv = _frames(fix, target)
         out = reconcile_pgm_to_cm(pgm, cm, mk, mv)
         np.testing.assert_allclose(
-            out.values, fix[f"recon__{target}"], rtol=1e-5, atol=1e-6,
+            out.values,
+            fix[f"recon__{target}"],
+            rtol=1e-5,
+            atol=1e-6,
             err_msg=f"grouping core drifts from the oracle on {target}",
         )
 
@@ -58,11 +61,16 @@ class TestGuards:
         # Drop a country from the cm frame -> its grid group has no total.
         keep = fix["cm_unit"] != fix["cm_unit"][0]
         cm = prediction_frame_from_arrays(
-            fix["cm_time"][keep], fix["cm_unit"][keep],
-            fix["cm__pred_ged_sb"][keep], level=SpatialLevel.CM,
+            fix["cm_time"][keep],
+            fix["cm_unit"][keep],
+            fix["cm__pred_ged_sb"][keep],
+            level=SpatialLevel.CM,
         )
         pgm = prediction_frame_from_arrays(
-            fix["pg_time"], fix["pg_unit"], fix["pg__pred_ged_sb"], level=SpatialLevel.PGM
+            fix["pg_time"],
+            fix["pg_unit"],
+            fix["pg__pred_ged_sb"],
+            level=SpatialLevel.PGM,
         )
         mk = np.stack([fix["pg_time"], fix["pg_unit"]], axis=1)
         with pytest.raises(ValueError, match="no country forecast"):

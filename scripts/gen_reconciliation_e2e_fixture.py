@@ -31,11 +31,21 @@ import torch
 from views_pipeline_core.data.handlers import CMDataset, PGMDataset
 from views_reporting.reconciliation.reconciliation import ReconciliationModule
 
-_OUT = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "reconciliation_e2e_parity.npz"
+_OUT = (
+    Path(__file__).resolve().parent.parent
+    / "tests"
+    / "fixtures"
+    / "reconciliation_e2e_parity.npz"
+)
 
 # Realistic-but-small hierarchy: 5 countries of varying size, 3 months, 2 targets.
-_GRIDS = {1: [100, 101], 2: [102, 103, 104], 3: [105, 106],
-          4: [107, 108, 109, 110], 5: [111, 112]}
+_GRIDS = {
+    1: [100, 101],
+    2: [102, 103, 104],
+    3: [105, 106],
+    4: [107, 108, 109, 110],
+    5: [111, 112],
+}
 _MONTHS = [528, 529, 530]
 _TARGETS = ["pred_ged_sb", "pred_ged_ns"]
 _SAMPLES = 100
@@ -45,8 +55,10 @@ def _cm_df(rng):
     rows = [(m, c) for m in _MONTHS for c in _GRIDS]
     idx = pd.MultiIndex.from_tuples(rows, names=["month_id", "country_id"])
     # Country totals drawn INDEPENDENTLY of the grid (the realistic case).
-    data = {t: [rng.gamma(3.0, 20.0, _SAMPLES).astype(np.float64) for _ in rows]
-            for t in _TARGETS}
+    data = {
+        t: [rng.gamma(3.0, 20.0, _SAMPLES).astype(np.float64) for _ in rows]
+        for t in _TARGETS
+    }
     return pd.DataFrame(data, index=idx)
 
 
@@ -97,7 +109,9 @@ def main() -> int:
         "cm_unit": np.array([c for (_, c) in cm_rows], dtype=np.int64),
         "pg_time": np.array([m for (m, _) in pg_rows], dtype=np.int64),
         "pg_unit": np.array([g for (_, g) in pg_rows], dtype=np.int64),
-        "pg_country": np.array([grid_to_country[g] for (_, g) in pg_rows], dtype=np.int64),
+        "pg_country": np.array(
+            [grid_to_country[g] for (_, g) in pg_rows], dtype=np.int64
+        ),
     }
     for t in _TARGETS:
         out[f"cm__{t}"] = _stack(c_df, t)
@@ -122,16 +136,24 @@ def main() -> int:
                 n_allzero += int(allzero.sum())
                 assert (grid_sum[allzero] == 0).all(), "all-zero draw must stay zero"
                 if (~allzero).any():
-                    worst_active = max(worst_active, float(
-                        np.max(np.abs(grid_sum[~allzero] - cm[(m, c)][~allzero]))))
-    print(f"smoke: worst |grid_sum - country| on active draws = {worst_active:.3e} "
-          f"(~0 expected); {n_allzero} all-zero country-draws left at zero "
-          f"(the oracle's edge case, captured for parity)")
+                    worst_active = max(
+                        worst_active,
+                        float(
+                            np.max(np.abs(grid_sum[~allzero] - cm[(m, c)][~allzero]))
+                        ),
+                    )
+    print(
+        f"smoke: worst |grid_sum - country| on active draws = {worst_active:.3e} "
+        f"(~0 expected); {n_allzero} all-zero country-draws left at zero "
+        f"(the oracle's edge case, captured for parity)"
+    )
 
     _OUT.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(_OUT, **out)
-    print(f"wrote e2e parity fixture ({len(pg_rows)} grids x {_SAMPLES} samples x "
-          f"{len(_TARGETS)} targets) -> {_OUT}")
+    print(
+        f"wrote e2e parity fixture ({len(pg_rows)} grids x {_SAMPLES} samples x "
+        f"{len(_TARGETS)} targets) -> {_OUT}"
+    )
     return 0
 
 

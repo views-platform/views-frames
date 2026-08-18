@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-07-31                           |
-| Total Concerns    | 78                                   |
-| Open Concerns     | 15                                   |
-| Resolved Concerns | 63                                   |
+| Last Updated      | 2026-08-18                           |
+| Total Concerns    | 89                                   |
+| Open Concerns     | 12                                   |
+| Resolved Concerns | 77                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -23,9 +23,11 @@
 
 ## Status (open concerns)
 
-Tier answers *how bad*; **Status answers *can we act***. At 17 open concerns — 13 of them
-Tier 3 — tier alone stopped discriminating, and "17 open" read as 17 things someone might
-have to do when most cannot be acted on at all. Every open entry carries one:
+Tier answers *how bad*; **Status answers *can we act***. This class was introduced on
+**2026-07-31**, when the register stood at 17 open concerns — 13 of them Tier 3 — and tier
+alone had stopped discriminating: "17 open" read as 17 things someone might have to do,
+when most could not be acted on at all. (Those two numbers describe that moment, not today;
+the header above is the current count.) Every open entry carries one:
 
 | Status | Meaning |
 |--------|---------|
@@ -50,7 +52,7 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and formalised by ADRs 011–016, all of which merged and shipped/froze in **v1.0.0**
 > (ADR-018) — they are now in **Resolved Concerns**. C-01/C-08/C-12 are resolved-by-decision
 > and persist only as **frozen-invariant guards** (their triggers protect the frozen scope).
-> **The 15 open concerns are grouped under *Causal clusters* in Register Conventions —
+> **The open concerns are grouped under *Causal clusters* in Register Conventions —
 > that list is the single authority and this preamble deliberately does not restate it**
 > (it drifted when it did). In one line each: **summarize-estimator coherence (#89)**
 > {C-32, C-34, C-43, C-57}; **reconcile method + governance** {C-62}; **cross-repo coordination** {C-13, C-46};
@@ -64,25 +66,41 @@ one — re-auditing it produces the same answer its precondition already gives.
 > and half of C-74 by putting `validate_docs.sh` into CI (the formatting half closes after the
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
-> with nothing closed.
+> with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
 
-### C-77: resolution text describes the intent, not the result — four instances in one epic
+### C-92: no branch protection exists, so every "gate" in this repository is advisory
 
 | Field | Value |
 |-------|-------|
-| ID | C-77 |
+| ID | C-92 |
 | Tier | 3 |
-| Status | **actionable** — the discipline change is free; adopting it costs one extra check per resolution |
-| Source | Pattern across epic #208 (2026-07-31), surfaced by two `/code-review max` passes. |
-| Trigger | **When writing or reviewing a `Resolution` field**, before saving: run the check the resolution implies and paste its output, rather than describing what was done. Specifically — if the resolution says a claim was corrected, grep for the claim's wording everywhere, not just where it was noticed; if it says a guard was added, try to defeat the guard; if it says citations were converted, grep for every form of the old style, not the one you happened to write. |
-| Location | Four confirmed instances, all corrected: **C-70** claimed a CI guard was "failing validation" when the script was never in CI; **C-76** claimed the `from_2d` wording was fixed while the module docstring and a `ValueError` still said "legacy shim"; **C-75** described a guard as stronger than it was, twice — first the evadable `dir(module)` form, then the "nothing to evade" wording; **S4/#212** claimed all line-number citations were converted while `docs/ADRs/025_value_buffer_immutability_by_convention.md` retained three written as approximate line numbers in parentheses, a form the acceptance grep could not match. |
-| Cross-refs | C-70, C-75, C-76, C-78; the cross-cutting **verification-completeness** cluster, of which this is the documentation-side twin. |
+| Status | **actionable** — a repository setting, not a code change; needs the maintainer's decision on which checks to require |
+| Status-note | Not resolvable by a contributor: changing branch protection needs admin rights on the GitHub repository. |
+| Source | code-review (2026-08-18), during S7 of epic #240. |
+| Trigger | **Before the next release, and before relying on any check to have prevented something.** Also whenever a new gate is added — each one is currently a red X a merge can walk past, so "we added a gate" means less than it reads. |
+| Location | GitHub repository settings for `views-platform/views-frames` (`main`, `development`); the eleven CI checks in `.github/workflows/ci.yml` and `notebooks.yml` that this makes advisory. |
+| Cross-refs | **C-74** (resolved — *"a check that does not run is worse than no check at all"*; this entry is the other half: a check that runs but enforces nothing), **C-85** / **C-89** (the completeness checks S6 armed), **C-83** (the examples job whose "blocking" description prompted this), ADR-005, GOVERNANCE.md §cross-repo MAJOR-bump process. |
 
-Four times in a single epic, a resolution described what the author **meant to do** rather than what was **verifiably done** — and each was caught by someone re-running the check rather than reading the claim. The pattern is not carelessness about the work; the work was correct each time. It is that resolution text gets written while the change is fresh, when intent and result feel identical, and the author's own acceptance check is built from the same mental model that produced the gap. S4's grep is the clearest case: `\.py:[0-9]+` was written by someone thinking in colon-form citations, so it could not see a citation written as an approximate line number in parentheses.
+Measured 2026-08-18:
 
-**Tier 3** — no correctness or silent-corruption path; the cost is that the register, the artifact this project reasons with, states things that are not quite true, and every decision built on it inherits the error. It is Tier 3 rather than 4 because this register is load-bearing: entries like C-66 are executable instructions for a future breaking release, and an instruction that overstates its own completeness is worse than one that admits a gap. **Resolved when** three consecutive resolutions pass a re-run of their own stated check by someone other than their author — or when the habit of pasting the check's output into the resolution is visible in the next five entries.
+```
+$ gh api repos/views-platform/views-frames/branches/main/protection
+{"message":"Branch not protected", …}
+$ gh api repos/views-platform/views-frames/branches/development/protection
+{"message":"Branch not protected", …}
+$ gh api repos/views-platform/views-frames/rulesets
+[]
+```
 
-**Instance 1 of the habit (2026-07-31, C-79).** C-79 was filed Tier 3 on the reasoning that a consumer's archived parquet could become unreadable after upgrading. Before that reasoning went any further, the check was run: `save` was diffed between tag `v1.8.0` and `HEAD` (byte-identical), then v1.8.0's writer was loaded from git and used to produce files that today's loader read back bit-identically. The premise was false — the writer never changed — and C-79 was recalibrated to Tier 4 with the measurement recorded in the entry. **This is the pattern working in the intended direction:** the check ran before the claim hardened, rather than a reviewer finding the overstatement afterwards.
+**Neither branch is protected and there are no rulesets.** Eleven CI checks run on every pull request — the four-version matrix, the numpy floor, build, docs, format, examples, imports, nbmake — and **not one of them is required**. A red check is a red X next to a merge button that still works.
+
+This does not mean the checks are worthless: they are read, and this epic's own history shows them catching real defects. But it changes what several documents claim. C-74's resolution says wiring `validate_docs.sh` into CI is *"what makes it a gate"*; it makes it a **signal**. The same wording appears around the format check, the import contracts, and the examples job registered under C-83.
+
+**Tier 3, not 2.** Nothing is currently broken by it — this is a small, careful team and the checks are watched. It is registered because it silently weakens a claim made in at least four places, because the cost of fixing it is a settings change rather than work, and because the register's own C-74 lesson — *a check that does not run is worse than no check at all* — has an obvious second half that nobody had written down: **a check that runs but cannot block is worth less than its documentation says.**
+
+**Deliberately not fixed here.** Enabling required checks is an admin action with immediate consequences for everyone merging, including choosing *which* of the eleven are required (the `nbmake` job is `continue-on-error` by design and must not be). That is a maintainer decision, not a documentation story's.
+
+**Resolved when** either required status checks are configured and the documents describing gates are corrected to match, or a deliberate decision to keep them advisory is recorded and the word "gate" is softened wherever it overstates.
 
 ---
 
@@ -105,53 +123,6 @@ The falsification guards rewritten in epic #208 are real and catch the regressio
 3. **`cl_03`/`cl_04` see instance state only.** A module-level cache in `index.py` populated with a *copy* of an injected mapping would hold domain reference data invisibly to both.
 
 None of these is a defect to fix now. Every one requires someone to work around a guard deliberately, and this package has one maintainer whose regressions are honest — the discarded `gid_patch` branch, the case that motivated `sl_01`, made no attempt to hide. **Tier 4** — recorded so the guards are not over-trusted, not because action is needed. Deepening them (AST inspection, package-wide scans, module-state introspection) would buy protection against an adversary this repository does not have, at the cost of tests that are harder to read than the code they guard.
-
----
-
-### C-79: nothing tests that today's loader can read a file written by an older release
-
-| Field | Value |
-|-------|-------|
-| ID | C-79 |
-| Tier | 4 |
-| Status | **actionable** — freeze one parquet fixture and assert a later version loads it. **Preventive, not corrective:** the gap this closes is currently costing nothing (measured, see below) |
-| Source | test-review (2026-07-31), Kleppmann lens. |
-| Trigger | **Before the next change to `io/arrow.py::save` or `io/arrow.py::load`** — and especially before adding another validation rule to `load`. Write a parquet with the *current* release, commit it as a fixture, and assert a later version still reads it to the same values. The `.npz` fixtures under `tests/fixtures/` already establish the pattern. |
-| Location | `tests/test_io.py` (every arrow test writes and reads in one process at one version); `tests/fixtures/` (holds `reconciliation_parity.npz` and `reconciliation_e2e_parity.npz` — but no parquet); `src/views_frames/io/arrow.py::save` / `::load`. |
-| Cross-refs | **C-72** (the v1.10.1 validation added to `load` — the specific change this gap cannot see), C-73 (the same function's memory residual), **C-46** (adjacent: it already tracks a versioned wire schema, but scoped to the views-evaluation boundary rather than this package's own parquet across its own versions), views-postprocessing ADR-013 (the wire contract), views-faoapi #100. |
-
-Every arrow IO test writes a file and reads it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that actually matters for a data-contract package: that a file written by an earlier release still loads.
-
-**Measured 2026-07-31, before the v1.10.2 tag — the current exposure is zero.** The `save` function was extracted from tag `v1.8.0` and from `HEAD` and diffed: **byte-identical**. The writer has not changed since v1.8.0, so every file any consumer holds was produced by the same code today's checks were derived from. Confirmed empirically as well as structurally: v1.8.0's `save` was loaded from git as its own module, used to write both a 2-D prediction parquet and a 3-D feature parquet, and both were read back by today's `load` with values bit-identical and metadata intact.
-
-So this entry tracks a **missing test**, not a live defect — and the distinction matters, because it was first written as though the two were the same. What remains true: **v1.10.1 added validation to `load`** — three new `ValueError` paths rejecting row orders that violate the written wire contract. Those rules were derived from what `save` writes *today*. Nothing checks that a parquet written by v1.8.0 or v1.10.0 satisfies them, and the consumers on that path (views-postprocessing, views-faoapi #100) hold archived shards written by earlier releases.
-
-**Tier 4, recalibrated from 3 on the evidence above.** It was filed Tier 3 on the reasoning that a consumer's archived data could become unreadable after a routine upgrade. Measurement removed the premise: no such file exists, because the writer never changed. What is left is a genuine but purely preventive test gap — no correctness or reliability impact today, and the failure it would eventually catch is loud (a `ValueError` with a clear message, never a wrong number).
-
-**The trigger is what carries the value here**, not the tier: the moment `save` changes, this stops being preventive. Anyone editing it should commit a fixture written by the previous release first, while an unmodified writer still exists to produce one. **Resolved when** a parquet fixture written by a released version is committed and read by a test.
-
----
-
-### C-80: the test suite's self-description does not match its contents
-
-| Field | Value |
-|-------|-------|
-| ID | C-80 |
-| Tier | 4 |
-| Status | **actionable** — four small corrections, none requiring new test logic |
-| Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
-| Trigger | **When someone reads the suite to answer "is X covered?"** — most likely a new contributor, or the maintainer at a future audit. Each item below makes that question answerable wrongly. Fix them the next time the relevant file is opened for another reason, rather than as a standalone sweep. |
-| Location | `tests/test_reconcile_head_to_head.py` (collects **0** tests anywhere); the 20 of 36 test files carrying no ADR-005 category marker, and the **zero** 🟨 beige markers suite-wide; `docs/CICs/PredictionFrame.md` §10 (states a memory guarantee pinned by a type check in `tests/test_io.py::test_npz_mmap_returns_memmap`); `docs/CICs/TargetFrame.md` §10 (names no pinning test file, where the other six CICs name one to five). |
-| Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
-
-Four small things, one root cause: **what the suite says about itself is not quite what it does.**
-
-1. **`test_reconcile_head_to_head.py` collects zero tests** — anywhere. It `importorskip`s `views_postprocessing` at module level, and that package is installed neither locally, nor in CI, nor in any dependency group. The file reads as coverage of the bit-identity guarantee against the old implementation; it contributes nothing. The guarantee *is* covered, by the frozen-oracle route in `test_reconciliation_parity.py` and `test_reconciliation_e2e_parity.py` — so nothing is unprotected. What is wrong is that the file implies otherwise.
-2. **The beige category is unmarked suite-wide** — 15 🟩, 26 🟥, **0 🟨**, with 20 of 36 files carrying no marker at all. The CICs *do* specify beige guarantees per class, and most look covered; the taxonomy simply is not applied. A half-applied classification is worse than none, because it implies a system that is being followed.
-3. **A memory guarantee pinned as a type check.** `PredictionFrame` §10 promises *"`mmap` load keeps peak RAM at the working set"*; the tests assert the returned object **is** an `np.memmap` and is read-only. The proxy is defensible — memmap implies lazy paging by definition — but three summarize test files already measure memory, so the capability exists and is simply not pointed here.
-4. **`TargetFrame.md` §10 names no pinning test file**, where the other six CICs name between one and five.
-
-**Tier 4** — nothing is unprotected and no behaviour is at risk; every item is a labelling or wiring correction. Registered because this suite's credibility is the project's main safety argument, and each item degrades the ability to audit it. **Resolved when** the inert file is either wired into CI or removed with its coverage route named, the beige category is applied or dropped from ADR-005, and the two CIC gaps are filled.
 
 ---
 
@@ -316,29 +287,9 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 | Source | GH #199 item 2 (ADR-013 §8, views-postprocessing); split out when item 1 shipped as C-72 (2026-07-31) — the residual was recorded only inside the *resolved* C-72 and needed to stay visible in Open. |
 | Trigger | When a consumer loads a **full-S global-reference shard in one call** — i.e. drops or widens the per-month sharding on the FAO/postprocessing ingestion path (views-faoapi #100), or loads several shards concurrently in one process. At that point do the arithmetic before running: `N_rows × S × 4` bytes for the flat table **plus** the same again for the reshaped values (`pq.read_table` materializes the whole table, then `.to_numpy()`/`reshape`/`np.stack` copy it). #199 measures ~1.6 GB transient per full-S month shard at global reference. |
 | Location | `src/views_frames/io/arrow.py::load` (the `pq.read_table` call) (`pq.read_table` — whole-table materialization), `the per-column `.to_numpy().reshape()` / `np.stack` block in the same function` (per-column `.to_numpy().reshape()` + `np.stack` — the second full copy). The npz path already has `mmap=True`; arrow has no equivalent. |
-| Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. |
+| Cross-refs | **C-72** (the same function's *correctness* half — resolved v1.10.1; this is the explicitly-deferred remainder of the same issue), C-71 (the sibling grid-scale allocation footgun), C-25/C-22 (the memory-bounded precedent on the estimator side), GH #199 item 2, views-postprocessing ADR-013 §4.5(b)/§8, views-faoapi #100. | **Also on the load path (added 2026-08-17, code-review during S4):** the v1.10.1 wire-contract validation allocates three full-table temporaries — `np.tile(np.arange(s), n)` as int32, plus two `(N, S)` boolean comparisons — on *every* load. On a 10M-row × 100-sample pgm frame that is roughly 4 GB + 1 GB + 1 GB of transient peak **on top of** the table this entry is already about. The same guarantees are checkable without full-size temporaries (a strided `sample_col[::s]` comparison, or `np.array_equiv` against a broadcast view). This makes the entry's memory ceiling worse than it reads, and it arrived with the fix for C-72.
 
 `arrow` is the platform's **interchange** codec — the format the FAO/postprocessing path actually ships forecasts in — and `load` reads the entire parquet into RAM, then copies it again to reshape. ADR-013 §8 states the mitigation as **per-month sharding** (a consumer-side contract obligation) and names mmap/partitioned reading as the long-term fix while explicitly declaring it **NOT a contract dependency** — so this is deliberately open, not neglected: shipping FAO data does not wait on it. **Tier 3** — the failure mode is a loud `MemoryError`/OOM-kill under a footprint the consumer controls, never a wrong number; the cost is operational, and the mitigation already exists. Deliberately **not designed yet**: the leaf does not guess a streaming API for a wall nobody has hit. The receipt that would change this — a consumer OOM *despite* sharding, or a shard size that cannot be reduced further — is the thing to wait for; a design without it risks a speculative, frozen surface (ADR-018, C-52).
-
----
-
-### C-74: the CI gate is a strict subset of the local gate — `validate_docs.sh` and `ruff format` run only by habit
-
-| Field | Value |
-|-------|-------|
-| ID | C-74 |
-| Tier | 3 |
-| Status | **actionable** — half shipped in S3 (#211): the `docs` job runs `validate_docs.sh` in CI. Remaining: one `ruff format .` pass over 18 files, then one `- run:` line adding `ruff format --check` to that job. Sequenced after the release (S10 #218). |
-| Source | pre-release repo sweep (2026-07-31), prompted by the ship-readiness review; found while checking what the C-70 "recurrence guard" actually enforces. |
-| Trigger | **At the next MINOR/MAJOR version bump** — the case where the README banner must move — do not rely on CI to catch a stale banner; run `bash docs/validate_docs.sh` locally before tagging, or wire it into `ci.yml` first. Same at the next multi-file contribution: without a `ruff format --check` job, the first contributor whose formatter runs produces a reformat-the-world diff. |
-| Location | `.github/workflows/ci.yml:20-22` (gates `ruff check`, `mypy src/`, `pytest --cov-fail-under=100` — **and nothing else**); `docs/validate_docs.sh` (referenced **nowhere** under `.github/`); `ruff format` (never invoked in CI; **22 of 77 files** currently drifted). |
-| Cross-refs | **C-70** (its resolution claimed this guard was live — corrected there), C-51 / C-58 (the same "the check exists but is not exercised" family), C-75 (the sibling finding: tests inside the gate that don't test the code), the cross-cutting **verification-completeness** cluster. |
-
-Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh` — including the README-banner-vs-`pyproject` check added *specifically* as C-70's recurrence guard — is not referenced anywhere in `.github/`; it runs only when a maintainer types it. C-70's resolution asserts the opposite ("the narrative epoch-lag pattern **fails validation** instead of accumulating"), so the register itself carried an overstated enforcement claim until this entry (C-70 corrected 2026-07-31). The guard is one `- run:` line from being real. **(2)** `ruff format` is never run in CI, and 22 of 77 files are already drifted from it — harmless today because one person formats deliberately, a noisy-diff generator the moment a second contributor's editor does it automatically.
-
-**Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
-
-**Half done (2026-07-31, Epic #208 / S3 #211).** `ci.yml` now has a `docs` job that runs `bash docs/validate_docs.sh` on every push and pull request to `main` and `development` — so the version-banner check is finally a gate, in time for this epic's own version bump. It is a **separate job rather than a step in the four-version matrix**: the script is bash and grep with no Python involvement, so running it inside the matrix would repeat it four times and couple documentation policy to the list of supported Python versions. **Still open for the formatting half** — `ruff format --check` cannot be turned on until the 22 drifted files are fixed, or it fails every pull request. That is S10 (#218), deliberately sequenced after the release. This entry closes there.
 
 ---
 
@@ -483,6 +434,475 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-84: the physical-architecture standard described a repository that no longer existed — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-84 |
+| Tier | 3 |
+| Resolved | 2026-08-17 (Epic #240 / S2 #242) |
+| Resolution | The §2 tree rewritten to the three shipped packages and all 36 modules, verified mechanically in both directions. The document now carries a `Last reviewed` date and a note saying the tree is perishable. See the verification below. |
+| Source | review-base-docs (2026-08-17). |
+| Cross-refs | **C-82** (the layering claim in the same file, resolved in S1 #241 — this entry was the rest of it), C-39 / C-23 / C-70 (resolved — the same doc-lags-code disease elsewhere), **C-85** (the sibling: governance documents asserting coverage nothing checks), **C-77** (whose 2026-08-17 refinement is the reason this resolution mutation-tests its own check). |
+
+The standard's §2 directory tree was a pre-implementation design sketch, never revised after the package was built: it showed **one of three packages**, omitted `metadata.py`, `_typing.py` and the whole `conformance/` subpackage, listed two files that never shipped (`weight_frame.py`, `mask_frame.py`), and still marked `target_frame.py` as "(anticipated)" — it shipped in v1.0.0 with its own CIC. The document was also undated, so its staleness was invisible to inspection.
+
+**Verification (2026-08-17).** Following C-77's refinement, the check was written to match the *shape* of the claim rather than a fixed phrase, and **mutation-tested in both directions before being trusted**:
+
+The check is committed as **`scripts/check_arch_tree.py`**, beside the other standalone dev tools there (`verify_reconcile_parity.py`, the fixture generators). It parses the fenced tree out of §2 and diffs it against `src/**/*.py` in both directions. It is deliberately **not** wired into CI: `docs/validate_docs.sh` is the documentation gate and is bash-and-grep by design — its job installs no Python — so whether this belongs there, and how to express it without Python, is S6's call (#246). Pasting a transcript of a script nobody could re-run would have been the very pattern C-77 exists to flag.
+
+```
+$ uv run python scripts/check_arch_tree.py   # parses the §2 fence, diffs it against src/**/*.py
+source modules: 36
+missing from tree: none
+in tree but absent from src/: none
+packages absent from tree: none
+exit=0
+
+$ # mutation 1 — reinstate a phantom module in the tree
+in tree but absent from src/: ['weight_frame.py']          exit=1
+
+$ # mutation 2 — hide a real module from the tree
+missing from tree: ['views_frames/metadata.py']            exit=1
+```
+
+All 36 modules across all three packages appear; nothing in the tree is absent from `src/`. The check catches both failure directions — a phantom entry and a missing one — which is what makes the green run meaningful.
+
+Two contradictions surfaced by extending the tree to three packages were fixed in the same change rather than left: §3 forbids `utils`/`helpers`/`common` dumping grounds while the newly-visible `views_frames_summarize/_common.py` and `_typing.py` carry exactly such names — §3 now states why each is a focused module (two functions, one responsibility; two type aliases) and that a third unrelated concern is the signal to split rather than to widen the exception. §5 said compliance would be audited *"once the leaf is stood up"*; it now names the two rules that are machine-enforced (`test_one_concept_per_file` for §1, the `import-linter` contracts and `test_package_dependency_dag` for §4) and states plainly that **the tree itself is not machine-checked** — it is kept current by the review note at the top.
+
+**Follow-on, deliberately not done here:** this `treecheck` logic is a natural fourth assertion for `docs/validate_docs.sh`, alongside the three in S6 (#246). It is not added here because the script is bash-and-grep by design (the `docs` CI job installs no Python), and parsing a fenced tree is the one check of the four that plausibly cannot be done in bash. Recorded on #246 for that story to decide.
+
+---
+
+### C-82: ADR-002's intra-package layering was inverted against the code — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-82 |
+| Tier | 3 |
+| Resolved | 2026-08-17 (Epic #240 / S1 #241) |
+| Resolution | ADR-002 amended, and the same claim corrected in `docs/standards/physical_architecture_standard.md`. See the verification below. |
+| Source | repo-assimilation (2026-08-17), Phase 2 (dependency graph, measured with `grimp`). |
+| Cross-refs | **C-09** (the origin — resolving it in v0.1.0 moved `io/` onto a generic state-dict contract and inverted the dependency; ADR-002 was never amended), **C-84** (the rest of the physical-architecture standard's staleness, same cluster), C-78, C-39 / C-23, ADR-000 §"Relationship to Code", ADR-003, ADR-007, ADR-018, GH #238 / #239 / #240 / #241. |
+
+ADR-002 stated that `io/` *"sits at the top, imports the frames to serialize them"*, that *"Nothing lower may import `io/`"*, and listed *"a frame importing `io/`"* under **Forbidden Patterns**. `docs/standards/physical_architecture_standard.md:48-49` restated it and `:67` made it a Circular Dependency Guard. The code is the inverse: `io/npz` and `io/arrow` import only `_typing`, and all three frames import `io` and call `npz.save` / `npz.load`.
+
+The **decision** was never wrong — direction is one-way and acyclic. The ADR's factual claim about *which* way was. `Persistable` (`protocols.py:62`) places `save`/`load` on the frame, so the frame reaches the serializer; those methods are frozen v1 surface (ADR-018), so correcting the code would have been a MAJOR cross-repo bump to fix a documentation error.
+
+**Verification (2026-08-17).**
+
+*The first verification of this entry was insufficient, and that is worth recording.* It used four literal phrases (`"sits at the top"`, `"imports the frames to serialize"`, ``"a frame importing `io/`"``, `"no core module may import"`) and reported the claim clean. A `/code-review` pass then found **two surviving occurrences inside that same search path**: `README.md` §layout rules said *"I/O adapters live under `io/`, **import the frame**"* — different wording, and wrapped across two lines — and `docs/ADRs/README.md:23` summarised ADR-002 with the pre-amendment direction, so the corrected ADR was fronted by an uncorrected one-line summary of itself. C-77's discipline is to paste evidence rather than describe it; this entry did paste real output from a real command. **The command was the weak part.** Pasting evidence is necessary and not sufficient — the check has to be capable of failing.
+
+The replacement check matches *any* line pairing `io` with a frame in an import or arrow relation, rather than four fixed phrases:
+
+```
+$ grep -rniE "io/?[^a-z]*(import|→|->)[^.]*frame|frame[^.]*(import|→|->)[^.]*\bio\b|imports the frame|import the frame|→ *io\b|-> *io\b" \
+      docs/ README.md CLAUDE.md GOVERNANCE.md
+docs/ADRs/README.md:23           (the corrected index summary: `_validation`/`io` → `index` → …)
+docs/ADRs/002_...md:11,105,138   (amendment text + the corrected Layering Principle and Forbidden Patterns)
+docs/CICs/Reconcile.md:178       (unrelated: the reconcile sibling's own `frames` module, "array→frame IO")
+```
+
+Every remaining hit is either the corrected text or unrelated. Nothing asserts the inverted direction.
+
+All eleven leaf modules are now named in ADR-002's intra-package section (it previously named four, omitting `_typing` — the highest fan-in in the leaf at 8 — plus `metadata`, `io` and `conformance`). Checked against `find src/views_frames -name '*.py'`: `_typing`, `metadata`, `spatial_level`, `_validation`, `io`, `index`, `protocols`, `feature_frame`, `prediction_frame`, `target_frame`, `conformance` — all present, none missing. The section no longer states a module *count* beside the list, because a count is the same drift-prone form (C-85).
+
+```
+$ uv run lint-imports
+The core does not depend on its consumers KEPT
+The leaf's internal layering runs one way KEPT
+Contracts: 2 kept, 0 broken.
+
+$ bash docs/validate_docs.sh
+=== PASSED: no issues found ===
+```
+
+Also corrected in the same change: `docs/standards/physical_architecture_standard.md` (the layering paragraph and the Circular Dependency Guard — its stale *directory tree* is C-84), `docs/ADRs/README.md` (the index summary), `README.md` §layout rules, `docs/CICs/Protocols.md` (which now records that `Persistable` is *why* the frames depend on `io/`; `Last reviewed` moved from 2026-06-24, the oldest CIC, to 2026-08-17), the `[tool.importlinter]` comment in `pyproject.toml`, and the `[Unreleased]` CHANGELOG entry, which had said correcting the ADR was *"left to a separate change"* — this is that change, in the same unreleased section.
+
+---
+
+### C-85: four governance documents asserted coverage that nothing checked — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-85 |
+| Tier | 3 |
+| Resolved | 2026-08-18 (Epic #240 / S3 #243 + S4 #244 + S5 #245 + S6 #246) |
+| Resolution | All four documents corrected, **and `docs/validate_docs.sh` now asserts the claims** — three new checks, each mutation-tested. See below. |
+| Source | review-base-docs (2026-08-17). |
+| Cross-refs | **C-64**, **C-81** (the two prior instances of the same claim failing), **C-74** (the precedent: the fix is arming a check, not making the correction again), **C-89** (resolved with it — the self-disabling guard already in this script), **C-87** (the `__all__` asymmetry the checks had to accommodate), **C-91** (what check 7's INFO surfaced), C-46, C-27, the *unchecked completeness claims* cluster. |
+
+Four documents each enumerated a surface and each had fallen behind: `GOVERNANCE.md` named three of seven published conformance entry points; ADR-018 omitted `feature_names`, `n_rows`, `n_features`, `from_2d`, `SpatialLevel`, `FrameMetadata` and **the entire `views_frames_reconcile` package**; `docs/CICs/README.md` claimed "fully contracted" while `FrameMetadata` had no CIC.
+
+**The corrections were the easy half.** The entry's own thesis was that correcting the lists without adding a check schedules the fourth instance of C-64/C-81 — so it stayed open through S3, S4 and S5 while each document was fixed, and closes only now that the assertions exist.
+
+**What was added** (`docs/validate_docs.sh`, checks 7–9, bash-and-grep so the `docs` CI job still installs no Python):
+
+- **7** — every publicly exported name is named in some CIC. 38 names across four `__all__` blocks and, for the two modules that declare none (C-87), their public `assert_*` definitions.
+- **8** — every public class has a CIC or an exemption in the CIC index. 13 classes.
+- **9** — `GOVERNANCE.md` names every published conformance entry point. 8 names.
+
+**Names are matched on word boundaries, not as substrings**, and that decision was not obvious — it was forced by measurement. `Frame` has **84 substring hits** across the CICs and **9 real ones**, so a `grep -F` would have let any `*Frame` satisfy the bare `Frame` protocol, and let `hdi_tower` satisfy `hdi`. That is the **third** time a substring match has been the defect in this epic (`scripts/check_arch_tree.py` in S2, the S5 verification, and nearly here).
+
+**Verification — every check mutation-tested, and it took three attempts to write one that worked:**
+
+```
+M1  remove `hdi` from Summarize.md only              → PASSED  (wrong mutation: the name lives in other CICs)
+M1' remove `` `hdi` `` from every CIC                → PASSED  (wrong mutation: bare `hdi(` occurrences remain)
+M1'' neutralise every \bhdi\b, keep hdi_tower ×4    → ERROR: 'hdi' … named in no CIC        ✅
+M2' remove bare `Frame` everywhere, keep *Frame ×8   → ERROR: 'Frame' … named in no CIC       ✅
+M3  drop one conformance name from GOVERNANCE.md     → ERROR: 'assert_reindex_fill_law' …     ✅
+M4  add an export no CIC mentions                    → ERROR: 'brand_new_estimator' …         ✅
+M5  move README.md away (C-89's guard)               → ERROR: expected ../pyproject.toml …    ✅
+```
+
+**The first two mutations were inadequate, and that is the finding worth keeping.** Both looked like they tested the substring trap and neither did — the first because the name lived in another CIC, the second because bare `hdi(` occurrences survived a backtick-scoped `sed`. Each time the check passed and the *pass was the signal something was wrong with the test*, not the code. This is C-77's fourth refinement (the mutations an author picks are the ones they already have in mind) applying to the mutations themselves, one level down.
+
+**Then a code review found three ways the checks could pass while checking nothing** — the C-67 disease (a suite reporting green while dead) in the code written to prevent that disease:
+
+1. **A parser that silently read nothing.** The first version matched only the literal `__all__ = [`. Annotating one file as `__all__: list[str] = [` — **a form already in live use at `src/views_frames/io/__init__.py:13`** — dropped check 7 from 38 names to 32 and check 9 from 8 to 2, and the script printed `PASSED`.
+2. **Iteration over nothing.** With `../src` absent, an empty line still satisfies `read -r`, and `grep -qE "\b\b"` matches everything: check 8 reported `OK (checked 1 public classes)`.
+3. **An `OK` printed after its own check had errored** — `ERROR: 'x' … named in no CIC` immediately followed by `OK (checked 39 exported names)`, which in a CI log scanned for per-check OK lines reads as a pass.
+
+Plus three narrower ones: `^class [A-Za-z_]` would have demanded a CIC for the first private class anyone added; the sibling-conformance `assert_*` fallback would have silently kept ignoring an `__all__` once C-87 is fixed; and the check's own comment overstated its coverage — `src/views_frames/io/` is scanned by nothing, which is now **stated** rather than left to be inferred.
+
+**Final mutation matrix, all seven firing:**
+
+```
+remove bare `hdi` from CICs, keep hdi_tower       → ERROR 'hdi' … named in no CIC
+remove bare `Frame` from CICs, keep *Frame        → ERROR 'Frame' … named in no CIC
+drop a conformance name from GOVERNANCE.md        → ERROR 'assert_reindex_fill_law' …
+add an export no CIC mentions                     → ERROR 'nope' … named in no CIC
+move README.md away                               → ERROR expected ../pyproject.toml …
+move src/ away                                    → ERROR ../src not found …
+break the __all__ parser (`= [` → `= (`)          → ERROR no exported names could be read …
+add a private `class _Codec:`                     → correctly ignored
+annotate `__all__: list[str] = [`                 → correctly parsed, 38 names
+```
+
+**The lesson this entry ends on is not the one it started with.** It began as "an enumeration nobody checks goes stale". It closes as: *a check written to catch that can itself pass vacuously in at least three ways, and every one of them was found by someone other than its author.*
+
+---
+
+### C-89: `validate_docs.sh`'s README-banner check silently no-opped if either input moved — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-89 |
+| Tier | 4 |
+| Resolved | 2026-08-18 (Epic #240 / S6 #246) |
+| Resolution | The `if [ -f ... ]` guard became `if [ ! -f ... ]; then error; else check; fi`. Verified by moving `README.md` aside: the script now reports `ERROR: expected ../pyproject.toml and ../README.md` and exits 1, where it previously skipped and exited 0. Checks 7–9 now error when their input is unreadable — but **not at first**: the S6 code review found check 8 reporting `OK (checked 1 public classes)` with `../src` absent, because an empty line still satisfies `read` and `grep -qE "\b\b"` matches everything. The fix for C-89 had reproduced C-89. Corrected and mutation-tested; see C-85. |
+| Source | code-review (2026-08-17). |
+| Cross-refs | **C-74** (which armed this script as a CI gate — a guard that disables itself re-creates the state C-74 closed), **C-70** (the banner drift the check exists for), **C-85** (resolved together). |
+
+A CI gate whose check turns itself off when its inputs move is not a gate. Fixed with `errors` incremented on the missing-input path, and mutation-tested rather than assumed.
+
+---
+
+### C-83: `examples/` was advertised as runnable and executed by nothing — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-83 |
+| Tier | 4 |
+| Resolved | 2026-08-18 (Epic #240 / S7 #247) |
+| Resolution | An `examples` job in `ci.yml` loops over `examples/[!_]*.py` and **fails** on a broken script (unlike the `continue-on-error` notebooks job). Note it is not an *enforced* gate — no branch protection exists anywhere in this repo, register C-92. Mutation-tested four ways: an API break fails it, a wording change does not, a broken first script does not hide the second, and an empty directory fails rather than passing vacuously. |
+| Source | repo-assimilation (2026-08-17), Phase 6. |
+| Cross-refs | **C-74** (resolved — the identical shape: a check that existed but was never wired into CI), C-70 (README drifting from the code), **C-75** (resolved — tests that asserted README *prose*; this check deliberately asserts exit status instead), C-86 / S11 (the other README defect found later — its §9 conformance path). |
+
+`README.md:60-61,89` presented `examples/quickstart.py` and `examples/cross_level.py` as runnable (`uv run examples/quickstart.py`) and no workflow executed either, while `notebooks/` had had an `nbmake` drift check since #151. `research/` and `notebooks/` are *explicitly* declared un-gated in `pyproject.toml`; `examples/` was declared nothing.
+
+**The job blocks, and the difference from `notebooks.yml` is the point.** That job is `continue-on-error` because *"a slow or flaky notebook never blocks a merge — the notebooks are un-gated dev artifacts."* Neither reason applies here, measured rather than assumed:
+
+```
+examples/quickstart.py    0.24s
+examples/cross_level.py   0.24s
+two runs of quickstart    byte-identical output
+imports                   numpy, stdlib, views_frames, views_frames_summarize — nothing else
+```
+
+And unlike a notebook, README tells a new consumer to run these. A quickstart that does not run is a broken promise, not a flaky artifact.
+
+**Verification.** The check asserts **exit status, not output** — deliberately, because C-75 is the register's record of what happens when a check couples to prose. Four mutations:
+
+```
+break a frozen call: assert_frame_contract(pf, extra_arg=1)  → exit 1  ✅ fails
+change printed wording only: "HDI(sum)" → "HDI-SUM"          → exit 0  ✅ tolerated
+break the FIRST script                                        → the second still runs, exit 1  ✅
+empty examples/                                               → "no scripts found … would pass
+                                                                 vacuously", exit 1  ✅
+```
+
+The last two came from reviewing the first draft, which hard-coded the two filenames as separate `run:` steps. That version would have covered two of three the day someone added a third script, and a failure in the first would have hidden the second's status. Both are the under-coverage shape this epic exists to remove, built into the fix for it.
+
+**The job comment's first draft also gave a wrong reason for a right decision.** It said one job / one Python version was justified "for the same reason as `docs`, `format` and `imports`: nothing here depends on the Python version." That is true of those three and false of this one — `cross_level.py` calls `hdi()`, which is exactly the code the `floor` job exists for (C-24). The real reason is that these scripts smoke-test the **documented on-ramp**, not behaviour; version coverage belongs to the matrix and the floor job. The comment now says that.
+
+**Known non-coverage, stated rather than left to infer:** `examples/` is linted (the `check` matrix runs `ruff check .` and does not exclude it) but **not type-checked** — CI runs `mypy src/`. `uv run mypy examples/` passes today; nothing keeps it passing. Adding it would be a different guarantee from "these scripts run", so it is recorded here rather than folded in.
+
+---
+
+### C-79: nothing tested that today's loader can read a file written by an older release — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-79 |
+| Tier | 4 |
+| Resolved | 2026-08-18 (Epic #240 / S8 #248) |
+| Resolution | Parquet **and npz** fixtures written by the `save` functions extracted from the `v1.8.0` tag, tests asserting today's `load` reads them bit-exactly at both the codec and the public-API level, and a **behavioural** writer-drift guard that runs in the suite. Six mutations. See below. |
+| Source | test-review (2026-07-31), Kleppmann lens. |
+| Cross-refs | **C-72** (the v1.10.1 validation these fixtures predate — the specific change this gap could not see), C-73 (the same function's memory residual), **C-90** (the codec divergence found in S5 — a silently-stringified metadata value is exactly what a same-version round-trip cannot see), C-46, views-postprocessing ADR-013, views-faoapi #100. |
+
+Every arrow IO test wrote a file and read it back **in the same process, at the same version**. That verifies the codec is self-consistent. It cannot verify the property that matters for a data-contract package: that a file written by an earlier release still loads.
+
+**The fixtures are written by released code, not by code believed equal to it.** `scripts/gen_arrow_crossversion_fixture.py` extracts `io/arrow.py` and `io/npz.py` from the **`v1.8.0` tag**, loads each as its own module, and writes with *those* `save` functions. A fixture produced by current code would only prove the codec round-trips itself — which `test_io.py` already covered.
+
+`v1.8.0` predates **v1.10.1**, which added three `ValueError` paths to `arrow.load` rejecting row orders that violate the wire contract (C-72). Those rules were derived from what `save` writes *today*; the fixtures are the evidence they accept a file written before they existed.
+
+```
+$ uv run --extra arrow python scripts/gen_arrow_crossversion_fixture.py
+wrote tests/fixtures/arrow_v1_8_0_prediction.parquet (1817 bytes, writer v1.8.0)
+wrote tests/fixtures/arrow_v1_8_0_feature.parquet (2078 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/header.json (103 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/identifiers.npz (566 bytes, writer v1.8.0)
+wrote tests/fixtures/npz_v1_8_0_prediction/values.npy (176 bytes, writer v1.8.0)
+```
+
+**Three things the code review corrected, and the first is this entry lying about itself.**
+
+**1. The trigger was not enforced.** The first version put a `save`-unchanged guard *inside the generator script* and this entry claimed the trigger was "now enforced by the tool rather than by remembering". **Nothing invokes the generator** — no test, no CI job, no hook (verified by grep across `*.yml`, `*.py`, `*.sh`). The exact failure it was meant to prevent — someone edits `save`, CI stays green, the change merges, the last unmodified writer is gone — played out exactly as before. That is C-77, in the resolution of the entry whose entire value is a trigger.
+
+**2. The guard compared source text, so it was wrong in both directions.** A `ruff format` sweep inside `save` would have tripped it for a change altering no written byte — and this repo did precisely such a sweep in `8501622`. Meanwhile a module-level change that *does* alter the bytes (a `compression=` default, a swapped import) passed it untouched.
+
+Both are fixed by making the guard **behavioural and a test**: `test_todays_writer_still_reproduces_the_v1_8_0_fixture` writes with today's `save` and byte-compares against the committed fixture. Verified:
+
+```
+reformat inside save (old guard wrongly tripped)   → 4 passed   ✅ not tripped
+pq.write_table(..., compression="gzip")            → 1 failed   ✅ caught
+  (the old guard missed this one entirely)
+```
+
+**3. The evidence stopped at the codec.** The path a consumer actually uses to revive archived data is `PredictionFrame.load` → `npz.load` → `SpatioTemporalIndex(...)` → `FrameMetadata.from_dict`, and none of it was covered — a future construction-time invariant would reject archived files with nothing to catch it. `npz.save` is byte-identical since v1.8.0 too, so an npz fixture and a public-API test were added in the same window. Verified by adding a construction-time invariant that rejects the archived frame: **1 failed**.
+
+Fixture metadata now carries `timestamp` and `seed` as **ints**, not just strings. A JSON type drift on a non-string header field crossing versions is the bug class **C-90** records, and string-only fixtures would not have exercised it.
+
+**Mutation-tested throughout** — a fixture test that has never failed guards nothing:
+
+```
+simulate a new wire rule the old file violates        → FAILED  ✅
+transpose the reshape (plausible floats, wrong slots) → FAILED  ✅
+drop feature_names on load                            → FAILED  ✅
+reformat save                                          → passed  ✅ (correctly tolerated)
+alter the written bytes                                → FAILED  ✅
+tighten a construction invariant                       → FAILED  ✅ (npz path)
+```
+
+The digests are of `values.tobytes()`, which is why the transpose is caught: plausible floats in the wrong sample slots pass every shape and dtype assertion — the C-72 failure mode exactly.
+
+**Tier 4 was right and remains right.** Exposure was measured at zero when the entry was written and still is — `save` has not changed. This closes a **preventive** gap, and its value is entirely in the trigger: the moment `save` changes, the generator now stops the change rather than letting the opportunity pass silently.
+
+---
+
+### C-88: the published MAP-containment law was wrong on tied draws — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-88 |
+| Tier | 2 |
+| Resolved | 2026-08-18 |
+| Resolution | The law now **counts** each floor's occupancy with `_in_range_span` instead of computing it as `floor(m·S)+1`. Measured on the reproduction that found it: **0/500 failures, was 30/500 (6.0%)**. ADR-019 Amendment 4 records the correction. `CONFORMANCE_FLOOR` stays `1.0.0`. |
+| Source | code-review (2026-08-17); reproduced independently before registering. |
+| Cross-refs | **C-44** (the tower's minority-duplicate collapse — the same tie-sensitivity one layer down), C-45, C-32/C-34 (#89 estimator coherence), **C-67** (a published suite reporting green while checking nothing — this was its mirror image, reporting red while nothing was wrong), C-46 / ADR-016 (the published-surface obligation that gave it cross-repo reach). |
+
+The law certified which HDI floors are *guaranteed* to contain the tower tip using `floor(m·S)+1` — the floor's **index span**, which `_ks` builds it from. The tip is the median of the draws whose **value** lies inside the floor (`_in_range_span`). Those agree only when draws are distinct. Duplicated endpoint values — routine in integer count data — put more draws inside the same bounds, so the tip floor held more than the formula allowed and narrower floors were certified that hold less than half of it.
+
+**Why it mattered.** `assert_summarizer_contract` is published under ADR-016 and every consumer runs it in their own CI. The failure mode was *another repository's CI going red on correct data*, with the cause here — and views-postprocessing has volunteered to be the first adopter. Zero live exposure when found; the deadline was the first adoption, not the calendar.
+
+**Why the suite never caught it:** no test in `tests/` used integer or tied draws (`grep -rln "poisson\|astype(np.int" tests/` returned nothing). The estimator tests build posteriors from continuous distributions, where endpoint ties are measure-zero. That is C-44's lesson recurring — *a numerical special case silently wrong on a subdomain the tests never sampled*.
+
+**The correction: count, do not compute.** Both the tip floor's and each candidate floor's occupancy now come from `_in_range_span`, the same quantity `tower_point` takes the median of. Because occupancy is row-dependent once ties exist, a floor may qualify in one row and not another, so the law asserts a floor only on the rows where it qualifies.
+
+**Verification.**
+
+```
+red test first (tests/test_summarize_conformance.py::test_map_containment_holds_on_tied_integer_draws)
+  before: FAILED — "MAP-containment violated: tip above the 0.15 floor"
+  after:  passed
+
+the reproduction, 500 zero-inflated Poisson posteriors, S ∈ {32,64,128}
+  failures: 0/500   (was 30/500 = 6.0%)
+```
+
+**Mutation-tested, because a corrected law that never fires is worse than a wrong one:**
+
+```
+push the tip outside its floor (tower_point * 1.5 + 0.5)  → FAILED  ✅ still has teeth
+loosen the qualification to certify every floor            → FAILED  ✅ the old bug's shape
+```
+
+0.15 was the narrowest floor the old arithmetic certified at `S=64` (`n_tip = floor(0.25·64)+1 = 17`, admitting every `m ≥ 0.125`) — and 0.15 is the floor named in every measured failure. The diagnosis and the symptom matched exactly.
+
+**`CONFORMANCE_FLOOR` stays `1.0.0`.** The correction *narrows* what the suite asserts, so consumers who passed still pass and consumers who failed now pass. GOVERNANCE bumps the floor only on a breaking change to the published surface, and nothing here breaks. The published bands (50/90/95/99) qualify as before.
+
+**The first fix introduced a regression, found by review.** Deriving qualification from `law_tower` — the output the law validates — meant a broken tower could **disarm the law with its own defect**: degenerate narrow floors give a small in-range count, fail `2·n_floor > n_tip`, and skip themselves. Demonstrated by collapsing every sub-`tip_mass` floor to the row maximum, a gross violation of both nesting and containment: the *old* law caught it, the first version of the *new* one passed clean.
+
+My mutations had probed the qualification arithmetic and the tip — never the tower output. Fixed by asserting **nesting across the candidate grid unconditionally**, which needs no qualification because it is true by construction, and which catches that mutation (both tests now fail under it).
+
+Two more from the same review:
+
+- **Memory.** The first version sorted the whole grid at once and asked `hdi_tower` for all 25 canonical floors — the discipline C-22/C-25/C-71 exist to protect. Now counted in the same row blocks `hdi_tower` uses, with candidates restricted to floors ≤ `tip_mass` (wider floors contain the tip by nesting from the tip-mass floor, already asserted). Measured on 200k×32: **143 MB peak, against 149 MB on `development`** — below the pre-change baseline, not above it.
+- **`zero_cutoff` rows** (C-45) collapse to `(0, 0)` in both tower and tip, so their in-range counts are 0, nothing qualifies, and they are skipped. That is correct rather than a gap — containment of tip 0 in floor `(0, 0)` is trivially true — and the code now says so.
+
+Prose corrected in the same change: `docs/ADRs/019_...md` (Amendment 3's false parenthetical, plus Amendment 4 recording all of this), `docs/CICs/Summarize.md` (banner and §3), `src/views_frames_summarize/config.py`, `src/views_frames_summarize/tower_point.py`.
+
+---
+
+### C-86: the README's directory tree and conformance-suite location were stale — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-86 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | Tree rewritten from `find src -name '*.py'` (all 36 modules, no phantom `tests/` dirs), §9 now names `views_frames.conformance` / `src/views_frames/conformance/`, and `scripts/check_arch_tree.py` covers **both** trees. |
+| Source | review-diff (2026-08-17), during S3 of epic #240 — found by sweeping for documents that restate what S3 was correcting (the S1 lesson: completing one document can falsify its neighbours). |
+| Cross-refs | **C-84** (resolved 2026-08-17 — the identical disease in `docs/standards/physical_architecture_standard.md`; **this entry is why that cluster is not closed**), C-70 (resolved — README narrative epoch-lag), C-85 (the coverage-claim sibling), C-30 (the cross-repo contract-test gap §9 is about), ADR-016. |
+
+README's `src/` tree omitted 11 of 36 modules — the summarize package was shown as four where it has fourteen — and named two `tests/` subdirectories that do not exist. Worse, §9 introduced the published conformance suite as **`tests/conformance/`**, a path that was never created; the suite is `src/views_frames/conformance/`, which is what `GOVERNANCE.md`, ADR-016 and every CIC name. README is the PyPI long-description, and that sentence sits in the section written to close the cross-repo contract-test gap (C-30).
+
+`scripts/check_arch_tree.py` now takes a **list** of documents rather than one, because the failure was precisely that the check knew about one tree while a second went stale beside it. Mutation-tested per document:
+
+```
+hide a module from README only            → FAILED, names README.md
+hide a module from the standard only      → FAILED, names the standard
+phantom module in README                  → FAILED, names views_frames/weight_frame.py
+```
+
+Verified: 36 of 36 modules present in both trees, no phantom `tests/` directories.
+
+---
+
+### C-87: two published conformance surfaces declared no `__all__` — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-87 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | `__all__` added to both sibling conformance modules; `validate_docs.sh` now reads all three the same way. |
+| Source | code-review (2026-08-17), during S3 of epic #240. |
+| Cross-refs | **C-85** (S6 is where this is decided), C-23 (resolved — the `py.typed` / statically-analysable-surface family), ADR-016 (which makes these published surfaces), ADR-017 / ADR-023 (the sibling charters). |
+
+`views_frames.conformance` declared `__all__`; the two sibling modules did not, though ADR-016 makes all three published surfaces. `GOVERNANCE.md` had to document the asymmetry instead of stating a rule, and S6's check 7 carried a fallback branch for it.
+
+Two lines. Both modules now declare their single entry point, and the fallback in `docs/validate_docs.sh` only fires when no `__all__` is present — so it stays correct and stops being the normal path. `import *` is banned repo-wide, so this declares what was already public rather than narrowing anything.
+
+---
+
+### C-90: the two IO codecs disagreed on a non-JSON metadata value — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-90 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | `default=str` removed from `io/npz`, so both codecs now raise. Verified: a `datetime` timestamp gives the same `TypeError` through each. |
+| Source | code-review (2026-08-18), during S5 of epic #240; reproduced before registering. |
+| Cross-refs | **C-09** (the state-dict contract that keeps `io/` schema-free — this is a place where the two implementations of it diverged), **C-79** (no cross-version IO fixture; a silently-stringified field is exactly the kind of thing that would survive a round-trip test at one version), C-72 (the last time the two codecs were found to differ in strictness), ADR-008 (fail loud), ADR-016. |
+
+`io/npz` passed `json.dumps(..., default=str)` and `io/arrow` did not, so a non-JSON header value was **silently stringified** by one codec and rejected by the other — a `datetime` timestamp reloaded as `'2026-01-01 00:00:00'` where the field is declared `int | None`. The storage backend decided whether the run failed.
+
+ADR-008 says fail loud, so both now raise:
+
+```
+npz:   TypeError — Object of type datetime is not JSON serializable
+arrow: TypeError — Object of type datetime is not JSON serializable
+```
+
+---
+
+### C-91: `TowerSummary` had no CIC entry of its own — RESOLVED (by decision)
+
+| Field | Value |
+|-------|-------|
+| ID | C-91 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | Recorded in `docs/CICs/Summarize.md` as a deliberate exemption with its reason. |
+| Source | code-review (2026-08-18) during S5, confirmed by the check S6 armed. |
+| Cross-refs | **C-85** (whose check surfaced it), **C-64** / **C-81** (the CIC index claiming coverage it lacked — this is the same question one level finer: *presence* versus *contract*), ADR-006 (the requirement CICs exist to satisfy), ADR-019 (which introduced the type). |
+
+`TowerSummary` is a `NamedTuple` holding no behaviour of its own, and each of its three components — `tower_point`, `hdi_tower`, `bimodality` — is contracted individually in the same document. Its guarantee is exactly the conjunction of theirs plus the equality with the trio, which `assert_summarizer_contract` asserts.
+
+A field-by-field entry would restate three contracts and create a fourth place for them to drift. The exemption is now written where a reader meets the type, so S6's single-occurrence INFO reads as expected rather than as an oversight.
+
+---
+
+### C-77: resolution text described the intent, not the result — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-77 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | The four-part discipline is written into `docs/contributor_protocols/carbon_based_agents.md` under *Claims About Your Own Work*. |
+| Source | Pattern across epic #208 (2026-07-31), surfaced by two `/code-review max` passes. |
+| Cross-refs | C-70, C-75, C-76, C-78, **C-82** (the 2026-08-17 instance below), **C-67** (the same shape in code — a conformance suite that reported green while `python -O` stripped its assertions); the cross-cutting **verification-completeness** cluster and the *unchecked completeness claims* cluster, of which this is the documentation-side twin. |
+
+The entry accumulated four refinements across this epic, each learned by getting it wrong: demonstrate rather than describe; use a check that could actually have failed; leave the check where the next person can run it; and remember that **the mutations an author picks are the ones they already have in mind**.
+
+The fourth earned its place twice more after being written. A tree check passed its author's own mutation testing and still could not see a duplicated basename. And the C-88 fix was mutation-tested for *firing falsely* but not for *failing to fire*, so it could disarm itself — caught by review, not by its author.
+
+Closed because the discipline now lives somewhere durable rather than in a register entry that only the register's readers see. The protocol states the pattern behind all four: **it is easy to prove a thing no longer fails, and hard to prove it still works.**
+
+---
+
+### C-80: the test suite's self-description did not match its contents — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-80 |
+| Tier | 4 |
+| Resolved | 2026-08-18 |
+| Resolution | All items closed: `test_packaging.py` runs on the 3.10 floor, the inert file names its coverage route, the two CIC §10 gaps are filled, and three unpinned `FrameMetadata` guarantees now have tests. |
+| Source | test-review (2026-07-31), Beck / Feathers / Nygard lenses. |
+| Cross-refs | **C-77** (the documentation twin: text describing intent rather than result — this is the same disease in the test suite), C-75 (resolved — tests that looked like coverage and were not), C-51 / C-58 (the verification-completeness cluster), ADR-005 (the red/beige/green taxonomy). |
+
+Five items plus three found later while writing `FrameMetadata.md`.
+
+- **`test_packaging.py` collected zero tests on the 3.10 leg** — `importorskip("tomllib")` at module level, and tomllib is 3.11+. Now a `tomllib`/`tomli` fallback with `tomli` in the dev group for `python_version<'3.11'`, so the classifier assertions run on the leg the `floor` job exists to scrutinise.
+- **`test_reconcile_head_to_head.py` collects zero tests anywhere.** Kept — it is a real local cross-check against the *live* old package, which a fixture cannot be — and its docstring now names what holds the guarantee in CI instead: the frozen-oracle route in `test_reconciliation_parity.py` and `test_reconciliation_e2e_parity.py`.
+- **`PredictionFrame.md` §10** promised *"mmap load keeps peak RAM at the working set"* against a **type** check. The proxy is sound (memmap implies lazy paging) but §10 read as though memory were measured; it now says which is which.
+- **`TargetFrame.md` §10** named no pinning test file where the other CICs name one to five. It now names them.
+- **Three `FrameMetadata` guarantees nothing pinned**, all stated in its §3: the unknown-key **drop** (the nearest test only asserted `from_dict` does not raise), the empty-header default, and the save/load round-trip for `FeatureFrame` and `TargetFrame` — it was pinned for `PredictionFrame` only. Three tests added.
+
+The beige-marker item is the one **not** done: applying 🟨 across the suite means deciding what beige means here, which is an ADR-005 question and not a labelling task. Recorded as such rather than half-applied.
+
+---
+
+### C-74: the CI gate was a strict subset of the local gate — `validate_docs.sh` and `ruff format` ran only by habit — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-74 |
+| Resolved | 2026-07-31 (Epic #208 / S3 #211 + S10 #218) |
+| Tier | 3 |
+| Source | pre-release repo sweep (2026-07-31), prompted by the ship-readiness review; found while checking what the C-70 "recurrence guard" actually enforces. |
+| Trigger | **At the next MINOR/MAJOR version bump** — the case where the README banner must move — do not rely on CI to catch a stale banner; run `bash docs/validate_docs.sh` locally before tagging, or wire it into `ci.yml` first. Same at the next multi-file contribution: without a `ruff format --check` job, the first contributor whose formatter runs produces a reformat-the-world diff. |
+| Location | `.github/workflows/ci.yml:20-22` (gates `ruff check`, `mypy src/`, `pytest --cov-fail-under=100` — **and nothing else**); `docs/validate_docs.sh` (referenced **nowhere** under `.github/`); `ruff format` (never invoked in CI; **22 of 77 files** currently drifted). |
+| Cross-refs | **C-70** (its resolution claimed this guard was live — corrected there), C-51 / C-58 (the same "the check exists but is not exercised" family), C-75 (the sibling finding: tests inside the gate that don't test the code), the cross-cutting **verification-completeness** cluster. |
+
+Two checks the project treats as gates are not gates. **(1)** `validate_docs.sh` — including the README-banner-vs-`pyproject` check added *specifically* as C-70's recurrence guard — is not referenced anywhere in `.github/`; it runs only when a maintainer types it. C-70's resolution asserts the opposite ("the narrative epoch-lag pattern **fails validation** instead of accumulating"), so the register itself carried an overstated enforcement claim until this entry (C-70 corrected 2026-07-31). The guard is one `- run:` line from being real. **(2)** `ruff format` is never run in CI, and 22 of 77 files are already drifted from it — harmless today because one person formats deliberately, a noisy-diff generator the moment a second contributor's editor does it automatically.
+
+**Tier 3** — no correctness or silent-corruption path: the failure mode is documentation drift and diff noise, both loud and cheap once noticed, and the underlying checks all exist and pass right now. It is Tier 3 rather than Tier 4 because the drift pattern is **empirically proven to recur here** — C-70 documented an entire epoch of accumulated narrative lag, and the guard written to stop it was never armed. Resolved when both checks run in `ci.yml`.
+
+**Half done (2026-07-31, Epic #208 / S3 #211).** `ci.yml` now has a `docs` job that runs `bash docs/validate_docs.sh` on every push and pull request to `main` and `development` — so the version-banner check is finally a gate, in time for this epic's own version bump. It is a **separate job rather than a step in the four-version matrix**: the script is bash and grep with no Python involvement, so running it inside the matrix would repeat it four times and couple documentation policy to the list of supported Python versions. **Still open for the formatting half** — `ruff format --check` cannot be turned on until the 22 drifted files are fixed, or it fails every pull request. That is S10 (#218), deliberately sequenced after the release. This entry closes there.
+
+---
+
+**Resolved — both halves are now gates.** `validate_docs.sh` runs as the `docs` job (S3, #211), and `ruff format --check` as the `format` job (S10, #218), each on every push and pull request to `main` and `development`. The formatting half could only be armed after the 18 drifted files were fixed, which is why it came last and why it came after the release: reformatting shifts line numbers and rewrites files, and doing that earlier would have invalidated the documentation citations (S4) and the test files being rewritten (S5/S6) while that work was in flight. Measured after the sweep: **0 citations broken, 14/14 symbol anchors still resolving** — the sequencing worked. Both jobs sit outside the four-version matrix because neither depends on the Python version.
+
+---
 
 ### C-81: the published conformance suite shipped without a CIC, while the CIC index claimed full coverage — RESOLVED
 
@@ -1236,7 +1656,9 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Foreign ADR references:** an unqualified `ADR-xxx` always means *this* repository's ADR. A sibling repo's ADR must name the repo ("views-datafactory's ADR-044 **there**"). Three currently referenced numbers — **ADR-034** (pipeline-core), **ADR-044** (views-datafactory), **ADR-055** (paired with a `D-29` that does not exist here) — have no file in `docs/ADRs/`, which is correct, but only one of the three said so plainly. Same rule as the concern-id convention below.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
-- **Causal clusters** (assigned by `review-rr`, last reviewed **2026-07-31**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
+- **Causal clusters** (assigned by `review-rr`, last reviewed **2026-08-17**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
+  - **doc↔code topology drift** = {**C-86**; resolved C-82, C-84; + resolved C-09 as the origin, C-39, C-23, C-70} — **REOPENED 2026-08-17, same day it was closed.** S1 #241 and S2 #242 closed C-82 and C-84, and the closure note said those two were "the whole of it". One story later, S3's sweep for documents restating what it was correcting found a **third** stale shape-claim — the `README.md` directory tree, missing 11 of 36 modules, plus a §9 pointer sending consumers to a `tests/conformance/` path that does not exist (C-86). The correction is recorded rather than quietly amended, because a cluster declaring itself closed while a member remains is the same failure the cluster is about. *The documents that describe the system's shape were never re-verified against it.* ADR-002 and `docs/standards/physical_architecture_standard.md` both describe an intended structure that the code moved past: `io/` on top importing the frames (the code is the inverse), a directory tree missing three shipped modules and containing two that never shipped, and one of three packages. The origin is datable — **C-09**, resolved 2026-06-21, moved `io/` onto a generic state-dict contract and inverted the dependency; neither topology document was amended, and `Persistable` (which puts `save`/`load` on the frame) makes the code's direction the only one available under the ADR-018 freeze. **The two entries were one editing session**, and were sequenced as one: the C-82 amendment touched `physical_architecture_standard.md:48-49,:67`, exactly where C-84's rewrite started, so S2 was blocked on S1 rather than run beside it. The standard now carries a `Last reviewed` date, a perishability note, and `scripts/check_arch_tree.py`, which makes the next drift detectable in one command. Distinguished from the cluster below by *what* is unverified: here it is a claim about structure, there it is a claim about coverage.
+  - **unchecked completeness claims** = {C-85, C-77, C-80; + resolved C-64, C-74, C-75, C-81, C-51, C-67} — **an artifact asserts something about its own coverage or result, and nothing checks the assertion.** `docs/CICs/README.md` has claimed "fully contracted" wrongly three times (C-64 `Reconcile.md`, C-81 `Conformance.md`, now `FrameMetadata` in C-85); `GOVERNANCE.md` names three of six published conformance exports; ADR-018 inventories a frozen surface that omits `feature_names`; resolution fields described intent rather than result four times in one epic (C-77); the test suite's self-description does not match its contents (C-80). C-81's own resolution text is the tell: it was *"found only because this claim of completeness was audited against the code."* **The remedy is one mechanical change, not five edits:** `docs/validate_docs.sh` already runs in CI (C-74) and already checks placeholders, dangling references and the version banner — it checks no enumeration. Three assertions would have caught four of these findings automatically (every `__all__` name appears in its CIC; every public class has a CIC or a listed exemption; `GOVERNANCE.md`'s conformance names match `conformance.__all__`). Correcting the lists without the script edit schedules the fourth instance. **Tier within this cluster follows who reads the claim:** an external reader (a consumer running the floor, a future maintainer executing C-66's MAJOR instructions) → Tier 3; an internal auditor → Tier 4. That is why C-85 and C-77 are 3 while C-80 is 4, and the rule should be applied to any entry joining this cluster.
   - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, C-57, C-66, the C-32 residual, + resolved C-53, C-76, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
   - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43, C-57, + resolved C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.

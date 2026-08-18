@@ -1,8 +1,34 @@
 # ADR-002: Topology and Dependency Rules
 
-**Status:** Accepted  
+**Status:** Accepted (amended 2026-08-17 — see *Amendment* below)  
 **Date:** 2026-06-21  
 **Deciders:** VIEWS platform maintainers  
+
+> **Amendment (2026-08-17, register C-82).** This ADR originally stated that `io/` *"sits at
+> the top, imports the frames to serialize them"*, that *"nothing lower may import `io/`"*,
+> and it listed *"a frame importing `io/`"* under **Forbidden Patterns**. **The code runs the
+> other way, and the code is right.** `io/npz` and `io/arrow` import only `_typing`; all
+> three frames import `io` and call `npz.save` / `npz.load`.
+>
+> The **decision** has not changed — dependency direction is still strictly one-way and
+> acyclic (verified with `grimp`: 36 modules, 89 dependencies, zero cycles). What was wrong
+> was this ADR's factual claim about which way `io/` runs. Three things fixed it:
+>
+> 1. **`Persistable` puts persistence on the frame.** `save`/`load` are frame methods, frozen
+>    under ADR-018. Once persistence is a frame method the frame must reach the serializer.
+> 2. **C-09 is the origin.** Resolving it (2026-06-21, v0.1.0) moved `io/npz` onto a generic
+>    frame-**state** contract so the I/O layer would carry no per-frame schema. That is what
+>    inverted the dependency; this ADR was never amended to match.
+> 3. **The result serves this ADR's own goal better than its original prescription.** The
+>    stated aim was that `io/` change *"for its own reasons, not when a frame's schema
+>    changes."* `io/` never importing a frame is a stronger guarantee of that than `io/`
+>    importing three of them.
+>
+> Correcting the code was not available: removing `save`/`load` from the frames is a MAJOR
+> bump with a cross-repo merge train (GOVERNANCE.md), to fix a documentation error. The
+> layering is now machine-enforced in the correct direction by the `import-linter` contracts
+> in `pyproject.toml` (`uv run lint-imports`). The same claim in
+> `docs/standards/physical_architecture_standard.md` was corrected in the same change.
 
 ---
 
@@ -17,8 +43,8 @@ bible's target is a clean **DAG**: `views-frames` is the leaf at the root, depen
 nothing internal, and every consumer depends *toward* it (README §2).
 
 That inter-repo discipline only holds if the leaf's *internal* topology is also
-controlled. Without explicit dependency rules, the frames can start importing the `io/`
-layer, the validation helper can reach back into a frame, or the core can re-acquire a
+controlled. Without explicit dependency rules, the codecs under `io/` can start importing
+the frames, the validation helper can reach back into a frame, or the core can re-acquire a
 `views_*` dependency (the exact mistake — `PredictionFrame` importing pandas — that the
 relocation must undo). A clear rule is required to define **who may depend on whom**,
 both inside the package and across the platform.
@@ -43,16 +69,32 @@ This repository enforces a strict, directional dependency structure, at two leve
   of the DAG. **They never import each other** — there is no edge between the two leaves;
   each is depended *toward*, never sideways.
 
-**Intra-package (the module layers):**
-- `index`, `spatial_level`, `protocols`, `_validation` are the lowest layer (depend only
-  on numpy / each other minimally; `index` composes `spatial_level`).
-- the frame classes (`feature_frame`, `prediction_frame`, `target_frame`, …) depend on
-  the index, protocols, and `_validation`.
-- `io/` (`io/npz`, `io/arrow`) sits at the top, imports the frames to serialize them, and
-  changes for *its own* reasons (a new disk format), not when a frame's schema changes.
-- Nothing lower may import `io/`. A frame must not know how it is serialized.
+**Intra-package (the module layers)**, lowest layer first — this list is the enumeration; do
+not restate a count beside it:
+
+- `_typing`, `metadata`, `spatial_level` are the lowest layer: they depend only on numpy
+  and the standard library. `_typing` has the highest fan-in in the leaf — every module
+  that touches an identifier array imports `IntArray` from it.
+- `_validation` and `io/` (`io/npz`, `io/arrow`) sit above them and import only `_typing`.
+  Both operate on **raw arrays**, never on a frame: `_validation` checks dtype/shape/length,
+  and `npz.save` takes `values`, `time`, `unit`, `level` and `metadata` as separate
+  arguments. Neither imports a frame class, so a frame's schema cannot ripple into either.
+- `index` (`SpatioTemporalIndex`) composes `spatial_level` and delegates its invariants to
+  `_validation`.
+- `protocols` sits above `index` (it references `SpatioTemporalIndex` in its type surface)
+  and declares the four segregated protocols the frames satisfy structurally.
+- the frame classes (`feature_frame`, `prediction_frame`, `target_frame`) are the top
+  layer: they compose the index, validate through `_validation`, carry a `metadata`
+  header, and **call down into `io/`** to serialize themselves.
+- `conformance/` is also a top-layer consumer — it validates frames from outside and
+  imports nothing internal at all (it duck-types against `Any`).
 
 Dependency direction must remain acyclic. Violations are architectural defects.
+
+> **Why the frames call `io/`, and not the reverse.** `Persistable` (`protocols.py`) places
+> `save`/`load` **on the frame**, so the frame is what reaches the serializer. Because `io/`
+> never imports a frame, a change to a frame's schema cannot propagate into the codecs at
+> all. The Amendment above records why this ADR originally said the opposite.
 
 ---
 
@@ -60,9 +102,9 @@ Dependency direction must remain acyclic. Violations are architectural defects.
 
 Where layers exist, the following invariant applies:
 
-- Higher-level modules may depend on lower-level modules (`io/arrow` → `prediction_frame` → `index`).
-- Lower-level modules must not depend on higher-level modules (`index` must not import a frame; a frame must not import `io/`).
-- Cross-layer shortcuts are forbidden (a frame must not re-implement alignment instead of delegating to `SpatioTemporalIndex`; `io/` must not bypass the frame's public surface).
+- Higher-level modules may depend on lower-level modules (`prediction_frame` → `index` → `spatial_level`; `prediction_frame` → `io/npz` → `_typing`).
+- Lower-level modules must not depend on higher-level modules (`index` must not import a frame; `io/` must not import a frame).
+- Cross-layer shortcuts are forbidden (a frame must not re-implement alignment instead of delegating to `SpatioTemporalIndex`; `io/` must not reach back into a frame's public surface — it is handed raw arrays).
 
 Dependency direction must remain acyclic.
 
@@ -93,7 +135,8 @@ Examples of architectural violations specific to this leaf:
 
 - Any module under `views_frames` importing a `views_*` package (re-acquiring pandas via a `views-pipeline-core` import is the canonical example to avoid).
 - Importing `pandas`/`polars`/`geopandas`/`wandb`/`viewser`/`torch` anywhere in the core.
-- `index.py` or `_validation.py` importing a frame, or a frame importing `io/`.
+- `index.py`, `_validation.py`, or anything under `io/` importing a frame. (A frame importing
+  `io/` is **correct** — see the Amendment. It was listed here in error until 2026-08-17.)
 - Embedding the cross-level `priogrid→country` mapping in the leaf instead of accepting it as an injected argument (ADR-009).
 - An edge between the two leaves: `views-frames` importing `views-appwrite` or vice versa.
 

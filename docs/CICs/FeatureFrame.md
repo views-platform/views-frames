@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-31
+**Last reviewed:** 2026-08-18
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/feature_frame.py`). This contract governs
@@ -49,6 +49,17 @@ array `y_features (N, F, S)` float32 aligned to a `SpatioTemporalIndex`, carryin
   requirement; present rows bit-exact, absent rows filled (`fill_value` keyword-only,
   required, broadcast across `(F, S)`); `feature_names`/metadata preserved; law-pinned
   by `assert_reindex_fill_law`.
+- **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
+  `metadata`, `feature_names`, `n_rows`, **`n_features`**, `sample_count`, `is_sample`.
+  `values`, `index` and `metadata` return the stored objects with no copy. Two do **not**:
+  `identifiers` builds a fresh `{time, unit}` dict per call (the arrays inside are shared and
+  write-protected), and **`feature_names` returns a copy of the list** — that copy is what
+  makes the frame immutable, so `frame.feature_names.append(...)` changes nothing.
+  `n_features` is `values.shape[1]` and `len(feature_names)` is the name count; they are two
+  independently-derived numbers that the constructor **forces into agreement**, raising if they
+  disagree. `n_features` appears in **no protocol** (`Frame` declares `n_rows`, `Sampled`
+  declares `sample_count`/`is_sample`; neither declares `n_features`), so unlike the others it
+  is frozen by ADR-018 alone — recorded there 2026-08-17, register C-85.
 
 ---
 

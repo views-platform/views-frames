@@ -21,7 +21,12 @@ import numpy as np
 import torch
 from views_reporting.statistics import ForecastReconciler
 
-_OUT = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "reconciliation_parity.npz"
+_OUT = (
+    Path(__file__).resolve().parent.parent
+    / "tests"
+    / "fixtures"
+    / "reconciliation_parity.npz"
+)
 
 # views-reporting/tests/test_statistics.py _PROB_CASES / _POINT_CASES.
 _PROB_CASES = [
@@ -76,9 +81,7 @@ def main() -> int:
     for n_cells, zf, sf, label in _POINT_CASES:
         grid, country = _point_grid_country(n_cells, zf, sf)
         adjusted = rec.reconcile_forecast(grid, country)
-        cases.append(
-            (label, grid.numpy(), np.float32(country), adjusted.cpu().numpy())
-        )
+        cases.append((label, grid.numpy(), np.float32(country), adjusted.cpu().numpy()))
 
     # Extra: the realistic case the test suite never probes — country drawn
     # INDEPENDENTLY of the grid (separate model), so index-pairing matters.
@@ -87,7 +90,12 @@ def main() -> int:
     country = torch.rand(300) * 5000.0  # independent of grid.sum
     adjusted = rec.reconcile_forecast(grid, country)
     cases.append(
-        ("prob-independent-country", grid.numpy(), country.numpy(), adjusted.cpu().numpy())
+        (
+            "prob-independent-country",
+            grid.numpy(),
+            country.numpy(),
+            adjusted.cpu().numpy(),
+        )
     )
 
     # Extra: negatives present (the >0 mask drops them) and an all-zero draw.
@@ -98,7 +106,12 @@ def main() -> int:
     country = torch.tensor([100.0, 50.0, 12.0], dtype=torch.float32)
     adjusted = rec.reconcile_forecast(grid, country)
     cases.append(
-        ("prob-negatives-and-zero-draw", grid.numpy(), country.numpy(), adjusted.cpu().numpy())
+        (
+            "prob-negatives-and-zero-draw",
+            grid.numpy(),
+            country.numpy(),
+            adjusted.cpu().numpy(),
+        )
     )
 
     out: dict[str, np.ndarray] = {"n_cases": np.int64(len(cases))}

@@ -66,8 +66,7 @@ def validate_reconciliation_inputs(
         np.asarray(map_keys), np.asarray(map_vals), SpatialLevel.CM
     ).unit
     needed = {
-        (int(t), int(c))
-        for t, c in zip(pgm_frame.index.time, cm_units, strict=True)
+        (int(t), int(c)) for t, c in zip(pgm_frame.index.time, cm_units, strict=True)
     }
     have = {
         (int(t), int(c))

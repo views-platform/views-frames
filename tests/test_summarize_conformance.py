@@ -41,3 +41,49 @@ def test_conformance_rejects_a_non_collapsing_point_estimator(monkeypatch):
     monkeypatch.setattr(_conformance, "map_estimate", lambda frame: frame)
     with pytest.raises(AssertionError, match="map_estimate"):
         assert_summarizer_contract(pf)
+
+
+# 🟥 Red team: the MAP-containment law on TIED draws (register C-88).
+#
+# The law certified floors using `floor(m·S)+1`, the *index span* `_ks` builds a floor
+# from. But the tip is the median of the draws whose VALUE lies inside the floor
+# (`_in_range_span`), and duplicated endpoint values make that count larger. So floors
+# were certified that hold less than half the tip floor's actual draws, and the
+# containment assertion they were certified to satisfy then failed.
+#
+# Integer count data ties constantly — these are conflict fatality draws, this
+# platform's primary shape — and no test in the suite used integer draws, which is why
+# this survived. `assert_summarizer_contract` is published under ADR-016 and every
+# consumer runs it in their own CI, so the failure landed in *other people's* pipelines
+# on correct data.
+
+
+def _count_posterior(rng, s):
+    """A zero-inflated Poisson row — the shape that broke the law."""
+    draws = rng.poisson(rng.uniform(0.5, 6.0), size=(1, s)).astype(np.float32)
+    if rng.random() < 0.5:
+        draws *= rng.random((1, s)) > 0.3
+    return _pf(draws)
+
+
+def test_map_containment_holds_on_tied_integer_draws():
+    """500 zero-inflated Poisson posteriors must all satisfy the published law.
+
+    Measured before the fix: 30 failures (6.0%), every one reporting
+    "MAP-containment violated: tip above the 0.15 floor" — the narrowest floor the
+    old arithmetic certified at S=64.
+    """
+    rng = np.random.default_rng(0)
+    failures = []
+    for _ in range(500):
+        frame = _count_posterior(rng, int(rng.choice([32, 64, 128])))
+        try:
+            assert_summarizer_contract(frame)
+        except (
+            AssertionError
+        ) as exc:  # pragma: no cover - the point is that it does not
+            failures.append(str(exc))
+    assert not failures, (
+        f"{len(failures)}/500 tied-draw posteriors violate the MAP-containment law; "
+        f"first: {failures[0]}"
+    )

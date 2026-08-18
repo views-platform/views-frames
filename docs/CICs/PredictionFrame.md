@@ -3,7 +3,7 @@
 
 **Status:** Active
 **Owner:** VIEWS platform maintainers
-**Last reviewed:** 2026-07-27
+**Last reviewed:** 2026-08-18
 **Related ADRs:** ADR-001, ADR-008, ADR-011, ADR-012, ADR-013, ADR-017, ADR-026
 
 > Implemented in v0.1.0 (`src/views_frames/prediction_frame.py`), relocated from
@@ -52,6 +52,11 @@ ensemble samples `y_pred (N, S)` float32 aligned to a `SpatioTemporalIndex`.
   `views_frames_summarize` (ADR-017). The frame exposes the structural `sample_count`/
   `is_sample` only.
 - Carries a typed, optional-extensible `metadata` header (provenance; ADR-013).
+- **Read-only accessors** (frozen v1 surface, ADR-018): `values`, `index`, `identifiers`,
+  `metadata`, `n_rows`, `sample_count`, `is_sample`. `values`, `index` and `metadata`
+  return the stored objects with no copy. **`identifiers` builds a fresh `{time, unit}` dict
+  on every call** — the *arrays* inside it are shared and write-protected, but the wrapper is
+  not free, so do not call it in a hot loop.
 
 ---
 
@@ -119,8 +124,12 @@ pf.values[:] = 0          # unsupported: silent shared-buffer corruption, no err
 
 - **Green:** construction validation; `select`/`reindex` parity (`test_frame_parity.py`);
   save/load round-trip.
-- **Beige:** `mmap` load keeps peak RAM at the working set; `with_metadata` allocates
-  no second `values` buffer (the copy-vs-view property, C-07).
+- **Beige:** `mmap` load returns an `np.memmap` and is read-only
+  (`tests/test_io.py::test_npz_mmap_returns_memmap`) — a **type** check, not a memory
+  measurement. Memmap implies lazy paging by definition, so the proxy is sound, but
+  §10 previously read as though peak RAM were measured here; it is not (register
+  C-80). `with_metadata` allocates no second `values` buffer — that one *is* measured
+  (`tests/test_properties.py::test_with_metadata_shares_the_values_buffer`, C-07).
 - **Red:** object-dtype / wrong-dtype / NaN-identifier construction raises;
   no-pandas import-enforcement.
 

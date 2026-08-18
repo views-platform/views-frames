@@ -4,7 +4,7 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v1.10.2 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
+> **Status:** **v1.11.0 — frozen API, published to PyPI** (frozen since v1.0.0, ADR-018; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
@@ -21,7 +21,7 @@
 > `research/figures/` tower-figure toolkit; v1.10.0 adds the **dense-grid fill**
 > primitive — `reindex_fill(other, *, fill_value)` on all three frames +
 > `SpatioTemporalIndex.cartesian` + the published `assert_reindex_fill_law`, ADR-026,
-> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut). This
+> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
@@ -401,24 +401,36 @@ views-frames/
 ├── LICENSE
 ├── src/views_frames/              # the pure data contract (numpy only, depends on nothing)
 │   ├── __init__.py                # EXPLICIT re-exports only (no `import *`)
-│   ├── index.py                   # SpatioTemporalIndex value object + alignment
+│   ├── _typing.py                 # IntArray / Float32Array aliases (private)
+│   ├── metadata.py                # FrameMetadata — the typed provenance header
 │   ├── spatial_level.py           # SpatialLevel enum (cm/pgm) — relocated here
-│   ├── protocols.py               # Frame / SpatioTemporalIndexed / Sampled / Persistable
 │   ├── _validation.py             # shared construction-time invariants (private helper)
+│   ├── index.py                   # SpatioTemporalIndex value object + alignment
+│   ├── protocols.py               # Frame / SpatioTemporalIndexed / Sampled / Persistable
 │   ├── feature_frame.py           # FeatureFrame              ── one concept per file
 │   ├── prediction_frame.py        # PredictionFrame
 │   ├── target_frame.py            # TargetFrame
 │   ├── conformance/               # the published contract suite consumers re-run (§9)
-│   └── io/                        # serialization adapters — SEPARATE from frames (SRP)
+│   │   └── __init__.py
+│   └── io/                        # serialization adapters — raw arrays in, files out
 │       ├── __init__.py
 │       ├── npz.py                 # native save()/load() (.npy + .npz)
 │       └── arrow.py               # flat columnar (.parquet) — the scalable disk format
 ├── src/views_frames_summarize/    # sample-axis summarization OVER frames (ADR-017)
 │   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
+│   ├── _common.py                 # block_apply / rebuild — the package's shared spine
+│   ├── config.py                  # tower-family tunables; fail-loud, no defaults
 │   ├── collapse.py                # collapse(frame, reducer) — generic point fold
 │   ├── point.py                   # map_estimate (histogram MAP)
 │   ├── interval.py                # hdi, quantiles  → arrays aligned to the frame index
-│   └── aggregate.py               # conservation-correct cross-level aggregation
+│   ├── tower.py                   # the constrained-nested HDI tower (ADR-019)
+│   ├── tower_point.py             # the tower-tip point estimate
+│   ├── bimodality.py              # per-row multimodality flag
+│   ├── summarize_tower.py         # single-pass coherent summary → TowerSummary
+│   ├── exceedance.py              # threshold exceedance probabilities (ADR-021)
+│   ├── expected_shortfall.py      # worst-case tail mean (ADR-022)
+│   ├── aggregate.py               # conservation-correct cross-level aggregation
+│   └── conformance.py             # assert_summarizer_contract
 ├── src/views_frames_reconcile/    # forecast reconciliation OVER frames (ADR-023)
 │   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
 │   ├── proportional.py            # reconcile_proportional — per-draw top-down scaling
@@ -426,19 +438,24 @@ views-frames/
 │   ├── frames.py                  # prediction_frame_from_arrays adapter
 │   ├── validation.py              # fail-loud input guards
 │   ├── module.py                  # ReconciliationModule (holds the injected mapping)
+│   ├── result.py                  # ReconciliationResult — the frame plus HOW it was made
 │   └── conformance.py             # assert_reconcile_contract
-└── tests/
-    ├── conformance/               # the published contract suite consumers re-run (see §9)
-    └── unit/
+├── scripts/                       # standalone dev tools, none wired into CI
+├── examples/                      # runnable quickstarts (run by CI)
+└── tests/                         # flat: test_*.py + fixtures/
 ```
 
 Layout rules (these *are* the screaming-architecture requirements):
 
 - **One main class/concept per file.** Multiple classes in a file is the
   exception, allowed only for genuinely inseparable units.
-- **Serialization is not the frame's job.** I/O adapters live under `io/`, import
-  the frame, and change for *their own* reasons (a new store format) — not when
-  the frame's schema changes (SRP + CCP). `PredictionFrameConverter`
+- **Serialization logic does not live in a frame file.** The codecs under `io/`
+  take **raw arrays** — `npz.save` is handed `values`, `time`, `unit`, `level`
+  and `metadata` separately — and change for *their own* reasons (a new store
+  format), not when a frame's schema changes (SRP + CCP). They never import a
+  frame; a frame's `save`/`load` are thin delegations *down* into them, because
+  `Persistable` places those methods on the frame (ADR-002, amended 2026-08-17,
+  register C-82). `PredictionFrameConverter`
   (PF↔list-in-cell DataFrame, a pipeline-core boundary format) **stays in
   pipeline-core**; it is an adapter, not a frame concern.
 - **No dumping grounds.** A file accumulating loose helpers/types/constants/
@@ -527,7 +544,8 @@ Because everyone depends on this, breakage is expensive — version it as a
 
 ## 9. Testing strategy (closes the cross-repo contract-test gap, C-30)
 
-- **Conformance suite (`tests/conformance/`):** a *published*, importable set of
+- **Conformance suite (`views_frames.conformance`, shipped in the wheel at
+  `src/views_frames/conformance/`):** a *published*, importable set of
   contract tests asserting the invariants of each Protocol (round-trip
   save/load, identifier completeness, collapse semantics, alignment laws). Every
   consumer repo runs it in CI against its own adapters. This is the missing

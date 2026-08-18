@@ -83,7 +83,7 @@ def reconcile_pgm_to_cm(
                 f"grid group (time={t}, country={c}) has no country forecast "
                 "in cm_frame"
             )
-        rows = order[bounds[gi]:bounds[gi + 1]]
+        rows = order[bounds[gi] : bounds[gi + 1]]
         country_total = cm_vals[cm_pos[(t, c)]]  # (S,)
         # leaf convention: grid is (samples, cells); our frame slice is (cells, samples)
         scaled = reconcile_proportional(pg_vals[rows].T, country_total)  # (S, n_cells)
