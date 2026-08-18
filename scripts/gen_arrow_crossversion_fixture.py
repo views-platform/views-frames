@@ -10,7 +10,8 @@ This script writes the fixtures **using the `save` function extracted from the `
 tag**, loaded out of git as its own module — not using today's `save`. The distinction is
 the point: a fixture produced by current code only proves the codec round-trips itself,
 which `tests/test_io.py` already covers. Producing it from released code is what makes
-`tests/test_io.py::TestCrossVersionLoad` a cross-version test.
+`test_v1_8_0_prediction_parquet_still_loads` and `test_v1_8_0_feature_parquet_still_loads`
+cross-version tests rather than a second round-trip.
 
 `v1.8.0` is chosen because it **predates v1.10.1**, which added three `ValueError` paths to
 `load` rejecting row orders that violate the written wire contract (register C-72). Those
