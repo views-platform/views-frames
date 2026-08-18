@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -236,3 +239,53 @@ def test_arrow_load_whole_cell_reorder_still_loads(tmp_path):
     out = arrow.load(path)
     assert np.array_equal(out["unit"], np.array([11, 10, 10]))
     assert np.array_equal(out["values"][0], np.array([2.0, 3.0], dtype=np.float32))
+
+
+# 🟩 Cross-version load (register C-79). Every other arrow test writes and reads in
+# ONE process at ONE version. That proves the codec is self-consistent and nothing
+# about the property that matters for a data-contract package: that a file written by
+# an EARLIER release still loads.
+#
+# The fixtures were written by the `save` extracted from the `v1.8.0` tag (see
+# `scripts/gen_arrow_crossversion_fixture.py`), which predates the three `ValueError`
+# wire-contract paths v1.10.1 added to `load` (register C-72). So they are evidence
+# that those rules — derived from what `save` writes today — accept a file written
+# before they existed. Consumers on this path hold archived shards
+# (views-postprocessing, views-faoapi #100).
+#
+# The digests are of `values.tobytes()`, so a reshape producing plausible-but-wrong
+# sample slots fails here even though every shape assertion would still pass.
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_v1_8_0_prediction_parquet_still_loads():
+    state = arrow.load(_FIXTURES / "arrow_v1_8_0_prediction.parquet")
+
+    assert state["values"].shape == (4, 3)
+    assert state["values"].dtype == np.float32
+    assert state["level"] == "pgm"
+    assert state["metadata"] == {"model": "fixture", "run_id": "c79-crossversion"}
+    assert state["feature_names"] is None
+    np.testing.assert_array_equal(state["time"], np.array([1, 1, 2, 2]))
+    np.testing.assert_array_equal(state["unit"], np.array([10, 11, 10, 11]))
+    assert (
+        hashlib.sha256(state["values"].tobytes()).hexdigest()[:32]
+        == "ed1b8370ff480a85a4f6a81847c194b8"
+    )
+
+
+def test_v1_8_0_feature_parquet_still_loads():
+    state = arrow.load(_FIXTURES / "arrow_v1_8_0_feature.parquet")
+
+    assert state["values"].shape == (4, 2, 3)
+    assert state["values"].dtype == np.float32
+    assert state["level"] == "pgm"
+    assert state["metadata"] == {"model": "fixture", "data_version": "c79"}
+    assert state["feature_names"] == ["ged_sb", "pop"]
+    np.testing.assert_array_equal(state["time"], np.array([1, 1, 2, 2]))
+    np.testing.assert_array_equal(state["unit"], np.array([10, 11, 10, 11]))
+    assert (
+        hashlib.sha256(state["values"].tobytes()).hexdigest()[:32]
+        == "5b65d2161fab1cf85c83eaaeadadcb76"
+    )
