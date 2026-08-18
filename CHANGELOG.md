@@ -114,6 +114,25 @@ set of inputs that were never valid narrows, so a shim would have nothing to tra
   deliberately: that is ADR-025's own reasoning applied consistently rather than an
   exception made because a MAJOR was already open.
 
+- **The status banners no longer claim a publication they cannot verify** (register C-97).
+  `README.md` and `CLAUDE.md` said "published to PyPI" / "released" from the moment the
+  version was bumped — true within minutes on every previous release, and false for as long
+  as a MAJOR's cross-repo gate takes. They now state the version *in this tree* and link to
+  PyPI for what is published. `validate_docs.sh` check 6 still pins the banner to
+  `pyproject.toml`, which is the part a repository can actually check.
+
+- **`validate_docs.sh` check 10: the documents that describe the wheel are held against
+  `[tool.hatch.build.targets.wheel]`** (register C-96). Two of them still said the wheel
+  ships two packages; it has shipped three since v1.7.0, and one of the two was a comment in
+  the workflow that publishes. Two halves — completeness and a literal count word — because
+  neither catches the other's case, scoped to documents describing the current wheel so that
+  ADRs and postmortems stating counts that were true when written are not flagged.
+
+- **The publishing runbook gained a pre-tag checklist.** Register C-13's requirement that
+  every pinned consumer has an adoption issue before a MAJOR is tagged lived only in the risk
+  register, which is not the document anyone stands in front of at release time. This release
+  reached "ready to tag" with none filed.
+
 ## [1.11.0] — 2026-08-18
 
 **The published MAP-containment law was wrong on tied draws, and the governance documents

@@ -4,7 +4,11 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v2.0.0 — published to PyPI** (frozen at v1.0.0, ADR-018, and broken once in 2.0.0, ADR-028; the
+> **Status:** **v2.0.0 — the version in this tree.** For what is actually published, see
+> [PyPI](https://pypi.org/project/views-frames/): between a release commit and its publish
+> job this number is deliberately ahead, so this banner tracks the source and never claims
+> a publication it cannot verify. API frozen at v1.0.0 (ADR-018) and broken once in 2.0.0
+> (ADR-028; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude

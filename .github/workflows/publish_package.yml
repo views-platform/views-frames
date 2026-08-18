@@ -9,8 +9,12 @@ name: Publish Package
 #   Publisher: GitHub  |  Owner: views-platform  |  Repo: views-frames
 #   Workflow:  publish_package.yml  |  Environment: (leave blank)
 #
-# The single `views-frames` wheel ships BOTH packages (`views_frames` +
-# `views_frames_summarize`) — one PyPI project, `pip install views-frames`.
+# The single `views-frames` wheel ships all three packages — `views_frames`,
+# `views_frames_summarize` and `views_frames_reconcile` — as one PyPI project, so
+# `pip install views-frames` makes all three importable. The authority is
+# `[tool.hatch.build.targets.wheel] packages` in pyproject.toml. This comment named
+# only the first two until 2026-08-18, having been written before the third package
+# shipped in v1.7.0. `docs/validate_docs.sh` check 10 now keeps the two in step.
 
 on:
   release:
