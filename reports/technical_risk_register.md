@@ -6,8 +6,8 @@
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
 | Total Concerns    | 89                                   |
-| Open Concerns     | 12                                   |
-| Resolved Concerns | 77                                   |
+| Open Concerns     | 11                                   |
+| Resolved Concerns | 78                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -67,42 +67,6 @@ one — re-auditing it produces the same answer its precondition already gives.
 > v1.10.2 release). **Open went 17 → 12 in a day, by deciding and doing rather than
 > cataloguing** — the corrective this register needed, since it had grown 13 → 17 that morning
 > with nothing closed. **The 2026-08-17 assimilation/graphify pass then added C-82 and C-83** (the ADR-002 topology inversion and the unchecked `examples/`), taking open from 14 to 16, and the review-base-docs pass added C-84 and C-85 (the stale physical-architecture standard and the unchecked completeness claims), taking it to 18; none of the four is clustered yet.
-
-### C-92: no branch protection exists, so every "gate" in this repository is advisory
-
-| Field | Value |
-|-------|-------|
-| ID | C-92 |
-| Tier | 3 |
-| Status | **actionable** — a repository setting, not a code change; needs the maintainer's decision on which checks to require |
-| Status-note | Not resolvable by a contributor: changing branch protection needs admin rights on the GitHub repository. |
-| Source | code-review (2026-08-18), during S7 of epic #240. |
-| Trigger | **Before the next release, and before relying on any check to have prevented something.** Also whenever a new gate is added — each one is currently a red X a merge can walk past, so "we added a gate" means less than it reads. |
-| Location | GitHub repository settings for `views-platform/views-frames` (`main`, `development`); the eleven CI checks in `.github/workflows/ci.yml` and `notebooks.yml` that this makes advisory. |
-| Cross-refs | **C-74** (resolved — *"a check that does not run is worse than no check at all"*; this entry is the other half: a check that runs but enforces nothing), **C-85** / **C-89** (the completeness checks S6 armed), **C-83** (the examples job whose "blocking" description prompted this), ADR-005, GOVERNANCE.md §cross-repo MAJOR-bump process. |
-
-Measured 2026-08-18:
-
-```
-$ gh api repos/views-platform/views-frames/branches/main/protection
-{"message":"Branch not protected", …}
-$ gh api repos/views-platform/views-frames/branches/development/protection
-{"message":"Branch not protected", …}
-$ gh api repos/views-platform/views-frames/rulesets
-[]
-```
-
-**Neither branch is protected and there are no rulesets.** Eleven CI checks run on every pull request — the four-version matrix, the numpy floor, build, docs, format, examples, imports, nbmake — and **not one of them is required**. A red check is a red X next to a merge button that still works.
-
-This does not mean the checks are worthless: they are read, and this epic's own history shows them catching real defects. But it changes what several documents claim. C-74's resolution says wiring `validate_docs.sh` into CI is *"what makes it a gate"*; it makes it a **signal**. The same wording appears around the format check, the import contracts, and the examples job registered under C-83.
-
-**Tier 3, not 2.** Nothing is currently broken by it — this is a small, careful team and the checks are watched. It is registered because it silently weakens a claim made in at least four places, because the cost of fixing it is a settings change rather than work, and because the register's own C-74 lesson — *a check that does not run is worse than no check at all* — has an obvious second half that nobody had written down: **a check that runs but cannot block is worth less than its documentation says.**
-
-**Deliberately not fixed here.** Enabling required checks is an admin action with immediate consequences for everyone merging, including choosing *which* of the eleven are required (the `nbmake` job is `continue-on-error` by design and must not be). That is a maintainer decision, not a documentation story's.
-
-**Resolved when** either required status checks are configured and the documents describing gates are corrected to match, or a deliberate decision to keep them advisory is recorded and the word "gate" is softened wherever it overstates.
-
----
 
 ### C-78: the architectural guards have known blind spots — they catch honest regressions, not adversarial ones
 
@@ -877,6 +841,55 @@ Five items plus three found later while writing `FrameMetadata.md`.
 - **Three `FrameMetadata` guarantees nothing pinned**, all stated in its §3: the unknown-key **drop** (the nearest test only asserted `from_dict` does not raise), the empty-header default, and the save/load round-trip for `FeatureFrame` and `TargetFrame` — it was pinned for `PredictionFrame` only. Three tests added.
 
 The beige-marker item is the one **not** done: applying 🟨 across the suite means deciding what beige means here, which is an ADR-005 question and not a labelling task. Recorded as such rather than half-applied.
+
+---
+
+### C-92: eleven CI checks ran and none was required — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-92 |
+| Tier | 3 |
+| Resolved | 2026-08-18 |
+| Resolution | Branch ruleset **Required checks** (id `20965728`), active on `main` and `development`, requiring ten of the eleven checks. Verified by evaluation, not by reading the config. |
+| Source | code-review (2026-08-18), during S7 of epic #240. |
+| Cross-refs | **C-74** (resolved — *"a check that does not run is worse than no check at all"*; this entry is the other half: a check that runs but enforces nothing), **C-85** / **C-89** (the completeness checks S6 armed), **C-83** (the examples job whose "blocking" description prompted this), ADR-005, GOVERNANCE.md §cross-repo MAJOR-bump process. |
+
+Eleven checks ran on every pull request and **not one was required**, so a red check was a
+red X beside a merge button that still worked. Several documents said otherwise — C-74's
+resolution called wiring `validate_docs.sh` into CI "what makes it a gate", and the same
+wording had spread to the format check, the import contracts and the examples job. It made
+them a *signal*. C-74's lesson was that a check which does not run is worse than no check;
+its unwritten second half is that a check which runs but cannot block is worth less than
+its documentation says.
+
+A ruleset now requires `check (3.10)`, `check (3.11)`, `check (3.12)`, `check (3.13)`,
+`floor`, `build`, `docs`, `format`, `imports` and `examples`, plus `deletion` and
+`non_fast_forward`. `nbmake` is deliberately **not** required — it is `continue-on-error`
+by design, and requiring it would let a slow notebook block a merge.
+
+`Repository admin` is on the bypass list. That is not an oversight: a status-check rule
+gates direct pushes as well as merges, and the release ritual pushes a locally-created
+`development` → `main` merge commit that CI has never seen. Without the bypass, the
+documented release path would be blocked by the rule meant to protect it.
+
+**The first attempt did not protect `main`, and reading the configuration would not have
+shown it.** The ruleset targeted "the default branch" plus an explicit `development`
+pattern — and this repository's default branch *is* `development`, so both targets named
+the same branch and `main` was covered by neither. Caught by asking GitHub which rules
+actually apply to each branch, with an unprotected branch name as a control:
+
+```
+                       BEFORE                          AFTER
+main                   (none), 0 checks                deletion, non_fast_forward, required_status_checks, 10 checks
+development            ...,    10 checks               ...,    10 checks
+some-feature-branch    (none), 0 checks                (none), 0 checks
+```
+
+The control is what makes the "after" column mean anything: all three rows would read the
+same if the endpoint simply reported every ruleset in the repository. This is the C-77
+discipline applied to a repository setting — configuration existing and configuration
+applying are different claims, and only the second one is the guarantee.
 
 ---
 
