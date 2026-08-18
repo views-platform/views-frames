@@ -49,6 +49,47 @@ trusted-publisher config — see Prerequisites.
 
 ---
 
+### Pre-tag checklist — run this before `gh release create`
+
+`gh release create` is the point of no return: it publishes, and a PyPI version can never
+be reused. Everything below is checkable in about two minutes. Tick it.
+
+**Every release**
+
+- [ ] CI is green on **the exact commit you are about to tag**, not merely on the branch:
+      `gh api repos/views-platform/views-frames/commits/$(git rev-parse main)/check-runs -q '.check_runs[]|"\(.conclusion) \(.name)"'`
+- [ ] `bash docs/validate_docs.sh` passes (this includes the README banner and the
+      wheel-package checks)
+- [ ] `python3 scripts/check_arch_tree.py` passes
+- [ ] `rm -rf dist && uv build && uvx --from twine twine check dist/*` — both artifacts PASSED
+- [ ] the built wheel carries **every** package in `[tool.hatch.build.targets.wheel] packages`
+      with its `py.typed`
+- [ ] `CHANGELOG.md` has an entry for this version and no `[Unreleased]` section remains
+
+**MAJOR only — the expensive ones**
+
+- [ ] **An adoption issue is filed in every pinned consumer repository.** Register **C-13**'s
+      trigger requires this *before tagging*, and `GOVERNANCE.md` §Cross-repo MAJOR-bump
+      process step 3 says the same. Find the consumers by their pins, not from memory:
+      ```bash
+      for r in $(gh repo list views-platform --limit 50 --json name -q '.[].name'); do
+        gh api "repos/views-platform/$r/contents/pyproject.toml" -q .content 2>/dev/null \
+          | base64 -d 2>/dev/null | grep -q "views-frames" && echo "$r"
+      done
+      ```
+- [ ] The **conformance floor** decision is made and recorded — `CONFORMANCE_FLOOR` is bumped
+      on any breaking change to any published entry point (`GOVERNANCE.md`), and moving it
+      means every consumer's CI begins asserting a new contract version.
+- [ ] An ADR records the decision and the migration (`GOVERNANCE.md` MAJOR process step 1).
+
+> **Why this exists.** Until 2026-08-18 C-13's requirement lived only in the risk register,
+> which is not the document anyone stands in front of at release time. 2.0.0 reached
+> "ready to tag" with **zero** adoption issues filed — the rule existed and was invisible at
+> the moment it applied. A pre-release falsification audit caught it; this checklist is so
+> the next one does not need to.
+
+---
+
 ## Prerequisites (one-time setup) — Trusted Publishing
 
 The release workflow authenticates with **Trusted Publishing (OIDC)** — there is **no
@@ -165,6 +206,9 @@ record of what was published.
    gh release create vX.Y.Z --target main --title "views-frames X.Y.Z" --notes "what changed"
    ```
    It runs the **version guard**, `uv build`, `uv publish` via **Trusted Publishing**.
+4½. **Before step 4 fires, walk the [pre-tag checklist](#pre-tag-checklist--run-this-before-gh-release-create).**
+   It is short, and it is the step that catches the expensive omissions — a MAJOR whose
+   consumers have not been told, a conformance floor nobody decided.
 5. **Verify:** Actions → *Publish Package* green, then https://pypi.org/project/views-frames/.
 
 > Under the hood: `release: published` → `permissions: id-token: write` mints an OIDC
