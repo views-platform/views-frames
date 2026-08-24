@@ -3,7 +3,7 @@
 **Status:** Accepted (a live decision — see *What would change the answer*)
 **Date:** 2026-08-24
 **Deciders:** VIEWS platform maintainers
-**Consulted:** ADR-002's dependency rules; the 2026-06 leaf and summarize postmortems; ADR-028's measured evidence on structural typing
+**Consulted:** ADR-002's dependency rules; the 2026-06 leaf and summarize postmortems; ADR-028's measured evidence on structural typing; live PyPI metadata for every candidate named
 **Informed:** every repository that pins `views-frames`
 
 ---
@@ -16,7 +16,7 @@ Nothing else. The only runtime dependency this package has is `numpy>=1.26,<3`.
 **The obvious question is why this is not xarray**, which does labeled dimensions and
 coordinate alignment properly, is maintained by people who think about it full time, and
 would have replaced most of `SpatioTemporalIndex` with `.sel()`. This ADR answers that, and
-the seven other alternatives a reasonable person would raise.
+the nine other alternatives a reasonable person would raise.
 
 It was never written down before. Roughly 9,400 lines of governance prose in this repository
 and the word "xarray" appeared nowhere in it until this document — so a newcomer asking the
@@ -100,8 +100,10 @@ package does anyway, minus the dependency.
 **What is genuinely lost by declining it** — stated plainly, because this is the alternative
 that costs the most to refuse:
 
-- lazy and out-of-core evaluation via dask, which is the direct answer to register C-71 and
-  C-73;
+- ~~lazy and out-of-core evaluation via dask~~ — **struck. This was wrong in the first draft and
+  the correction matters.** Out-of-core is not xarray's to give: `dask.array` provides it with a
+  numpy-compatible API and no pandas (see §9). Declining xarray costs less than this ADR first
+  claimed; the out-of-core question is a separate, cheaper decision that the draft never posed;
 - zarr and netCDF, which would make `io/` mostly disappear;
 - `groupby`/`resample`/interpolation, all currently absent or hand-rolled;
 - roughly 3,700 lines of source that someone else would maintain.
@@ -220,6 +222,84 @@ hard dependency, its own compiled runtime — no pandas, no numpy requirement of
 genuinely light install. The case against it is the memory model alone, and it is the closest
 any DataFrame library comes to being viable here.
 
+### 9. The numpy-API-compatible backends — Dask Array, JAX, CuPy
+
+A class the first draft of this ADR missed entirely, and the omission was worth catching. The
+eight alternatives above all propose a *different container with a different API*. These three
+propose **the same API with a different backend**: `dask.array`, `jax.numpy` and `cupy` are each
+close enough to numpy that most of this package would port with modest edits. That is a
+materially different question, and it deserved asking.
+
+**One filter removes most of the class before any design argument.** This package declares
+`numpy>=1.26,<3` and runs a dedicated `floor` CI job at numpy 1.26.4, because consumers pin
+conservatively and the floor is the boundary they actually pin to (registers C-19, C-24).
+Measured on 2026-08-24:
+
+| Candidate | numpy requirement | Against the `>=1.26` floor |
+|---|---|---|
+| `zarr` 3.3.0 | `numpy>=2` | forces every consumer to numpy 2 |
+| `jax` 0.11.1 | `numpy>=2.1`, plus `scipy` | forces every consumer to numpy 2 |
+| `cupy-cuda12x` 14.2.0 | `numpy<2.6,>=2.0` | forces every consumer to numpy 2 |
+| `dask` 2026.7.1 | none in core | **compatible** |
+
+Adopting any of the first three would move the floor for the whole platform as a side effect of
+a container choice. That is not automatically disqualifying — the floor can be raised
+deliberately — but it converts "swap the array backend" into a coordinated cross-repo bump,
+which is the cost this package exists to avoid.
+
+**Dask Array** is the one that survives the filter, and it is the strongest missed alternative.
+`dask` 2026.7.1's hard dependencies are `click`, `cloudpickle`, `fsspec`, `packaging`, `partd`,
+`pyyaml`, `toolz` and `importlib_metadata` — all pure-Python, and **no pandas**. It answers C-71
+(the dense-grid allocation) and C-73 (read-all-to-RAM) directly, which is exactly what this ADR
+first mis-attributed to xarray.
+
+It loses **as the frame type** for a reason that is about this package's philosophy rather than
+about dask: **laziness is incompatible with fail-loud-at-construction.** ADR-008 requires that a
+frame is never returned half-valid — `validate_values` runs in `__init__`, before the object is
+usable. On a lazy array that check either triggers computation, defeating the laziness that was
+the whole point, or defers, defeating ADR-008. `frame.values` would stop being a numpy array,
+breaking every consumer's expectation and the `assert_frame_envelope` contract with it. And
+chunk boundaries would interact with the row-blocking discipline the tower estimators use to
+bound peak memory (C-22) in ways that need re-derivation rather than porting.
+
+**Dask belongs in `io/`, not in the frame** — and that is now the sharpest form of this ADR's
+main revisit trigger, sharper than the xarray version the first draft recorded, precisely
+because it costs no pandas.
+
+**JAX** deserves one honest paragraph beyond the floor objection, because it would have given
+this package something it wanted and had to build. **JAX arrays are immutable natively.** The
+entire C-66 saga — write-protection recorded as a deferred MAJOR-rider on 2026-06-28, carried
+unshipped through eleven releases, finally landed in 2.0.0, and then only after discovering that
+the one-line `setflags` fix ADR-025 recorded would have made the *caller's* array read-only —
+would not have existed. Immutability would have been a property of the container rather than an
+invariant this package enforces by hand.
+
+That is a real loss and it is worth naming. It does not outweigh forcing numpy 2 and scipy on
+every consumer for a package that needs neither autograd nor XLA (ADR-017 puts estimation
+outside the leaf's charter, and none of it is differentiable), but the trade should be recorded
+rather than glossed.
+
+**CuPy** loses on the same grounds as torch, with one addition. The DAG-root argument applies —
+a GPU array library at the root means views-faoapi needs a CUDA runtime to serialize a forecast
+— though cupy's *declared* footprint is far lighter than torch's. The addition is capacity: GPU
+memory is scarcer than host RAM, and C-71's motivating case is a full-pgm dense grid (~259k
+cells × months × samples) that does not fit comfortably in host memory, let alone device memory.
+The leaf's work is alignment and sample-axis reduction, not the dense linear algebra a GPU
+exists for.
+
+### 10. zarr as the storage layer (not as the contract)
+
+Distinct from option 2, where the *format is* the contract. Here the frames stay numpy and
+`io/` gains a chunked, compressed, partially-readable format alongside `npz` and `arrow`.
+
+This is a complement rather than a competitor, and it is the natural companion to `dask.array`
+above — chunked storage feeding a chunked reader. It is not adopted today only because C-73's
+trigger has not fired: nothing has yet reported an OOM despite per-month sharding, and `io/`
+already has two formats to maintain.
+
+The floor objection applies to zarr 3 (`numpy>=2`), so if this arrives it either waits for the
+platform's numpy floor to move on its own schedule, or pins `zarr<3`.
+
 ### 8. awkward-array
 
 The ragged-data library. Dismissed in a sentence: it would make the variable-length per-cell
@@ -235,7 +315,7 @@ This is a live decision. Each trigger names evidence, not opinion, and none of t
 
 | If this happens | Then re-cost | Scope |
 |---|---|---|
-| **A real OOM at grid scale** — register **C-71** (a full-pgm `cartesian` target, ~259k cells × months, fed to `reindex_fill` on a sampled frame) or **C-73** (an OOM *despite* per-month sharding) | **zarr or dask, inside `io/`** | Additive. The frame type does not change; the storage layer gains a lazy path. `io/` is already the designated place for evolving formats (ADR-002's internal layering). |
+| **A real OOM at grid scale** — register **C-71** (a full-pgm `cartesian` target, ~259k cells × months, fed to `reindex_fill` on a sampled frame) or **C-73** (an OOM *despite* per-month sharding) | **`dask.array` inside `io/`**, with `zarr` as its storage format | Additive. The frame type does not change; the storage layer gains a lazy path. Prefer dask over xarray here: it answers the same need and requires no pandas (§9). `io/` is the designated place for evolving formats (ADR-002). |
 | **A non-Python consumer** appears on the contract | **format-as-contract** (option 2) | Would supersede this ADR. The executable-conformance argument only holds while every consumer can run Python. |
 | **The leaf is required on an autograd path** | **torch** | Would first require amending ADR-017, which puts estimation outside the leaf's charter. Very unlikely by construction. |
 | **The wire format becomes the dominant access path** — consumers reading parquet directly more often than they construct frames | **pyarrow as the frame type** | Would supersede this ADR and probably ADR-013 with it. |
@@ -266,8 +346,9 @@ narrowed what construction accepts.
 
 - **Alignment is hand-written.** `searchsorted` over a packed row view, plus the cross-level
   remap, is code this package maintains and xarray would have provided.
-- **No out-of-core path.** C-71 and C-73 are open for this reason, and both would be closed for
-  free by dask.
+- **No out-of-core path.** C-71 and C-73 are open for this reason. Both would be closed by
+  `dask.array` — which, unlike xarray, costs no pandas. This is the cheapest capability this
+  ADR declines, and the first draft mislabelled it as xarray's.
 - **No `groupby`, `resample` or interpolation.** Consumers do this themselves or go without.
 - **numpy version skew is this package's problem.** The `floor` CI job exists because numpy
   1.26.4 and 2.x differ in generic stubs *and* in ~1-ulp histogram binning (registers C-19 and
