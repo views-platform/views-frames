@@ -30,10 +30,13 @@ by accident.
 **Nothing changes as a result of this ADR.** It records a decision already made, measures what
 each alternative would have cost, and names the evidence that would reopen it.
 
-**It has a visible expiry.** *The scaling wall, with numbers* below sizes the data this platform
-expects to hold — hundreds of gigabytes for a single global feature set — and concludes that
-per-month sharding plus `numpy.memmap` carries the current access pattern further than the raw
-totals suggest, but not past densification or storage volume. This decision is live, not closed,
+**It has a visible expiry, but not the one the totals suggest.** *The scaling wall, with numbers*
+below sizes the data this platform expects to hold — hundreds of gigabytes for a single global
+feature set, terabytes at the upper end. The decisive fact there is an **asymmetry**: the index
+is 2 GB at global scale and fits, while the values are 320x to 6,400x larger and do not. Alignment
+touches only the index. So **streaming needs a different storage layer, not a different array
+library** — which is why this decision survives a dataset three orders of magnitude larger than
+the one it was made for. This decision is live, not closed,
 and `dask[array]` is deferred on design grounds rather than on cost: it measures at three
 megabytes over numpy.
 
@@ -424,6 +427,46 @@ dropped, **20% remains**:
 
 Neither fits in memory, and ten features at 128 samples is nowhere near a ceiling.
 
+### Why numpy survives this: the index fits, the values do not
+
+The totals above are the wrong number to reason from. The right one is an asymmetry that decides
+the whole question.
+
+A frame is an index plus a value array, and **they scale completely differently.**
+
+| | full global grid, 500 months | one month shard |
+|---|---:|---:|
+| **Index** — `time` + `unit`, `int64` | **2.07 GB** (land only: 0.41 GB) | **4.1 MB** |
+| Values — 10 features x 128 samples | 663.6 GB | 1.33 GB |
+| Values — 50 features x 512 samples | 13.3 TB | 26.5 GB |
+
+The values are **320x to 6,400x** the index — and the index's size does not depend on features or
+samples at all. It is 4.1 MB per month whether the frame carries ten features or a hundred.
+
+**This matters because alignment is what this package structurally does, and alignment only ever
+touches the index.** `searchsorted`, `reindex`, `intersect`, `is_superset_of` and `cartesian` all
+operate on `(time, unit)` and never read a value. Those are the operations needing random access,
+and the data they need it over **fits in memory at global scale**. What does not fit is read
+sequentially, in row blocks — the access pattern the estimators already use (C-22).
+
+**So streaming does not require a different array library. It requires a different storage layer
+under the same one.** A lazy array's `.compute()` returns a numpy array; chunked stores feed numpy
+rather than replace it. The working shape is: stream a chunk from a chunked store, materialize
+numpy, build a frame, summarize, discard. Per-month sharding already is that shape — streaming
+only makes the shards lazier and smaller.
+
+**The frame is the unit of work, not the unit of storage.** That is the sentence this ADR exists
+to protect, and it is why the numpy decision survives a dataset three orders of magnitude larger
+than the one it was made for.
+
+**The consequence, stated plainly rather than left implicit:** a single frame can never exceed
+memory. `assert_frame_envelope` asserts `isinstance(values, np.ndarray)`, and ADR-008 requires
+validation to complete at construction — a lazy value array satisfies neither without either
+computing (defeating the laziness) or deferring (defeating the guarantee). "One frame holds the
+whole global dataset" is off the table by design, permanently. A consumer expecting otherwise
+should be told rather than left to find out.
+
+
 **But the per-shard figure is the one that explains why nothing has broken yet**, and it is the
 number to watch:
 
@@ -462,6 +505,22 @@ So the expected order of failure is **storage volume first, densification second
 last** — which matters, because the first fix needed is then a chunked compressed format in
 `io/` (zarr), not a new frame type. That is additive, behind the existing `io/` boundary, and it
 does not touch the public surface.
+
+### Where the library stops being the binding decision
+
+One more scale marker, because it bounds how much this ADR can usefully decide.
+
+At 50 features x 512 samples the full grid is **13.3 TB**, or **2.65 TB** land-only. That is past
+"stream it from local disk" and into object storage, a catalogue, and partitioned reads over a
+network. At that point the binding constraints are shard layout, partition keys, cache locality
+and transfer cost — **infrastructure questions, not array-library questions.**
+
+**The library choice stops being the decision that matters somewhere before that threshold.** This
+ADR is scoped to the range where it still is one. If the platform reaches TB-scale working sets,
+the right response is not a revision of this document but a new decision about storage
+architecture — with this ADR reduced to a note about what the in-memory unit looks like once a
+chunk has been fetched.
+
 
 ## What would change the answer
 
