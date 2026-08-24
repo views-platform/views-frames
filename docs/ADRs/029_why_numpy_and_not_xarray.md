@@ -13,6 +13,10 @@
 A frame is a numpy array with a small object holding two integer identifier arrays beside it.
 Nothing else. The only runtime dependency this package has is `numpy>=1.26,<3`.
 
+**numpy was chosen because it was free.** Every repository on this platform already depended on
+it, so adding the contract added no transitive dependency at all. That is the whole argument, and
+everything below is the working that supports it.
+
 **The obvious question is why this is not xarray**, which does labeled dimensions and
 coordinate alignment properly, is maintained by people who think about it full time, and
 would have replaced most of `SpatioTemporalIndex` with `.sel()`. This ADR answers that, and
@@ -23,8 +27,15 @@ and the word "xarray" appeared nowhere in it until this document — so a newcom
 first question anyone asks found no answer, which is how a settled decision gets relitigated
 by accident.
 
-**Nothing changes as a result of this ADR.** It records a decision already made and names the
-evidence that would reopen it.
+**Nothing changes as a result of this ADR.** It records a decision already made, measures what
+each alternative would have cost, and names the evidence that would reopen it.
+
+**It has a visible expiry.** *The scaling wall, with numbers* below sizes the data this platform
+expects to hold — hundreds of gigabytes for a single global feature set — and concludes that
+per-month sharding plus `numpy.memmap` carries the current access pattern further than the raw
+totals suggest, but not past densification or storage volume. This decision is live, not closed,
+and `dask[array]` is deferred on design grounds rather than on cost: it measures at three
+megabytes over numpy.
 
 ---
 
@@ -37,6 +48,36 @@ depends toward it and nothing depends away from it. That is not an accident of l
 ADR-002's decision, and it has a consequence most container choices ignore:
 
 > **Every dependency this package takes, every consumer takes.**
+
+### numpy was chosen because it was free
+
+This is the primary reason, and it is worth stating before any comparison of features.
+
+**Every repository on this platform already depends on numpy.** Adding `views-frames` to a repo
+therefore adds no new transitive dependency at all — the array library was already installed,
+already resolved, already pinned. The contract arrived at zero dependency cost.
+
+That property is what the whole repository separation exists to protect. The model repos are
+deliberately allowed to hold *wildly* different libraries — that is the point of separating
+them, and it is why they need not share an environment; orchestration calls across repo
+boundaries rather than importing across them. The price of that freedom is that anything
+imported by *most* repos must be nearly free, because it is the one place where their dependency
+sets are forced to agree.
+
+**So the question for every alternative is not "is it a better array container".** Several are.
+The question is what it costs to make every repository on the platform carry it — in bytes, and
+more importantly in *version coupling*.
+
+### The two costs are different, and the second is the one that bites
+
+- **Weight** is what a repo downloads and ships. It matters when it is large in absolute terms.
+- **Coupling** is whether the dependency has a version that some repo *already pins for its own
+  reasons*. A package that many repos already use at their own chosen version is expensive to
+  put at the DAG root even when it is small, because from then on every repo's pin must satisfy
+  the leaf's floor too.
+
+pandas is the clearest case of the second: it is small enough, and it is exactly the kind of
+library a model repo already pins. torch is the rare case where both costs apply at once.
 
 `ADR-002` states the rule directly:
 
@@ -73,6 +114,38 @@ the frame type. That boundary is enforced by `tests/test_import_enforcement.py` 
 
 ---
 
+## What each alternative actually costs
+
+Measured on 2026-08-24 by resolving each candidate's full transitive closure with
+`pip install --dry-run --report` on Python 3.11 and summing the manylinux wheel sizes from PyPI.
+Download size, not installed size; the ranking is what matters, not the absolute figures.
+
+| Candidate | Packages | Download | Over numpy | Drags in a commonly-pinned library? |
+|---|---:|---:|---:|---|
+| **numpy** — the baseline, already present in every repo | 1 | 18.6 MB | — | — |
+| `dask[array]` | 12 | 21.6 MB | **+3.0 MB** | no |
+| `awkward` | 8 | 21.8 MB | +3.2 MB | no |
+| `zarr` | 5 | 27.7 MB | +9.1 MB | no |
+| `xarray` | 8 | 35.1 MB | +16.5 MB | **yes — pandas** |
+| `pyarrow` | 1 | 53.1 MB | +34.5 MB | no |
+| `polars` | 2 | 59.4 MB | +40.8 MB | no |
+| `jax` | 6 | 151.8 MB | +133.2 MB | **yes — scipy** |
+| `cupy-cuda12x` | 3 | 166.9 MB | +148.3 MB | a CUDA runtime |
+| **`torch`** | **29** | **3,022.8 MB** | **+3,004 MB (162×)** | **CUDA stack, unconditional on Linux** |
+
+Three things this table settles that argument alone did not:
+
+- **`dask[array]` is essentially free** — twelve small pure-Python packages, three megabytes over
+  numpy, cheaper than zarr and half the weight of xarray. Any framing that treats adopting dask
+  as an expensive step is wrong on the evidence. Its objections are about design, not cost.
+- **xarray is not heavy.** At 35 MB the weight argument against it is weak. The real cost is the
+  pandas coupling in the last column.
+- **torch is in a different category entirely** — 162× numpy, and the only entry whose transitive
+  closure is dominated by things unrelated to arrays (`nvidia-cublas` 543 MB, `torch` 527 MB,
+  `nvidia-cudnn` 445 MB).
+
+---
+
 ## Alternatives considered
 
 ### 1. xarray — the real contender
@@ -84,11 +157,20 @@ be consumer-injected, because that is a domain rule rather than a container feat
 semantics, `groupby`, `resample`, and unit-aware slicing all arrive free, and several of them
 are things this package deliberately does not offer.
 
-**It loses on the dependency, and only on the dependency.** xarray declares `pandas>=2.2` as a
-hard requirement (checked against xarray 2026.7.0 on 2026-08-24, not assumed). Adopting it
-puts pandas back into every consumer of the contract — the precise outcome `ADR-002` names as
-the reason for the numpy floor, and the thing views-faoapi #242 is still working to undo on the
-consumer side. A leaf that re-imports what its consumers are removing is not a leaf.
+**It loses on the dependency, and only on the dependency — but not for the reason weight would
+suggest.** At 35 MB total, xarray is not a heavy install; an earlier draft of this ADR leaned on
+size and that was the weaker argument.
+
+The real cost is **coupling**. xarray declares `pandas>=2.2` as a hard requirement (checked
+against xarray 2026.7.0 on 2026-08-24). pandas is precisely the kind of library a model repo
+*already pins for its own reasons* — so putting a pandas floor at the DAG root means every
+repository's pandas pin must from then on also satisfy the leaf's. That is the dependency
+alignment work the repo separation exists to avoid, reintroduced at the one point in the graph
+that touches everything.
+
+It is also the outcome `ADR-002` names as the reason for the numpy floor, and the thing
+views-faoapi #242 is still working to undo on the consumer side. A leaf that re-imports what its
+consumers are removing is not a leaf.
 
 **The secondary loss is that xarray's flexibility is this package's liability.** In xarray a
 dimension is a string. Nothing prevents `sample` becoming `draw`, nothing prevents it moving
@@ -222,6 +304,15 @@ hard dependency, its own compiled runtime — no pandas, no numpy requirement of
 genuinely light install. The case against it is the memory model alone, and it is the closest
 any DataFrame library comes to being viable here.
 
+### 8. awkward-array
+
+The ragged-data library. Dismissed in a sentence: it would make the variable-length per-cell
+encoding *efficient*, and this package bans that encoding on purpose. The data is rectangular by
+construction — a dense grid of cells by a fixed sample count — and a container optimised for
+raggedness would legitimize the shape C-40 exists to prevent.
+
+---
+
 ### 9. The numpy-API-compatible backends — Dask Array, JAX, CuPy
 
 A class the first draft of this ADR missed entirely, and the omission was worth catching. The
@@ -247,11 +338,18 @@ a container choice. That is not automatically disqualifying — the floor can be
 deliberately — but it converts "swap the array backend" into a coordinated cross-repo bump,
 which is the cost this package exists to avoid.
 
-**Dask Array** is the one that survives the filter, and it is the strongest missed alternative.
-`dask` 2026.7.1's hard dependencies are `click`, `cloudpickle`, `fsspec`, `packaging`, `partd`,
-`pyyaml`, `toolz` and `importlib_metadata` — all pure-Python, and **no pandas**. It answers C-71
-(the dense-grid allocation) and C-73 (read-all-to-RAM) directly, which is exactly what this ADR
-first mis-attributed to xarray.
+**Dask Array** is the one that survives the filter, and it is the strongest missed alternative
+by a distance. `dask` 2026.7.1's hard dependencies are `click`, `cloudpickle`, `fsspec`,
+`packaging`, `partd`, `pyyaml`, `toolz` and `importlib_metadata` — all pure-Python, and **no
+pandas**. Measured: `dask[array]` resolves to twelve packages totalling **21.6 MB, three
+megabytes over numpy** — cheaper than zarr, half the weight of xarray, and nothing in the
+closure is a library another repo is likely to be pinning.
+
+**On the platform's own cost test, dask is nearly as free as numpy was.** It answers C-71 (the
+dense-grid allocation) and C-73 (read-all-to-RAM) directly, which is exactly what this ADR first
+mis-attributed to xarray. Every objection to it below is about **design**, not cost — and that
+distinction should be kept sharp, because a cheap dependency deferred on design grounds can be
+revisited by changing the design, whereas an expensive one cannot be revisited at all.
 
 It loses **as the frame type** for a reason that is about this package's philosophy rather than
 about dask: **laziness is incompatible with fail-loud-at-construction.** ADR-008 requires that a
@@ -300,14 +398,70 @@ already has two formats to maintain.
 The floor objection applies to zarr 3 (`numpy>=2`), so if this arrives it either waits for the
 platform's numpy floor to move on its own schedule, or pins `zarr<3`.
 
-### 8. awkward-array
-
-The ragged-data library. Dismissed in a sentence: it would make the variable-length per-cell
-encoding *efficient*, and this package bans that encoding on purpose. The data is rectangular by
-construction — a dense grid of cells by a fixed sample count — and a container optimised for
-raggedness would legitimize the shape C-40 exists to prevent.
-
 ---
+
+## The scaling wall, with numbers
+
+The decision above is correct for the data this platform holds today. It is worth writing down
+what the data is expected to become, because the honest reason this ADR is *live* rather than
+closed is that the current answer has a visible expiry.
+
+Take a plausible near-future shape — ten features, 128 samples each, a global 0.5 degree grid
+(720 x 360 = 259,200 cells), five hundred months:
+
+```
+10 features x 128 samples x 259,200 cells x 500 months = 165,888,000,000 cells
+                                       x 4 bytes (float32) =  663.6 GB
+```
+
+Excluding ocean cells helps but does not rescue it. If roughly 80% of cells are water and are
+dropped, **20% remains**:
+
+| | cells | float32 |
+|---|---:|---:|
+| Full 0.5 degree grid | 165.9 billion | **663.6 GB** |
+| Land only (20% of cells retained) | 33.2 billion | **132.7 GB** |
+
+Neither fits in memory, and ten features at 128 samples is nowhere near a ceiling.
+
+**But the per-shard figure is the one that explains why nothing has broken yet**, and it is the
+number to watch:
+
+| One month, all features and samples | float32 |
+|---|---:|
+| 10 features x 128 samples, full grid | **1.33 GB** |
+| 10 features x 128 samples, land only | 265 MB |
+| 50 features x 512 samples, full grid | **26.5 GB** |
+
+Per-month sharding is load-bearing — it is what keeps a working set in the low gigabytes, and it
+is exactly the precondition register **C-73** names ("an OOM *despite* per-month sharding").
+**The wall arrives through feature count and sample count, not through months.** Adding months
+adds shards; adding features or samples multiplies every shard.
+
+### Is `numpy.memmap` enough?
+
+Partly, and for longer than the raw totals suggest — but not for the thing likely to break first.
+
+**Where it works.** A frame is `(N, S)` row-major with samples contiguous, so a per-row
+sample-axis reduction reads sequentially. That is the dominant access pattern in
+`views_frames_summarize`, and the tower estimators already work in row blocks to bound peak
+memory (C-22) — precisely the pattern memmap rewards. Reduction over a frame far larger than RAM
+streams acceptably today.
+
+**Where it does not.**
+
+1. **Densification writes, it does not read.** `reindex_fill` allocates the full dense buffer up
+   front (register **C-71**). memmap does not help build a dense grid; it helps read one.
+2. **No compression.** 663 GB stored raw, against what a chunked compressed format would hold.
+   On present trends this is the binding constraint *before* RAM is — a storage-volume problem
+   rather than a memory problem.
+3. **No chunked parallelism.** memmap gives lazy paging, not a scheduler, and not partial reads
+   of a compressed chunk.
+
+So the expected order of failure is **storage volume first, densification second, reduction
+last** — which matters, because the first fix needed is then a chunked compressed format in
+`io/` (zarr), not a new frame type. That is additive, behind the existing `io/` boundary, and it
+does not touch the public surface.
 
 ## What would change the answer
 
@@ -319,6 +473,12 @@ This is a live decision. Each trigger names evidence, not opinion, and none of t
 | **A non-Python consumer** appears on the contract | **format-as-contract** (option 2) | Would supersede this ADR. The executable-conformance argument only holds while every consumer can run Python. |
 | **The leaf is required on an autograd path** | **torch** | Would first require amending ADR-017, which puts estimation outside the leaf's charter. Very unlikely by construction. |
 | **The wire format becomes the dominant access path** — consumers reading parquet directly more often than they construct frames | **pyarrow as the frame type** | Would supersede this ADR and probably ADR-013 with it. |
+
+**The dask trigger deserves a caveat the others do not.** Every alternative above is deferred on
+some mix of cost and design. `dask[array]` is deferred on **design alone** — it costs three
+megabytes. That makes it the one entry here whose deferral could be undone by changing this
+package's mind rather than by waiting for the world to change, and the scaling section above
+suggests the world will not wait long.
 
 **No trigger is recorded for pandas, polars, protocols-only or awkward-array.** Those lose on
 grounds that do not change with evidence: a dependency the DAG root cannot take, a memory model
