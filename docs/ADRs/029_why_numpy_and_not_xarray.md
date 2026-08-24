@@ -55,9 +55,18 @@ ADR-002's decision, and it has a consequence most container choices ignore:
 
 This is the primary reason, and it is worth stating before any comparison of features.
 
-**Every repository on this platform already depends on numpy.** Adding `views-frames` to a repo
-therefore adds no new transitive dependency at all — the array library was already installed,
-already resolved, already pinned. The contract arrived at zero dependency cost.
+**numpy has no dependencies of its own.** `numpy` declares an empty requirement set, so adding
+it to a repository adds exactly one package — about 19 MB — and nothing else. There is no
+transitive closure to resolve, no version to reconcile against anything, and no second library
+that arrives with it. That is what "free" means here, and it is a property of numpy rather than
+an assumption about any particular repo.
+
+**Most repositories on the platform already carry it in any case**, directly or through
+scipy/pandas/scikit-learn, so for them the contract costs literally nothing. It is worth being
+exact rather than sweeping: a handful of repos — including two `views-frames` consumers,
+views-postprocessing and views-hydranet — do *not* declare numpy themselves and reach it partly
+*through* this package. For those, the argument is not "they already had it" but the paragraph
+above: what they gained is one dependency-free package.
 
 That property is what the whole repository separation exists to protect. The model repos are
 deliberately allowed to hold *wildly* different libraries — that is the point of separating
@@ -412,15 +421,21 @@ Take a plausible near-future shape — ten features, 128 samples each, a global 
                                        x 4 bytes (float32) =  663.6 GB
 ```
 
-Excluding ocean cells helps but does not rescue it. If roughly 80% of cells are water and are
-dropped, **20% remains**:
+Excluding ocean cells helps but does not rescue it. The land fraction of a 0.5 degree global
+grid is an input to this arithmetic, not a fact this ADR establishes, so the sizing is given
+across a range rather than resting on one figure:
 
-| | cells | float32 |
+| Cells retained | cells | float32 |
 |---|---:|---:|
-| Full 0.5 degree grid | 165.9 billion | **663.6 GB** |
-| Land only (20% of cells retained) | 33.2 billion | **132.7 GB** |
+| All (no land mask) | 165.9 billion | **663.6 GB** |
+| 30% | 49.8 billion | **199.1 GB** |
+| 25% | 41.5 billion | **165.9 GB** |
+| 20% | 33.2 billion | **132.7 GB** |
 
-Neither fits in memory, and ten features at 128 samples is nowhere near a ceiling.
+**The conclusion does not depend on which row is right.** Every one of them is far past the
+memory of any single machine, and ten features at 128 samples is nowhere near a ceiling. If a
+precise land-cell count is ever needed for capacity planning, it should be taken from the
+PRIO-GRID definition rather than from this table.
 
 ### Why numpy survives this: the index fits, the values do not
 
@@ -438,11 +453,17 @@ A frame is an index plus a value array, and **they scale completely differently.
 The values are **320x to 6,400x** the index — and the index's size does not depend on features or
 samples at all. It is 4.1 MB per month whether the frame carries ten features or a hundred.
 
-**This matters because alignment is what this package structurally does, and alignment only ever
-touches the index.** `searchsorted`, `reindex`, `intersect`, `is_superset_of` and `cartesian` all
-operate on `(time, unit)` and never read a value. Those are the operations needing random access,
-and the data they need it over **fits in memory at global scale**. What does not fit is read
-sequentially, in row blocks — the access pattern the estimators already use (C-22).
+**This matters because of which half needs random access.** *Computing* an alignment touches
+only the index: `SpatioTemporalIndex.searchsorted`, `reindex`, `intersect`, `is_superset_of` and
+`cartesian` take an index, return positions, and never read a value. *Applying* one then gathers
+from the value buffer — `frame.reindex(other)` and `reindex_fill` both move values, and
+`reindex_fill` allocates a dense buffer to do it, which is exactly C-71.
+
+So the split is: **the random-access half operates on data that fits in memory at global scale,
+and the half that does not fit is touched only by gather and by sequential row-blocked
+reduction.** That is the property that makes a streaming storage layer viable underneath an
+unchanged frame type — and the reason `reindex_fill` is the one operation that breaks first, since
+it is the only place where the large half is both written and materialised whole.
 
 **So streaming does not require a different array library. It requires a different storage layer
 under the same one.** A lazy array's `.compute()` returns a numpy array; chunked stores feed numpy
@@ -481,10 +502,20 @@ adds shards; adding features or samples multiplies every shard.
 Partly, and for longer than the raw totals suggest — but not for the thing likely to break first.
 
 **Where it works.** A frame is `(N, S)` row-major with samples contiguous, so a per-row
-sample-axis reduction reads sequentially. That is the dominant access pattern in
-`views_frames_summarize`, and the tower estimators already work in row blocks to bound peak
-memory (C-22) — precisely the pattern memmap rewards. Reduction over a frame far larger than RAM
-streams acceptably today.
+sample-axis reduction reads sequentially — precisely the access pattern memmap rewards. The
+estimators that already bound peak memory by working in row blocks (C-22) have exactly that
+shape: `interval`, `point`, `tower`, `tower_point`, `bimodality`, `exceedance` and
+`expected_shortfall`.
+
+**`collapse` and `aggregate` do not row-block**, and `collapse` is the most-used estimator in
+the package. Its implementation is a single call —
+`reducer(frame.values, axis=-1)` — which materialises the whole array regardless of how it was
+loaded. Any streaming story has to either block `collapse` or accept that it is the operation
+that breaks first.
+
+**This is reasoned from the access pattern, not measured.** No benchmark of memmap-backed
+reduction at grid scale exists in this repository, and the claim should be read as "the layout
+is right for it" rather than "it has been shown to work".
 
 **Where it does not.**
 
@@ -526,7 +557,7 @@ This is a live decision. Each trigger names evidence, not opinion, and none of t
 | **A real OOM at grid scale** — register **C-71** (a full-pgm `cartesian` target, ~259k cells × months, fed to `reindex_fill` on a sampled frame) or **C-73** (an OOM *despite* per-month sharding) | **`dask.array` inside `io/`**, with `zarr` as its storage format | Additive. The frame type does not change; the storage layer gains a lazy path. Prefer dask over xarray here: it answers the same need and requires no pandas (§9). `io/` is the designated place for evolving formats (ADR-002). |
 | **A non-Python consumer** appears on the contract | **format-as-contract** (option 2) | Would supersede this ADR. The executable-conformance argument only holds while every consumer can run Python. |
 | **The leaf is required on an autograd path** | **torch** | Would first require amending ADR-017, which puts estimation outside the leaf's charter. Very unlikely by construction. |
-| **The wire format becomes the dominant access path** — consumers reading parquet directly more often than they construct frames | **pyarrow as the frame type** | Would supersede this ADR, and ADR-013 with it — the in-memory type and the wire format would become one thing. |
+| **A consumer ships its own reader against the wire contract** rather than constructing frames — visible in that repo's source, unlike "which access path is more common", which nothing on this platform measures | **pyarrow as the frame type** | Would supersede this ADR, and ADR-013 with it — the in-memory type and the wire format would become one thing. |
 
 **The dask trigger deserves a caveat the others do not.** Every alternative above is deferred on
 some mix of cost and design. `dask[array]` is deferred on **design alone** — it costs three
