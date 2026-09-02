@@ -466,6 +466,50 @@ done
 [ "$errors" -eq "$before" ] && echo "  OK (checked $amend_count amendment declaration(s))"
 
 
+# 14. No causal cluster lists an entry as open when its own header says RESOLVED.
+#
+#     The register's Register Conventions section calls its cluster list "the single
+#     authority" on grouping. On 2026-09-02 five of its twelve clusters named entries as open
+#     that had resolved weeks earlier — C-74 among them, which resolved seventeen days BEFORE
+#     the clusters' own stated review date, so the last manual review did not catch it either.
+#     Cluster membership is the register describing itself, and nothing checked it.
+#
+#     Brace convention, normalised 2026-09-02 so this check can stay simple: a cluster reads
+#     `= {open ids; + resolved ids}`, or `= {all resolved: ids}` when nothing in it is open.
+echo "--- Checking causal clusters against entry status ---"
+before=$errors
+reg=../reports/technical_risk_register.md
+if [ ! -f "$reg" ]; then
+    echo "  ERROR: no $reg; cannot check cluster membership"
+    errors=$((errors + 1))
+else
+    resolved_ids=$(grep -oE '^### C-[0-9]+:.*RESOLVED' "$reg" | grep -oE '^### C-[0-9]+' | sed 's/### //')
+    cluster_count=0
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        case "$line" in *priogrid*) continue ;; esac
+        cluster_count=$((cluster_count + 1))
+        brace=$(echo "$line" | sed 's/.*= {//; s/}.*//')
+        case "$brace" in [Aa]ll\ resolved*) continue ;; esac
+        openpart=$(echo "$brace" | sed 's/+ *resolved.*//; s/; *resolved.*//')
+        for cid in $(echo "$openpart" | grep -oE 'C-[0-9]+'); do
+            if echo "$resolved_ids" | grep -qx "$cid"; then
+                name=$(echo "$line" | grep -oE '\*\*[^*]+\*\*' | head -1 | tr -d '*')
+                echo "  ERROR: cluster '$name' lists $cid as open, but its entry says RESOLVED"
+                errors=$((errors + 1))
+            fi
+        done
+    done <<EOF
+$(grep -E '= \{' "$reg")
+EOF
+    if [ "$cluster_count" -eq 0 ]; then
+        echo "  ERROR: found no causal clusters in the register; the check cannot be vacuously true"
+        errors=$((errors + 1))
+    fi
+    [ "$errors" -eq "$before" ] && echo "  OK (checked $cluster_count causal clusters against entry status)"
+fi
+
+
 echo ""
 if [ "$errors" -gt 0 ]; then
     echo "=== FAILED: $errors issue(s) found ==="
