@@ -127,8 +127,9 @@ CI additionally gates 100% line+branch coverage
 
 ## Governance
 
-Constitutional ADRs 000–010, project ADRs 011–026, CICs for every non-trivial
-surface (7 active incl. the package-level `Summarize.md` and `Reconcile.md`),
+Constitutional ADRs 000–009, the governance ADR 010, project ADRs 011–029, CICs for
+every non-trivial surface (9 active incl. the package-level `Summarize.md` and
+`Reconcile.md`),
 contributor protocols, and standards live in `docs/`. The technical risk register
 (`reports/technical_risk_register.md`) is the curated concern/decision log. Run
 `bash docs/validate_docs.sh` to check documentation consistency. Build *against*

@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 94                                   |
+| Total Concerns    | 95                                   |
 | Open Concerns     | 10                                   |
-| Resolved Concerns | 84                                   |
+| Resolved Concerns | 85                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -440,6 +440,48 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-98: counts stated in prose drifted from what is on disk — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-98 |
+| Tier | 4 |
+| Resolved | 2026-09-02 |
+| Resolution | Four stale counts corrected, and `docs/validate_docs.sh` check 11 added so prose counts are held against the filesystem. |
+| Source | governance consistency review, Phase 0 (2026-09-02) |
+| Cross-refs | C-96 (the wheel package count — the same class, one document over), C-70 (the README banner epoch-lag that produced check 6), C-84/C-86 (the stale trees), the *unchecked completeness claims* cluster. |
+
+Three documents stated numbers derived from the document set itself, and they were wrong
+**differently from each other** — which is the signature of hand-maintained copies with no
+shared source:
+
+| Site | Claimed | Actual |
+|---|---|---|
+| `CLAUDE.md` | "CICs … (**7 active**)" | **9** |
+| `CLAUDE.md` | "project ADRs **011–026**" | **011–029** |
+| `docs/ADRs/README.md` (×2) | "Project-Specific ADRs (**011–027**)" | **011–029** |
+
+Two documents counting the same range, disagreeing with each other *and* with the filesystem,
+is worse than either being wrong alone: a reader who checks one against the other finds a
+contradiction with no way to tell which is right.
+
+**A third defect surfaced while fixing them.** `CLAUDE.md` described the ADR set as
+"Constitutional ADRs 000–010, project ADRs 011–026", folding **ADR-010** into the
+constitutional range. The ADR index has three sections, not two — constitutional 000–009, a
+**Governance ADRs** section containing only ADR-010, then project 011–029. The index's
+structure is the authority; `CLAUDE.md` now matches it.
+
+Check 11 pins the active-CIC count, every "project ADRs NNN–MMM" range against the highest ADR
+on disk, and the register's own header against its body (total, open, and that open + resolved
+sums to total). Mutation-tested: a drifted CIC count, a new ADR landing with ranges unupdated,
+and a header that stops matching its body all error.
+
+**What it does not catch:** a count stated in a phrasing the pattern does not match. This is a
+targeted check on three known claim shapes, not a general numeric auditor — a general one would
+flag every number in the corpus and be switched off within a week.
+
+---
 
 ### C-97: the status banners asserted a release state the repo cannot verify — RESOLVED
 
