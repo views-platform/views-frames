@@ -445,7 +445,7 @@ views-frames/
 │   ├── module.py                  # ReconciliationModule (holds the injected mapping)
 │   ├── result.py                  # ReconciliationResult — the frame plus HOW it was made
 │   └── conformance.py             # assert_reconcile_contract
-├── scripts/                       # standalone dev tools, none wired into CI
+├── scripts/                       # dev tools; check_arch_tree + check_doc_refs run in CI
 ├── examples/                      # runnable quickstarts (run by CI)
 └── tests/                         # flat: test_*.py + fixtures/
 ```
