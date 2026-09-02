@@ -101,7 +101,8 @@ A `k <= 0` floor (too few samples to hold two draws, at small `S`) collapses to 
 
 ### 3.3 A mass-aware tip — the *shorth* (robust mode, distribution-agnostic zero handling)
 
-The point estimate is the **median of the floor at a configurable `tip_mass`** (default `0.5` —
+The point estimate is the **median of the floor at a configurable `tip_mass`** (default `0.25`
+since ADR-019 Amendment 3, 2026-07-24; this note was written at v1.3.0 when it was `0.5` —
 the *shorth*, the shortest-half mode), **not** the degenerate narrowest floor. Two properties
 follow:
 

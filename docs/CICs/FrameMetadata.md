@@ -97,8 +97,7 @@ every field in it is a field every consumer must agree on.
 | Situation | Behaviour | Loud? |
 |---|---|---|
 | Unknown key in `from_dict` | **Dropped silently** | ❌ **no** |
-| Field set to a non-JSON type, then `save`d via **npz** | **Silently stringified** — `io/npz.py` uses `json.dumps(..., default=str)`, so a `datetime` timestamp reloads as `'2026-01-01 00:00:00'` | ❌ **no** |
-| The same value `save`d via **arrow** | `TypeError: Object of type datetime is not JSON serializable` — `io/arrow.py` uses a plain `json.dumps` | ✅ yes |
+| Field set to a non-JSON type, then `save`d via **either codec** | `TypeError: Object of type datetime is not JSON serializable` — both `io/npz.py` and `io/arrow.py` use a plain `json.dumps` | ✅ yes |
 | Field set to the wrong type at a typed call site | Accepted at runtime | ❌ no — caught by `mypy --strict` **only here** |
 | Wrong type arriving from a loaded `header.json` | Accepted; `from_dict` takes `Mapping[str, Any]` and coerces nothing | ❌ **no** — mypy cannot see this path |
 | Mutating a field after construction | `FrozenInstanceError` | ✅ yes |
@@ -177,33 +176,34 @@ level = frame.metadata.run_type.split("_")[0]   # ADR-003: no semantic inference
 - **Green:** `to_dict`/`from_dict` round-trip preserves set fields
   (`test_metadata_to_from_dict_roundtrip`, `test_metadata_provenance_roundtrip`); unset fields
   are omitted from `to_dict` (`test_metadata_generic_provenance_fields_default_none`) — all in
-  `tests/test_frames.py`. Metadata survives row selection (`tests/test_select.py:88`).
+  `tests/test_frames.py`. Metadata survives row selection (`tests/test_select.py::test_select_preserves_metadata`).
 - **Beige:** `with_metadata` allocates no second `values` buffer — the copy-vs-view property
   (`tests/test_properties.py::test_with_metadata_shares_the_values_buffer`, register C-07).
 - **Red:** mutation raises `FrozenInstanceError` (`test_metadata_is_frozen`).
 
 `test_metadata_ignores_unknown_keys` is **green, not red, and pins less than its name suggests**:
 it asserts only `md.model == "x"` after passing an unknown key, so it pins *"does not raise"* and
-never asserts the unknown key was discarded rather than stored. The drop documented in §3 and §6
-— the behaviour with the durable consequence — is therefore **not pinned by anything**.
+never asserts the unknown key was discarded rather than stored.
 
-**Three guarantees in §3 are not pinned by any test**, found while writing this contract and
-recorded rather than glossed:
+**Three guarantees in §3 were unpinned when this contract was written, and all three were pinned
+the same day** (2026-08-18, register C-80, commit `5423431`). They are listed here because the
+gap is worth remembering, not because it is open — each now names the test that closes it:
 
-0. **The unknown-key drop itself** — see immediately above. `assert not hasattr(md, "unknown")`
-   is the missing line.
+0. **The unknown-key drop itself** — that an unknown key is *discarded*, not merely tolerated.
+   Now pinned by `tests/test_frames.py::test_metadata_unknown_keys_are_dropped_not_stored`.
 
-1. **The `save`/`load` header round-trip is pinned for `PredictionFrame` only**
-   (`tests/test_frames.py:107`, `assert loaded.metadata == pf.metadata`). `FeatureFrame` and
-   `TargetFrame` have no equivalent assertion — `test_feature_frame_save_load_preserves_names`
-   covers `feature_names`, not the header.
-2. **Nothing asserts that a frame built without metadata exposes an empty header** rather than
-   `None`, though §3 guarantees it and every consumer reading `.metadata` depends on it.
+1. **The `save`/`load` header round-trip was pinned for `PredictionFrame` only**
+   (`tests/test_frames.py::test_metadata_survives_save_load_for_all_three_frames` now covers all
+   three; `test_feature_frame_save_load_preserves_names` covers `feature_names`, not the header).
 
-Both are one-line additions to an existing test file. They belong to **S9 (#249)**, which owns
-the test suite's self-description under register C-80; noted there. This contract states the
-guarantee regardless — that is what a CIC is for (ADR-006: tests are derived *from* the
-contract), and naming the gap is better than a §10 that reads complete.
+2. **Nothing asserted that a frame built without metadata exposes an empty header** rather than
+   `None`, though §3 guarantees it and every consumer reading `.metadata` depends on it. Now
+   pinned by `tests/test_frames.py::test_frame_without_metadata_exposes_an_empty_header_not_none`.
+
+All three were closed by register **C-80**. The gap is recorded rather than deleted because a CIC
+states its guarantees whether or not a test exists (ADR-006: tests are derived *from* the
+contract), and because this document is the reason the gap was found at all — it was written,
+the gaps were noticed while writing it, and they were closed the same day.
 
 ---
 
