@@ -5,9 +5,9 @@
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
 | Last Updated      | 2026-08-18                           |
-| Total Concerns    | 94                                   |
+| Total Concerns    | 95                                   |
 | Open Concerns     | 10                                   |
-| Resolved Concerns | 84                                   |
+| Resolved Concerns | 85                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -440,6 +440,48 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-98: counts stated in prose drifted from what is on disk — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-98 |
+| Tier | 4 |
+| Resolved | 2026-09-02 |
+| Resolution | Four stale counts corrected, and `docs/validate_docs.sh` check 11 added so prose counts are held against the filesystem. |
+| Source | governance consistency review, Phase 0 (2026-09-02) |
+| Cross-refs | C-96 (the wheel package count — the same class, one document over), C-70 (the README banner epoch-lag that produced check 6), C-84/C-86 (the stale trees), the *unchecked completeness claims* cluster. |
+
+Three documents stated numbers derived from the document set itself, and they were wrong
+**differently from each other** — which is the signature of hand-maintained copies with no
+shared source:
+
+| Site | Claimed | Actual |
+|---|---|---|
+| `CLAUDE.md` | "CICs … (**7 active**)" | **9** |
+| `CLAUDE.md` | "project ADRs **011–026**" | **011–029** |
+| `docs/ADRs/README.md` (×2) | "Project-Specific ADRs (**011–027**)" | **011–029** |
+
+Two documents counting the same range, disagreeing with each other *and* with the filesystem,
+is worse than either being wrong alone: a reader who checks one against the other finds a
+contradiction with no way to tell which is right.
+
+**A third defect surfaced while fixing them.** `CLAUDE.md` described the ADR set as
+"Constitutional ADRs 000–010, project ADRs 011–026", folding **ADR-010** into the
+constitutional range. The ADR index has three sections, not two — constitutional 000–009, a
+**Governance ADRs** section containing only ADR-010, then project 011–029. The index's
+structure is the authority; `CLAUDE.md` now matches it.
+
+Check 11 pins the active-CIC count, every "project ADRs NNN–MMM" range against the highest ADR
+on disk, and the register's own header against its body (total, open, and that open + resolved
+sums to total). Mutation-tested: a drifted CIC count, a new ADR landing with ranges unupdated,
+and a header that stops matching its body all error.
+
+**What it does not catch:** a count stated in a phrasing the pattern does not match. This is a
+targeted check on three known claim shapes, not a general numeric auditor — a general one would
+flag every number in the corpus and be switched off within a week.
+
+---
 
 ### C-97: the status banners asserted a release state the repo cannot verify — RESOLVED
 
@@ -1943,6 +1985,18 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
 - **Skipped ids:** **C-04** was merged into C-18 (the "SpatialLevel slippery slope"). **C-30** is intentionally skipped — it is *pipeline-core's* external id for the cross-repo contract-test gap (referenced in ADR-005 / ADR-016), not a views-frames concern. **C-48** is intentionally skipped — it is *views-reporting's* external id for the run-identity concern (referenced in D-02 / ADR-020), not a views-frames concern.
 - **Foreign ADR references:** an unqualified `ADR-xxx` always means *this* repository's ADR. A sibling repo's ADR must name the repo ("views-datafactory's ADR-044 **there**"). Three currently referenced numbers — **ADR-034** (pipeline-core), **ADR-044** (views-datafactory), **ADR-055** (paired with a `D-29` that does not exist here) — have no file in `docs/ADRs/`, which is correct, but only one of the three said so plainly. Same rule as the concern-id convention below.
 - **Foreign ids (collisions, not skips):** unlike the skipped ids above, **C-65** exists in *both* registers — pipeline-core's C-65 is the reversed entity-first tuple (cited in **C-18**), while *this* register's C-65 is the non-finite fail-loud blocked-path gap (resolved 2026-06-28). Any cross-register id must name its repo; an unqualified `C-xx` always means this register.
+- **The full non-local id list (added 2026-09-02).** The two conventions above named the ids
+  that had come up in conversation; a cross-reference sweep found nine more already cited in
+  this corpus and documented nowhere, which is the same shape as the drift they exist to
+  prevent. `scripts/check_doc_refs.py` holds the machine-readable copy and **fails if an id it
+  allowlists is not also named here**, so the two halves cannot diverge again. Foreign
+  concerns: **C-30**, **C-48**, **C-108**, **C-135**, **C-164**, **C-165**, **C-167**,
+  **C-184**, **C-186** (views-reporting) and **C-198** (views-pipeline-core). Foreign
+  disagreements: **D-28**, **D-33** (views-pipeline-core) and **D-29** (paired with ADR-055).
+  Skipped local id: **C-04**. Note that `perspectives/` and `critiqus/` are written from other
+  repositories' points of view — ids and paths in those documents are the *author's* namespace
+  and are deliberately not resolved against this register.
+
 - **Causal clusters** (assigned by `review-rr`, last reviewed **2026-08-17**). This list is the **single authority** on clustering — the Open-section preamble points here and must not restate it:
   - **doc↔code topology drift** = {**C-86**; resolved C-82, C-84; + resolved C-09 as the origin, C-39, C-23, C-70} — **REOPENED 2026-08-17, same day it was closed.** S1 #241 and S2 #242 closed C-82 and C-84, and the closure note said those two were "the whole of it". One story later, S3's sweep for documents restating what it was correcting found a **third** stale shape-claim — the `README.md` directory tree, missing 11 of 36 modules, plus a §9 pointer sending consumers to a `tests/conformance/` path that does not exist (C-86). The correction is recorded rather than quietly amended, because a cluster declaring itself closed while a member remains is the same failure the cluster is about. *The documents that describe the system's shape were never re-verified against it.* ADR-002 and `docs/standards/physical_architecture_standard.md` both describe an intended structure that the code moved past: `io/` on top importing the frames (the code is the inverse), a directory tree missing three shipped modules and containing two that never shipped, and one of three packages. The origin is datable — **C-09**, resolved 2026-06-21, moved `io/` onto a generic state-dict contract and inverted the dependency; neither topology document was amended, and `Persistable` (which puts `save`/`load` on the frame) makes the code's direction the only one available under the ADR-018 freeze. **The two entries were one editing session**, and were sequenced as one: the C-82 amendment touched `physical_architecture_standard.md:48-49,:67`, exactly where C-84's rewrite started, so S2 was blocked on S1 rather than run beside it. The standard now carries a `Last reviewed` date, a perishability note, and `scripts/check_arch_tree.py`, which makes the next drift detectable in one command. Distinguished from the cluster below by *what* is unverified: here it is a claim about structure, there it is a claim about coverage.
   - **unchecked completeness claims** = {C-85, C-77, C-80; + resolved C-64, C-74, C-75, C-81, C-51, C-67} — **an artifact asserts something about its own coverage or result, and nothing checks the assertion.** `docs/CICs/README.md` has claimed "fully contracted" wrongly three times (C-64 `Reconcile.md`, C-81 `Conformance.md`, now `FrameMetadata` in C-85); `GOVERNANCE.md` names three of six published conformance exports; ADR-018 inventories a frozen surface that omits `feature_names`; resolution fields described intent rather than result four times in one epic (C-77); the test suite's self-description does not match its contents (C-80). C-81's own resolution text is the tell: it was *"found only because this claim of completeness was audited against the code."* **The remedy is one mechanical change, not five edits:** `docs/validate_docs.sh` already runs in CI (C-74) and already checks placeholders, dangling references and the version banner — it checks no enumeration. Three assertions would have caught four of these findings automatically (every `__all__` name appears in its CIC; every public class has a CIC or a listed exemption; `GOVERNANCE.md`'s conformance names match `conformance.__all__`). Correcting the lists without the script edit schedules the fourth instance. **Tier within this cluster follows who reads the claim:** an external reader (a consumer running the floor, a future maintainer executing C-66's MAJOR instructions) → Tier 3; an internal auditor → Tier 4. That is why C-85 and C-77 are 3 while C-80 is 4, and the rule should be applied to any entry joining this cluster.

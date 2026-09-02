@@ -11,7 +11,7 @@ ADRs are divided into:
 
 1. **Constitutional ADRs (000–009)** — foundational architectural rules.
 2. **Governance ADRs (010)** — the technical risk register.
-3. **Project-Specific ADRs (011–027)** — the ratified contract, estimator, sibling-package,
+3. **Project-Specific ADRs (011–029)** — the ratified contract, estimator, sibling-package,
    freeze/immutability, and surface-scope decisions.
 
 ---
@@ -51,7 +51,7 @@ Together, these define the invariant layer of the system.
 
 ---
 
-## Project-Specific ADRs (011–027) — the ratified project decisions
+## Project-Specific ADRs (011–029) — the ratified project decisions
 
 **011–016** ratify the six founding contract decisions from the design bible (README §13a,
 all Accepted 2026-06-21); **017–027** are the post-v1 decisions — sibling packages, the API

@@ -66,6 +66,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash docs/validate_docs.sh
       - run: python3 scripts/check_arch_tree.py
+      # Cross-reference resolution: ~3,300 ADR/concern/disagreement/path citations across the
+      # governance corpus, none of which was checked before 2026-09-02. Offline by design —
+      # issue references need the network and are left to a manual `--check-issues` sweep.
+      - run: python3 scripts/check_doc_refs.py
 
   # Formatting, kept out of the four-version matrix for the same reason as the
   # docs job: `ruff format` does not depend on the Python version, so running it

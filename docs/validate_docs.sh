@@ -341,6 +341,131 @@ fi
 [ "$errors" -eq "$before" ] && echo "  OK (wheel ships $pkg_count packages; checked $(printf '%s' "$WHEEL_DOCS" | wc -w) wheel-describing documents)"
 
 
+# 11. Counts stated in prose match what is on disk.
+#
+#     Three documents state numbers derived from the doc set itself — how many active CICs
+#     exist, which range the project ADRs span, how the register's totals add up. Every one is
+#     a hand-maintained copy of something countable, and on 2026-09-02 two of them were wrong
+#     AND wrong differently from each other: CLAUDE.md said "7 active" CICs against 9 on disk
+#     and "project ADRs 011-026", while the ADR index said "011-027", both against 029. Two
+#     copies of one number drifting independently is the signature of no shared source.
+echo "--- Checking counts stated in prose against the filesystem ---"
+before=$errors
+cic_actual=$(ls CICs/*.md 2>/dev/null | grep -vE 'README|template' | wc -l | tr -d ' ')
+adr_max=$(ls ADRs/[0-9]*.md 2>/dev/null | sed 's|.*/||;s/_.*//' | sort -n | tail -1)
+if [ -z "$cic_actual" ] || [ "$cic_actual" -eq 0 ] || [ -z "$adr_max" ]; then
+    echo "  ERROR: could not count CICs or ADRs on disk; the check cannot be vacuously true"
+    errors=$((errors + 1))
+else
+    claimed_cic=$(grep -oE '\(([0-9]+) active' ../CLAUDE.md 2>/dev/null | grep -oE '[0-9]+' | head -1)
+    if [ -n "$claimed_cic" ] && [ "$claimed_cic" != "$cic_actual" ]; then
+        echo "  ERROR: CLAUDE.md claims $claimed_cic active CICs; $cic_actual exist"
+        errors=$((errors + 1))
+    fi
+    # Every "project ADRs NNN-MMM" style range must end at the highest ADR on disk.
+    while IFS=: read -r file line; do
+        [ -z "$file" ] && continue
+        end=$(echo "$line" | grep -oE '0[0-9]{2}[^0-9]{1,3}0[0-9]{2}' | tail -1 | grep -oE '0[0-9]{2}$')
+        [ -z "$end" ] && continue
+        if [ "$end" != "$adr_max" ]; then
+            echo "  ERROR: $file states a project-ADR range ending $end; the highest ADR is $adr_max"
+            errors=$((errors + 1))
+        fi
+    done <<EOF
+$(grep -niE 'project(-specific)? ADRs? \(?0[0-9]{2}' ../CLAUDE.md ADRs/README.md 2>/dev/null | sed 's/^\([^:]*\):[0-9]*:/\1:/')
+EOF
+    # The register's header must agree with its own body.
+    reg=../reports/technical_risk_register.md
+    if [ ! -f "$reg" ]; then
+        echo "  ERROR: no $reg; cannot check its header arithmetic"
+        errors=$((errors + 1))
+    else
+        hdr_total=$(grep -m1 '^| Total Concerns' "$reg" | grep -oE '[0-9]+')
+        hdr_open=$(grep -m1 '^| Open Concerns' "$reg" | grep -oE '[0-9]+')
+        hdr_res=$(grep -m1 '^| Resolved Concerns' "$reg" | grep -oE '[0-9]+')
+        body_total=$(grep -cE '^### C-[0-9]+' "$reg")
+        body_open=$(grep -E '^### C-[0-9]+' "$reg" | grep -vc RESOLVED)
+        if [ "$hdr_total" != "$body_total" ]; then
+            echo "  ERROR: register header says $hdr_total concerns; $body_total entries exist"
+            errors=$((errors + 1))
+        fi
+        if [ "$hdr_open" != "$body_open" ]; then
+            echo "  ERROR: register header says $hdr_open open; $body_open entries are not RESOLVED"
+            errors=$((errors + 1))
+        fi
+        if [ "$((hdr_open + hdr_res))" != "$hdr_total" ]; then
+            echo "  ERROR: register header does not add up: $hdr_open open + $hdr_res resolved != $hdr_total"
+            errors=$((errors + 1))
+        fi
+    fi
+fi
+[ "$errors" -eq "$before" ] && echo "  OK ($cic_actual active CICs, ADRs to $adr_max, register header reconciles)"
+
+# 12. Every test file a CIC names in its Test Alignment section still exists.
+#
+#     Each CIC's Section 10 cites the tests that hold its guarantees. Those citations are the
+#     only link between a contract and its evidence, and nothing stopped a rename stranding
+#     one — a CIC would keep claiming a test that no longer exists, which is worse than
+#     claiming none.
+echo "--- Checking test files named in CIC Test Alignment sections ---"
+before=$errors
+ref_count=0
+while read -r ref; do
+    [ -z "$ref" ] && continue
+    ref_count=$((ref_count + 1))
+    file="../${ref%%::*}"
+    if [ ! -f "$file" ]; then
+        echo "  ERROR: a CIC names $ref, but that test file does not exist"
+        errors=$((errors + 1))
+        continue
+    fi
+    case "$ref" in
+        *::*)
+            fn="${ref##*::}"
+            grep -qE "^def ${fn}\(" "$file" || {
+                echo "  ERROR: a CIC names $ref, but $file defines no $fn"
+                errors=$((errors + 1))
+            } ;;
+    esac
+done <<EOF
+$(grep -rhoE 'tests/test_[A-Za-z0-9_]+\.py(::[A-Za-z0-9_]+)?' CICs/*.md 2>/dev/null | sort -u)
+EOF
+if [ "$ref_count" -eq 0 ]; then
+    echo "  ERROR: found no test references in any CIC; the check cannot be vacuously true"
+    errors=$((errors + 1))
+fi
+[ "$errors" -eq "$before" ] && echo "  OK (checked $ref_count test references named in CICs)"
+
+# 13. An amendment is declared on both sides.
+#
+#     When ADR-A carries "Amendment (date, ADR-B)", ADR-B must mention ADR-A. A one-sided
+#     amendment is how a reader arrives at the amended document and never learns it was
+#     amended. The ADR-018 / ADR-025 / ADR-028 triangle was correct by hand; this keeps it so.
+echo "--- Checking amendment declarations are two-sided ---"
+before=$errors
+amend_count=0
+for adr in ADRs/[0-9]*.md; do
+    self=$(basename "$adr" | sed 's/_.*//')
+    while read -r other; do
+        [ -z "$other" ] && continue
+        amend_count=$((amend_count + 1))
+        target=$(ls ADRs/${other}_*.md 2>/dev/null | head -1)
+        if [ -z "$target" ]; then
+            echo "  ERROR: $adr names an amendment by ADR-$other, which has no file"
+            errors=$((errors + 1))
+            continue
+        fi
+        grep -qE "ADR-0*${self#0}|ADR-${self}" "$target" || {
+            echo "  ERROR: $adr says it was amended by ADR-$other, but ADR-$other never mentions ADR-$self"
+            errors=$((errors + 1))
+        }
+    done <<EOF
+$(grep -oE 'Amendment \([^)]*ADR-([0-9]{3})' "$adr" 2>/dev/null | grep -oE '[0-9]{3}$' | sort -u)
+EOF
+done
+[ "$errors" -eq "$before" ] && echo "  OK (checked $amend_count amendment declaration(s))"
+
+
 echo ""
 if [ "$errors" -gt 0 ]; then
     echo "=== FAILED: $errors issue(s) found ==="
