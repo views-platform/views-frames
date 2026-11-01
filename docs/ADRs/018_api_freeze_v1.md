@@ -112,6 +112,12 @@ breaking-in-MINOR latitude **ends**: any breaking change to the frozen surface i
 >
 > All are additive; the floor stays `1.0.0` throughout, because additive surface does not
 > break a consumer pinned at the floor.
+>
+> - **3.0.0** — in `views_frames_reconcile` (ADR-030): `METHOD_DONOR_FILL`, the
+>   `ReconciliationResult.filled_draws` field, and the `seed` keyword of
+>   `ReconciliationModule`. The names are additive; the release is a MAJOR because the
+>   behaviour behind them changed (an empty-grid draw is filled or the call raises) and the
+>   published reconcile laws changed with it, so the floor moved to `3.0.0`.
 
 **Out of scope (NOT frozen, may still evolve additively or remain deferred):**
 

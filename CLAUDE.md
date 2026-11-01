@@ -127,7 +127,7 @@ CI additionally gates 100% line+branch coverage
 
 ## Governance
 
-Constitutional ADRs 000–009, the governance ADR 010, project ADRs 011–029, CICs for
+Constitutional ADRs 000–009, the governance ADR 010, project ADRs 011–030, CICs for
 every non-trivial surface (9 active incl. the package-level `Summarize.md` and
 `Reconcile.md`),
 contributor protocols, and standards live in `docs/`. The technical risk register

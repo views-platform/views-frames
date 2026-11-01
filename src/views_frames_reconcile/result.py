@@ -31,12 +31,19 @@ from views_frames import PredictionFrame
 POINT_BROADCAST = "point-broadcast"
 #: Mode — the call **scaled aligned draws**: the country already carried the grid's draw
 #: count (``cm.sample_count == S``) and was scaled draw-for-draw — the per-draw
-#: approximation (the principled joint upgrade is a separate design, #145). The mode
-#: describes *what this call did*: a point against a single-draw grid, or a point the
-#: caller pre-tiled to ``S``, also reads as aligned-draws (nothing was broadcast).
+#: approximation (the principled joint upgrade is designed and deferred, ADR-024 /
+#: register C-62). The mode describes *what this call did*: a point against a
+#: single-draw grid, or a point the caller pre-tiled to ``S``, also reads as
+#: aligned-draws (nothing was broadcast).
 ALIGNED_DRAWS = "aligned-draws"
-#: The reconciliation algorithm — top-down proportional, per draw.
+#: The 2.x reconciliation algorithm — top-down proportional, per draw. No longer what
+#: ``ReconciliationModule`` reports (see :data:`METHOD_DONOR_FILL`); kept because it is
+#: frozen public surface (ADR-018).
 METHOD_PROPORTIONAL = "proportional"
+#: The reconciliation algorithm since 3.0.0 — top-down proportional, per draw, after a
+#: draw whose grid is empty but whose country is positive borrows a donor draw's pattern
+#: (ADR-030).
+METHOD_DONOR_FILL = "proportional-donor-fill"
 
 
 @dataclass(frozen=True)
@@ -47,9 +54,12 @@ class ReconciliationResult:
         frame: the reconciled pgm ``PredictionFrame`` (identical to what ``reconcile``
             returns).
         mode: :data:`POINT_BROADCAST` or :data:`ALIGNED_DRAWS`.
-        method: the reconciliation method, e.g. :data:`METHOD_PROPORTIONAL`.
+        method: the reconciliation method, e.g. :data:`METHOD_DONOR_FILL`.
+        filled_draws: how many ``(time, country, draw)`` draws had an empty grid and a
+            positive country value, and were given a donor draw's pattern (ADR-030).
     """
 
     frame: PredictionFrame
     mode: str
     method: str
+    filled_draws: int = 0

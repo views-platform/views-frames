@@ -77,7 +77,9 @@ contract itself changes, **not** when the package version does. It stayed `"1.0.
 every release from the freeze (ADR-018) until **2026-08-18**, when 2.0.0 moved it to
 `"2.0.0"` — the first move, and the proof the constant is governed rather than decorative.
 It moved because `assert_summarizer_contract` began rejecting a frame whose index is not a
-`SpatioTemporalIndex`, which narrows what the suite accepts (ADR-028).
+`SpatioTemporalIndex`, which narrows what the suite accepts (ADR-028). It moved again to
+`"3.0.0"` with 3.0.0, because `assert_reconcile_contract` now requires every draw to sum to
+its country instead of requiring draws with an empty grid to stay zero (ADR-030).
 
 **Assertions must be enabled.** Every entry point calls `_require_assertions()` first and
 raises `RuntimeError` under `python -O`. Without it the entire suite would silently pass

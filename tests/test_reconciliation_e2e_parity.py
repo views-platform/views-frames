@@ -3,6 +3,12 @@
 The gate that turns "leaf ported" into "pipeline migrated": the whole
 frames-native module reproduces the frozen views-reporting pipeline on the S0
 fixture. Offline — numpy + views-frames + the committed fixture only.
+
+Since 3.0.0 (ADR-030) the module deliberately differs from the oracle in one place: a
+draw whose grid is all zeros while the country is positive is filled from a donor draw
+instead of staying zero (the oracle loses that mass, #283). The fixture has 91 such draws
+for ``pred_ged_sb`` and 87 for ``pred_ged_ns``, all with donors. Parity is therefore
+asserted on every other draw, and the filled draws are held to the new law instead.
 """
 
 from dataclasses import FrozenInstanceError
@@ -14,6 +20,7 @@ import pytest
 from views_frames import SpatialLevel
 from views_frames_reconcile import (
     ALIGNED_DRAWS,
+    METHOD_DONOR_FILL,
     POINT_BROADCAST,
     ReconciliationModule,
     ReconciliationResult,
@@ -54,18 +61,39 @@ def _frames(fix, target):
     return cm, pgm
 
 
+def _filled_draws(fix, target):
+    """``(N_pg, S)`` mask: the cells of draws whose group grid is empty, country > 0."""
+    pg = fix[f"pg__{target}"]
+    mask = np.zeros(pg.shape, dtype=bool)
+    for j, (t, c) in enumerate(zip(fix["cm_time"], fix["cm_unit"], strict=True)):
+        rows = (fix["pg_time"] == t) & (fix["pg_country"] == c)
+        empty = ~(pg[rows] > 0).any(axis=0) & (fix[f"cm__{target}"][j] > 0)
+        mask[rows] = empty
+    return mask
+
+
 class TestEndToEndParity:
     @pytest.mark.parametrize("target", _TARGETS)
-    def test_module_reproduces_oracle(self, fix, module, target):
+    def test_module_reproduces_oracle_outside_filled_draws(self, fix, module, target):
         cm, pgm = _frames(fix, target)
         out = module.reconcile(cm, pgm)
+        keep = ~_filled_draws(fix, target)
+        assert (~keep).any(), "the fixture no longer exercises donor fill"
         np.testing.assert_allclose(
-            out.values,
-            fix[f"recon__{target}"],
+            out.values[keep],
+            fix[f"recon__{target}"][keep],
             rtol=1e-5,
             atol=1e-6,
             err_msg=f"module output drifts from the frozen oracle on {target}",
         )
+
+    @pytest.mark.parametrize("target", _TARGETS)
+    def test_oracle_lost_the_mass_the_module_places(self, fix, module, target):
+        # the reason for the exception above: the oracle leaves these draws at zero
+        filled = _filled_draws(fix, target)
+        assert (fix[f"recon__{target}"][filled] == 0).all()
+        out = module.reconcile(*_frames(fix, target))
+        assert out.values[filled].sum() > 0
 
 
 class TestModuleProperties:
@@ -76,15 +104,11 @@ class TestModuleProperties:
         assert out is not pgm
         np.testing.assert_array_equal(pgm.values, before)
 
-    def test_sum_constraint_on_active_draws(self, fix, module):
+    def test_sum_constraint_on_every_draw(self, fix, module):
         cm, pgm = _frames(fix, "pred_ged_sb")
         out = module.reconcile(cm, pgm)
         recon = {
             (int(t), int(u)): out.values[i]
-            for i, (t, u) in enumerate(zip(fix["pg_time"], fix["pg_unit"], strict=True))
-        }
-        pin = {
-            (int(t), int(u)): fix["pg__pred_ged_sb"][i]
             for i, (t, u) in enumerate(zip(fix["pg_time"], fix["pg_unit"], strict=True))
         }
         cmv = {
@@ -93,13 +117,9 @@ class TestModuleProperties:
         }
         for m in _MONTHS:
             for c, gs in _GRIDS.items():
-                allzero = np.stack([pin[(m, g)] for g in gs]).sum(axis=0) == 0
+                # every draw, including those whose input grid was all zeros (ADR-030)
                 grid_sum = np.stack([recon[(m, g)] for g in gs]).sum(axis=0)
-                active = ~allzero
-                np.testing.assert_allclose(
-                    grid_sum[active], cmv[(m, c)][active], rtol=1e-4, atol=1e-3
-                )
-                assert (grid_sum[allzero] == 0).all()  # all-zero draws stay zero
+                np.testing.assert_allclose(grid_sum, cmv[(m, c)], rtol=1e-4, atol=1e-3)
 
     def test_point_country_broadcast_equals_manual_tile(self, fix, module):
         # S1 (#143): native point-broadcast must be bit-identical to manually tiling the
@@ -141,7 +161,8 @@ class TestReconciliationResult:
         result = module.reconcile_result(cm, pgm)
         assert isinstance(result, ReconciliationResult)
         assert result.mode == ALIGNED_DRAWS
-        assert result.method == "proportional"
+        assert result.method == METHOD_DONOR_FILL == "proportional-donor-fill"
+        assert result.filled_draws == 91  # the fixture's empty-grid draws (sb)
         # the result frame is exactly what reconcile() returns
         np.testing.assert_array_equal(
             result.frame.values, module.reconcile(cm, pgm).values
