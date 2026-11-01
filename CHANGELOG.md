@@ -4,7 +4,7 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
-## [3.0.0] — unreleased
+## [3.0.0] — 2026-11-01
 
 **Reconciliation now places every country's fatalities on the grid.** When a country's
 grid is all zeros in a draw but the country forecast is positive, scaling has nothing to

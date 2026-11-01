@@ -6,12 +6,14 @@ at the **root of the platform dependency DAG**, plus two sibling operation packa
 in the same wheel. numpy only; depends on nothing internal; every other repo
 depends *toward* it.
 
-> **Status:** **v2.x — the version in this tree**; see
+> **Status:** **v3.x — the version in this tree**; see
 > [PyPI](https://pypi.org/project/views-frames/) for what is published. The v1 API was
 > frozen from v1.0.0 (ADR-018)
-> and **broken once, deliberately, in 2.0.0** (ADR-028): a frame's `index` must now
-> actually be a `SpatioTemporalIndex`, and `frame.values` is write-protected.
-> `CONFORMANCE_FLOOR` moved `1.0.0` → `2.0.0` — its first move. Everything else is
+> and **broken twice, deliberately**: in 2.0.0 (ADR-028) a frame's `index` must
+> actually be a `SpatioTemporalIndex`, and `frame.values` is write-protected; in 3.0.0
+> (ADR-030) reconciliation places every country's mass, borrowing a donor draw's pattern
+> where a country's grid is empty, and raising when there is no donor.
+> `CONFORMANCE_FLOOR` moved `1.0.0` → `2.0.0` → `3.0.0`. Everything else is
 > additive, and the bar for a further MAJOR stays deliberately high.
 > Consumers install `views-frames` and validate against the published conformance
 > suite (`views_frames.conformance`, ADR-016). See `CHANGELOG.md` for the release
@@ -79,8 +81,10 @@ across levels (joint sampling). Fail-loud config for the tower family (ADR-019).
 
 **`src/views_frames_reconcile/`** — top-down proportional reconciliation of pgm grid
 forecasts to cm country totals (ADR-023; numpy-only; depends on `views_frames`).
-`ReconciliationModule(map_keys, map_vals)` with the geography **injected** (never
-fetched); `reconcile` / `reconcile_result` (the latter reports the
+`ReconciliationModule(map_keys, map_vals, *, seed=0)` with the geography **injected**
+(never fetched); a draw whose grid is all zeros against a positive country borrows a
+random donor draw's pattern from the same `(time, country)`, or raises with no donor
+(`donor_fill.py`, ADR-030); `reconcile` / `reconcile_result` (the latter reports the
 `point-broadcast`/`aligned-draws` **mode** — returned, never stamped on the leaf
 header, D-12). The per-draw method is a documented approximation; the principled
 joint upgrade is designed and deferred (ADR-024, register C-62).
