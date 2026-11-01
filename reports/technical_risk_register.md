@@ -4,10 +4,10 @@
 |-------------------|--------------------------------------|
 | Project           | views-frames                         |
 | Owner             | VIEWS platform maintainers           |
-| Last Updated      | 2026-10-31                           |
+| Last Updated      | 2026-11-02                           |
 | Total Concerns    | 97                                   |
-| Open Concerns     | 12                                   |
-| Resolved Concerns | 85                                   |
+| Open Concerns     | 11                                   |
+| Resolved Concerns | 86                                   |
 | Disagreements     | 12                                   |
 
 ---
@@ -95,7 +95,7 @@ None of these is a defect to fix now. Every one requires someone to work around 
 |-------|-------|
 | ID | C-13 |
 | Tier | 3 (recalibrated from 2 on 2026-07-31, `review-rr` strategic) |
-| Status | **awaiting** — the next MAJOR bump **after 2.0.0** (this entry *is* its pre-tag checklist; it was executed once, on 2026-08-18 — see the execution record below) |
+| Status | **awaiting** — the next MAJOR bump **after 3.0.0** (this entry *is* its pre-tag checklist; it has run twice, for 2.0.0 on 2026-08-18 and 3.0.0 on 2026-11-02 — see the execution records below) |
 | Source | expert-review (2026-06-20) |
 | Trigger | **When a MAJOR bump is opened — before tagging:** confirm every consumer repo has an adoption issue filed and a pinned floor per GOVERNANCE §coordinated-bump, and pair the bump with the **freeze-cluster rider list** (C-66's `setflags` enforce + its red test, C-57's `np.isfinite` guard on `map_estimate`, C-43's shared-binning extraction) — a MAJOR that fans out without carrying its riders spends the coordination budget for nothing. |
 | Location | `README.md` §12 (~12 register items, 3+ repos); `GOVERNANCE.md` (coordinated-bump process) |
@@ -126,6 +126,21 @@ it produced:
 
 The checklist earned its keep: it is what caused C-43 to be declined explicitly rather than
 forgotten, and what turned "the consumers will pick it up" into three named lockfiles.
+
+**Execution record — 3.0.0, 2026-11-02 (ADR-030).** The second run.
+
+- **Riders:** none open. C-66 and C-57 rode 2.0.0, and C-43 was declined then with its
+  precondition rewritten to #89, so it does not ride a MAJOR.
+- **Fan-out measured from the pins**, by scanning every views-platform `pyproject.toml`:
+  five consumers had a constraint that excludes 3.0.0, or reach it through one that does.
+- **Adoption issues filed before the tag** (#293): views-pipeline-core#580 (calls the
+  reconciler), views-models#659 (runs it through pipeline-core), views-postprocessing#323,
+  views-evaluation-toolkit#1 and views-evaluation#101 (pin only). No issue for
+  views-transforms (unbounded pin, no reconcile) or for the seven repos still pinned `<2`
+  (3.0.0 asks nothing of them beyond what 2.0.0 already did).
+- **`CONFORMANCE_FLOOR` moved `2.0.0` → `3.0.0`.**
+- This run the maintainer authorised filing the adoption issues from this session; the
+  2.0.0 record's "this repo cannot open issues in sibling repos" describes that run.
 
 ---
 
@@ -298,38 +313,6 @@ code, costing nothing to correct. It now says what the code does and points here
 
 ---
 
-### C-99: reconciliation silently lost country mass when a country's grid was all zeros in a draw
-
-| Field | Value |
-|-------|-------|
-| ID | C-99 |
-| Tier | 1 |
-| Status | **actionable** — fixed for 3.0.0 (epic #286, ADR-030); resolves when 3.0.0 is released (S10 #294) |
-| Source | views-models' first production run (`chrome_crate` → `chrome_box`, 2026-10-30), reported as #283; downstream investigation views-pipeline-core#579 |
-| Trigger | Any reconciliation where, for some `(time, country, draw)`, the country value is positive and every grid cell is zero. Common, not exotic: 94–96% of grid cells are zero in a conflict forecast. |
-| Location | `src/views_frames_reconcile/proportional.py:81-98` (the all-zero guard returns zeros); `src/views_frames_reconcile/conformance.py` (law 4 required it); `docs/CICs/Reconcile.md` §3/§6 ("an edge, not a failure"). |
-| Cross-refs | ADR-030 (the fix), ADR-003 (fail loud), ADR-023, C-62 (distinct: draw pairing), C-100 (the premise the fix rests on), #283, #284, #285, epic #286. |
-
-Scaling is multiplication, so a country whose grid is all zeros in a draw cannot be scaled up
-to a positive country value. Until 3.0.0 such draws stayed at zero and the country's
-fatalities were missing from the grid. No exception, no warning, no field on the result. On
-the first production run that lost **4.023% / 7.321% / 2.943%** of the fatality mass
-(`lr_sb_best` / `lr_ns_best` / `lr_os_best`; 546,813 draws). The scaling itself was exact (0
-failures in 22.3M triples), so all of the loss was this case. **Tier 1** because it is silent
-output corruption in a forecast bound for a UN partner. It went unnoticed because the contract
-documented it as intended behaviour and no test fixture could produce it (#285): coverage was
-100% and the suites in both repos were green. **Open** until 3.0.0 ships; the fix (ADR-030) fills
-such draws from a random donor draw of the same `(time, country)` and raises when none exists.
-**The fix (2026-10-31):** `src/views_frames_reconcile/donor_fill.py`, with `proportional.py` and
-`grouping.py` unchanged. Pinned by `tests/test_reconcile_mass_placement.py` (three tests that
-failed on 2.x), `tests/test_reconcile_donor_fill.py`, and one negative test per restated
-conformance law (`TestEachLawHasTeeth`). Mutation testing killed 23 of 23 mutations of the new
-path (#289). On the real 2026-10-30 archive the 3.0.0 reconciler left **0** unplaced mass on all
-three targets, filling exactly the 546,813 draws measured (#292). Still to come before this
-resolves: the release (#294).
-
----
-
 ### C-100: "the country forecast is the authority" is a premise, not a measured result
 
 | Field | Value |
@@ -492,6 +475,39 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 ## Resolved Concerns
 
 > Resolved 2026-07-31 by **ADR-027** (Epic #208 / S1 #209) — the #113 decision.
+
+### C-99: reconciliation silently lost country mass when a country's grid was all zeros in a draw — RESOLVED
+
+| Field | Value |
+|-------|-------|
+| ID | C-99 |
+| Tier | 1 |
+| Resolved | 2026-11-02 |
+| Resolution | Released in **3.0.0** (ADR-030): an empty-grid draw borrows the pattern of a random donor draw from the same `(time, country)`, and a group with no donor raises. Verified on the real archive (0 unplaced mass) and on the published wheel. |
+| Source | views-models' first production run (`chrome_crate` → `chrome_box`, 2026-10-30), reported as #283; downstream investigation views-pipeline-core#579 |
+| Trigger | Any reconciliation where, for some `(time, country, draw)`, the country value is positive and every grid cell is zero. Common, not exotic: 94–96% of grid cells are zero in a conflict forecast. |
+| Location | `src/views_frames_reconcile/proportional.py:81-98` (the all-zero guard returns zeros); `src/views_frames_reconcile/conformance.py` (law 4 required it); `docs/CICs/Reconcile.md` §3/§6 ("an edge, not a failure"). |
+| Cross-refs | ADR-030 (the fix), ADR-003 (fail loud), ADR-023, C-62 (distinct: draw pairing), C-100 (the premise the fix rests on), #283, #284, #285, epic #286. |
+
+Scaling is multiplication, so a country whose grid is all zeros in a draw cannot be scaled up
+to a positive country value. Until 3.0.0 such draws stayed at zero and the country's
+fatalities were missing from the grid. No exception, no warning, no field on the result. On
+the first production run that lost **4.023% / 7.321% / 2.943%** of the fatality mass
+(`lr_sb_best` / `lr_ns_best` / `lr_os_best`; 546,813 draws). The scaling itself was exact (0
+failures in 22.3M triples), so all of the loss was this case. **Tier 1** because it is silent
+output corruption in a forecast bound for a UN partner. It went unnoticed because the contract
+documented it as intended behaviour and no test fixture could produce it (#285): coverage was
+100% and the suites in both repos were green. Open until 3.0.0 shipped; the fix (ADR-030) fills
+such draws from a random donor draw of the same `(time, country)` and raises when none exists.
+**The fix (2026-10-31):** `src/views_frames_reconcile/donor_fill.py`, with `proportional.py` and
+`grouping.py` unchanged. Pinned by `tests/test_reconcile_mass_placement.py` (three tests that
+failed on 2.x), `tests/test_reconcile_donor_fill.py`, and one negative test per restated
+conformance law (`TestEachLawHasTeeth`). Mutation testing killed 23 of 23 mutations of the new
+path (#289). On the real 2026-10-30 archive the 3.0.0 reconciler left **0** unplaced mass on all
+three targets, filling exactly the 546,813 draws measured (#292). **Resolved 2026-11-02:** 3.0.0 is on
+PyPI (#294), installed from there into a clean venv, and passes `assert_reconcile_contract`.
+
+---
 
 ### C-98: counts stated in prose drifted from what is on disk — RESOLVED
 
@@ -2055,7 +2071,7 @@ A spatial-forecasting showcase with no spatial display under-serves the audience
   - **the freeze as a root cause** (meta-cluster, spanning the others) = {C-43, the C-32 residual; + resolved C-57, C-66, C-53, C-76, D-09, D-11} — **the price ledger for ADR-018.** These entries are not open because anyone failed to fix them; they are open because the freeze converts otherwise-fixable defects into permanent items: C-43 cannot dedupe the binning (`point.py` frozen + C-24 ulp-sensitive), C-53 will have two frozen construction paths forever once the second lands, C-57 cannot give `map_estimate` a clean non-finite error, C-66's one-line `setflags` enforce is a MAJOR, and `map_estimate`'s bias (C-32) is mitigated *alongside* rather than fixed. D-09 and D-11 were both **settled by** the same constraint ("anything removable must not touch the frozen surface"). The freeze is working as designed; this cluster is what it costs. **Actionable consequence:** when a MAJOR is opened for *any* reason, this cluster is the rider shopping list — C-66 already records the exact one-line-per-constructor change and its red test, C-57 the `np.isfinite` guard, C-43 the shared-binning extraction. Plan them together or the MAJOR is wasted.
   - **scale & footprint awareness** = {C-71, C-73, + resolved C-25, C-26, C-22} — the leaf ships primitives whose cost is *inherently* grid-scale allocation, and ADR-026 ratified the stance: **document the cost, never guess a size guard** (a guard would be consumer policy). C-71 (dense fill / `cartesian`) and C-73 (`arrow.load` whole-table read) are that one decision applied twice; both fail **loud** (`MemoryError`/OOM), never silently. The resolved trio is the deliberate **counter**-precedent — on the *estimator* side the leaf **did** bound memory (block-wise reduction, C-22/C-25; O(N) caller allocation removed, C-26). The tension is intentional and worth keeping visible: bounded by design where the output is a *reduction*, unbounded by design where the output *is* the allocation.
   - **summarize-estimator coherence (#89)** = {C-32, C-34, C-43; + resolved C-57, C-33} — point/interval/mode estimation over zero-inflated, heavy-tailed, potentially-multimodal conflict posteriors is mathematically under-determined; a single number can mislead, and the frozen `map_estimate` additionally carries an obscure inf-error (C-57) and a per-row binning duplication with `bimodality` (C-43). The register's live estimator work; tracked in #89.
-  - **reconcile method + governance** = {C-62, C-99, C-100, + D-12; resolved C-58, C-64, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) **closed 2026-07-31** once the production-slice check existed as a one-command tool *and* the runbook required it — leaving C-62, the method limitation itself, as the only open member. The mode-reporting decision is recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
+  - **reconcile method + governance** = {C-62, C-100, + D-12; resolved C-58, C-64, C-99, C-37-lineage} — the per-draw `proportional` reconciler is a pragmatic, information-losing port (C-62) whose principled joint upgrade is deferred (ADR-024); its cutover-verification residual (C-58) **closed 2026-07-31** once the production-slice check existed as a one-command tool *and* the runbook required it — leaving C-62, the method limitation itself, as the only open member. The mode-reporting decision is recorded as D-12. The package's **missing CIC** (C-64) was the other half of the governance debt — closed by `docs/CICs/Reconcile.md` (epic #179 / S1).
   - **construction-convenience accretion (#113)** = {all resolved: C-52, C-53, C-54, D-09} — **CLOSED 2026-07-31 by ADR-027** (Epic #208 / S1 #209). The planned `PredictionFrame.from_arrays` factory was the "camel's nose" for leaf bloat: accretion (C-52), two frozen construction paths diverging (C-53), a DoD overstating scope (C-54) — all three guarding an addition that was **never made and is now declined**. The cluster is instructive rather than dead: it is the register's clearest case of concerns that existed *only* because a proposal sat undecided. Thirteen months open, zero code written, three entries consuming review attention every cycle — and the resolution was a decision, not an implementation. **The guard survives as a written precedent:** ADR-027 records the binding constraints any future construction convenience must satisfy and what would reopen the question, so the next such request is closed by citation instead of re-argued. The lesson generalises to the `awaiting` Status class: an undecided proposal is not free.
   - **cross-repo coordination** = {C-13, C-46, D-04, D-05, D-06} — an N-consumer leaf whose buy-in is *assumed, not elicited*: the concentration/fan-out risk (C-13), the envelope re-assertion in views-evaluation (C-46), plus the unratified-perspective disagreements. Resolvable only across repos, not within the leaf.
   - **immutability enforcement** = {all resolved: C-66, C-63, C-07} — the **contract-correction** half is done (**C-63 resolved** by ADR-025, 2026-06-28, epic #179 / S2): immutability is enforced for the *index* (`setflags(write=False)`) and held *by convention* for the *value buffer* (writeable on purpose, to preserve zero-copy / `mmap`; mutating `.values` is documented-unsupported across the three frame CICs + README design principle 3). The **enforcement** half — `setflags(write=False)` on `.values` — is a MAJOR ("tightening an invariant", GOVERNANCE/ADR-018) and is **deferred, tracked open as C-66** (the enforce-rider for the next MAJOR), so the residual writeable-buffer exposure stays visible rather than buried in the resolved C-63.
