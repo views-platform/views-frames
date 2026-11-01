@@ -262,9 +262,9 @@ ReconciliationModule().reconcile(cm, pgm)           # TypeError — map_keys/map
 # approximation (C-62 / ADR-024) — read res.mode and treat joint tails as uncalibrated.
 res = module.reconcile_result(cm, pgm)              # res.mode == ALIGNED_DRAWS is a caveat
 
-# WRONG: mutating the returned frame's value buffer in place (the leaf value buffer is
-# immutable-by-convention; see ADR-025 / PredictionFrame CIC §9) -> may corrupt shares
-out.values[:] = 0                                   # unsupported
+# WRONG: mutating the returned frame's value buffer in place. Since 2.0.0 the buffer is
+# write-protected (ADR-028 / register C-66), so this raises rather than corrupting shares.
+out.values[:] = 0                                   # ValueError: assignment destination is read-only
 
 # WRONG: expecting an empty grid to stay empty against a positive country. Since 3.0.0
 # the draw is filled from a donor (ADR-030); if no draw of the group has grid mass, the
