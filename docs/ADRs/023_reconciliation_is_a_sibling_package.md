@@ -8,6 +8,13 @@
 **Consulted:** views-postprocessing (the current, mis-homed host), views-reporting (the frozen torch oracle)
 **Informed:** views-pipeline-core, views-models, views-evaluation
 
+> **Amendment (2026-10-31, ADR-030).** Reconciliation now places every country's mass. A draw
+> whose grid is all zeros, against a positive country value, borrows the pre-scaling pattern of
+> a random donor draw from the same `(time, country)`, or the call raises when there is no
+> donor. This adds a pass before the unchanged kernel (`donor_fill.py`). The sibling-package
+> decision here stands; the "all-zero draws stay zero" edge described below no longer holds
+> from 3.0.0.
+
 ---
 
 ## Context

@@ -2,12 +2,14 @@
 
 `ReconciliationModule` holds the injected `(time, priogrid_gid) -> country_id`
 mapping (geography is injected, never embedded — views-frames ADR-014) and
-applies it: `reconcile(cm_frame, pgm_frame)` validates the inputs and scales the
-grid forecasts to the country totals, returning a **new** pgm frame (de-mutated,
-C-184).
+applies it: `reconcile(cm_frame, pgm_frame)` validates the inputs, gives every draw
+whose grid is empty but whose country is positive a donor draw's pattern (ADR-030),
+and scales the grid forecasts to the country totals, returning a **new** pgm frame
+(de-mutated, C-184).
 
 **SRP:** orchestration only — the scaling math is the leaf (`proportional`), the
-grouping is `grouping`, the guards are `validation`, the I/O is `frames`. No
+grouping is `grouping`, the empty-draw fill is `donor_fill`, the guards are
+`validation`, the I/O is `frames`. No
 torch, no pandas, no viewser, no wandb: the original's `ProcessPoolExecutor` and
 WandB alerting are dropped (numpy is fast; there is no GPU). If scale ever needs
 parallelism, add it behind this same interface (OCP). Multi-target inputs are
@@ -22,10 +24,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from views_frames import PredictionFrame
+from views_frames_reconcile.donor_fill import fill_empty_grid_draws
 from views_frames_reconcile.grouping import reconcile_pgm_to_cm
 from views_frames_reconcile.result import (
     ALIGNED_DRAWS,
-    METHOD_PROPORTIONAL,
+    METHOD_DONOR_FILL,
     POINT_BROADCAST,
     ReconciliationResult,
 )
@@ -54,16 +57,22 @@ class ReconciliationModule:
         self,
         map_keys: NDArray[np.integer[Any]] | object,
         map_vals: NDArray[np.integer[Any]] | object,
+        *,
+        seed: int = 0,
     ) -> None:
         """Inject the `(time, priogrid_gid) -> country_id` mapping.
 
         Args:
             map_keys: ``(M, 2)`` int array of ``(time, priogrid_gid)`` pairs.
             map_vals: ``(M,)`` int ``country_id`` for each key.
+            seed: non-negative int; seeds the donor choice for draws whose grid is empty
+                (ADR-030). Group ``(time, country)`` draws from
+                ``default_rng([seed, time, country])``, so the same inputs and seed give
+                the same output however the calls are chunked.
 
         Raises:
-            ValueError: ``map_keys`` is not ``(M, 2)`` or ``map_vals`` is not
-                length ``M``.
+            ValueError: ``map_keys`` is not ``(M, 2)``, ``map_vals`` is not length
+                ``M``, or ``seed`` is not a non-negative int.
         """
         keys = np.asarray(map_keys)
         vals = np.asarray(map_vals)
@@ -71,8 +80,12 @@ class ReconciliationModule:
             raise ValueError("map_keys must be an (M, 2) array of (time, priogrid_gid)")
         if vals.shape != (keys.shape[0],):
             raise ValueError("map_vals must be a length-M array aligned to map_keys")
+        is_int = isinstance(seed, (int, np.integer)) and not isinstance(seed, bool)
+        if not is_int or seed < 0:
+            raise ValueError(f"seed must be a non-negative int, got {seed!r}")
         self._map_keys = keys
         self._map_vals = vals
+        self._seed = int(seed)
 
     def reconcile_result(
         self, cm_frame: PredictionFrame, pgm_frame: PredictionFrame
@@ -90,7 +103,9 @@ class ReconciliationModule:
 
         Raises:
             ValueError: the inputs fail validation (level / sample-count — cm must be 1
-                or pgm's ``S`` / time coverage / missing country forecast).
+                or pgm's ``S`` / time coverage / missing country forecast), or a
+                ``(time, country)`` has a positive country value in a draw whose grid is
+                empty and no draw of that group has grid mass to borrow (ADR-030).
         """
         validate_reconciliation_inputs(
             cm_frame, pgm_frame, self._map_keys, self._map_vals
@@ -101,8 +116,13 @@ class ReconciliationModule:
         else:
             cm = cm_frame
             mode = ALIGNED_DRAWS
-        frame = reconcile_pgm_to_cm(pgm_frame, cm, self._map_keys, self._map_vals)
-        return ReconciliationResult(frame=frame, mode=mode, method=METHOD_PROPORTIONAL)
+        filled, filled_draws = fill_empty_grid_draws(
+            pgm_frame, cm, self._map_keys, self._map_vals, self._seed
+        )
+        frame = reconcile_pgm_to_cm(filled, cm, self._map_keys, self._map_vals)
+        return ReconciliationResult(
+            frame=frame, mode=mode, method=METHOD_DONOR_FILL, filled_draws=filled_draws
+        )
 
     def reconcile(
         self, cm_frame: PredictionFrame, pgm_frame: PredictionFrame
@@ -115,6 +135,8 @@ class ReconciliationModule:
 
         Raises:
             ValueError: the inputs fail validation (level / sample-count — cm must be 1
-                or pgm's ``S`` / time coverage / missing country forecast).
+                or pgm's ``S`` / time coverage / missing country forecast), or a
+                ``(time, country)`` has a positive country value in a draw whose grid is
+                empty and no draw of that group has grid mass to borrow (ADR-030).
         """
         return self.reconcile_result(cm_frame, pgm_frame).frame

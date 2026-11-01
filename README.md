@@ -440,6 +440,7 @@ views-frames/
 │   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
 │   ├── proportional.py            # reconcile_proportional — per-draw top-down scaling
 │   ├── grouping.py                # reconcile_pgm_to_cm — group by (time, country)
+│   ├── donor_fill.py              # empty grid draw → a donor draw's pattern (ADR-030)
 │   ├── frames.py                  # prediction_frame_from_arrays adapter
 │   ├── validation.py              # fail-loud input guards
 │   ├── module.py                  # ReconciliationModule (holds the injected mapping)
@@ -492,11 +493,21 @@ from views_frames_reconcile import ReconciliationModule
 
 # mapping is INJECTED by the caller (sourced from the producer; never fetched here):
 #   map_keys: (M, 2) int (time, priogrid_gid)   map_vals: (M,) int country_id
-reconciler = ReconciliationModule(map_keys, map_vals)
+reconciler = ReconciliationModule(map_keys, map_vals, seed=0)
 pgm_reconciled = reconciler.reconcile(cm_frame, pgm_frame)  # new pgm PredictionFrame
-# each (time, country) group's cells now sum, per draw, to the country total
-# (all-zero grid draws stay zero); zeros preserved; non-negative.
+# each (time, country) group's cells now sum, in EVERY draw, to the country total;
+# zeros preserved in draws that had grid mass; non-negative.
 ```
+
+**The country forecast is the authority — in every draw (3.0.0, ADR-030).** Scaling
+cannot place a positive country value on a draw whose grid cells are all zero. Until
+3.0.0 that draw stayed zero and the country's fatalities were silently missing from the
+grid: 2.9–7.3% of the fatality mass on the first production run (#283). Now such a draw
+borrows the pattern of a **donor** — a draw of the same `(time, country)` that has grid
+mass, chosen at random from `default_rng([seed, time, country])` — and is scaled like any
+other. The country decides how many; the grid model's own draws decide where. A group in
+which **no** draw has grid mass raises `ValueError` instead of returning a grid short of
+the country. `reconcile_result(...).filled_draws` reports how many draws were filled.
 
 > **Future DRY pass (deferred).** `grouping.py` labels grid rows by country with the
 > leaf's `cross_level_align_arrays` and overlaps `cross_level_align` (index.py). Folding

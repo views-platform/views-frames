@@ -39,10 +39,12 @@ for name, mod in (('views_frames', c), ('views_frames_summarize', s), ('views_fr
 "
 ```
 
-- **Conformance-floor version:** `2.0.0` (`views_frames.conformance.CONFORMANCE_FLOOR`).
-  Moved from `1.0.0` on 2026-08-18 with the 2.0.0 MAJOR (ADR-028) — the first move since
-  the freeze, because `assert_summarizer_contract` now rejects a frame that misreports
-  its own index.
+- **Conformance-floor version:** `3.0.0` (`views_frames.conformance.CONFORMANCE_FLOOR`).
+  Moved from `2.0.0` with the 3.0.0 MAJOR (ADR-030), because `assert_reconcile_contract`
+  now requires every draw to sum to its country instead of requiring draws with an empty
+  grid to stay zero. The first move, from `1.0.0` on 2026-08-18 with the 2.0.0 MAJOR
+  (ADR-028), was because `assert_summarizer_contract` began rejecting a frame that
+  misreports its own index.
 - The floor is a **single governed version every consumer runs regardless of its
   runtime pin** — this is what makes the suite test "all consumers agree," not
   "my adapter vs my pin" (closes register C-10). The floor is bumped deliberately,

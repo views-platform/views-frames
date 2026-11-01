@@ -7,6 +7,11 @@
 **Consulted:** views-models (the country/grid model owner), views-postprocessing (the C-37 lineage)
 **Informed:** views-pipeline-core, views-evaluation
 
+> **Amendment (2026-10-31, ADR-030).** The rule "new methods are sibling modules, never edits to
+> `proportional`" was applied to the empty-grid fix: ADR-030 adds `donor_fill.py` as a pass
+> before the unchanged kernel. The joint-reconciliation design and its deferral here are
+> unaffected; donor fill neither depends on nor resolves the draw-pairing question (C-62).
+
 ---
 
 ## Context
