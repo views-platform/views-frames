@@ -4,11 +4,11 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v2.0.0 — the version in this tree.** For what is actually published, see
+> **Status:** **v3.0.0 — the version in this tree.** For what is actually published, see
 > [PyPI](https://pypi.org/project/views-frames/): between a release commit and its publish
 > job this number is deliberately ahead, so this banner tracks the source and never claims
-> a publication it cannot verify. API frozen at v1.0.0 (ADR-018) and broken once in 2.0.0
-> (ADR-028; the
+> a publication it cannot verify. API frozen at v1.0.0 (ADR-018) and broken twice since, in 2.0.0
+> (ADR-028) and 3.0.0 (ADR-030; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
@@ -25,7 +25,7 @@
 > `research/figures/` tower-figure toolkit; v1.10.0 adds the **dense-grid fill**
 > primitive — `reindex_fill(other, *, fill_value)` on all three frames +
 > `SpatioTemporalIndex.cartesian` + the published `assert_reindex_fill_law`, ADR-026,
-> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching; **v2.0.0 is the first MAJOR** — a falsification audit found that a frame's `index` was never type-checked, so a frame (or any object with an `n_rows`) was accepted silently and the published `assert_summarizer_contract` then certified the result, and it now raises `TypeError`; riding it, `frame.values` becomes read-only (C-66) and `map_estimate` rejects non-finite draws (C-57), and `CONFORMANCE_FLOOR` moves to `2.0.0` — a correct consumer changes its version constraint and re-locks, nothing else, ADR-028). This
+> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching; **v2.0.0 is the first MAJOR** — a falsification audit found that a frame's `index` was never type-checked, so a frame (or any object with an `n_rows`) was accepted silently and the published `assert_summarizer_contract` then certified the result, and it now raises `TypeError`; riding it, `frame.values` becomes read-only (C-66) and `map_estimate` rejects non-finite draws (C-57), and `CONFORMANCE_FLOOR` moves to `2.0.0` — a correct consumer changes its version constraint and re-locks, nothing else, ADR-028; **v3.0.0 is the second MAJOR** — reconciliation silently lost a country's fatalities whenever its grid was all zeros in a draw, 2.9–7.3% of the fatality mass on the first production run (#283, register C-99); such a draw now borrows the pattern of a random donor draw from the same month and country, a group with no donor raises, every other draw is bit-identical, and `CONFORMANCE_FLOOR` moves to `3.0.0`, ADR-030). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
