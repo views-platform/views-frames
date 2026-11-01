@@ -4,11 +4,11 @@
 > containers (`FeatureFrame`, `PredictionFrame`, and their anticipated siblings)
 > that every other repo depends on and that depends on nothing internal.
 >
-> **Status:** **v2.0.0 — the version in this tree.** For what is actually published, see
+> **Status:** **v3.0.0 — the version in this tree.** For what is actually published, see
 > [PyPI](https://pypi.org/project/views-frames/): between a release commit and its publish
 > job this number is deliberately ahead, so this banner tracks the source and never claims
-> a publication it cannot verify. API frozen at v1.0.0 (ADR-018) and broken once in 2.0.0
-> (ADR-028; the
+> a publication it cannot verify. API frozen at v1.0.0 (ADR-018) and broken twice since, in 2.0.0
+> (ADR-028) and 3.0.0 (ADR-030; the
 > v1.1 surface is
 > purely additive — the coherent posterior summary, ADR-019; v1.2.0 rebuilt the tower
 > `outside-in`, C-44; v1.3.0 makes the tower summary distribution-agnostic — no magnitude
@@ -25,7 +25,7 @@
 > `research/figures/` tower-figure toolkit; v1.10.0 adds the **dense-grid fill**
 > primitive — `reindex_fill(other, *, fill_value)` on all three frames +
 > `SpatioTemporalIndex.cartesian` + the published `assert_reindex_fill_law`, ADR-026,
-> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching; **v2.0.0 is the first MAJOR** — a falsification audit found that a frame's `index` was never type-checked, so a frame (or any object with an `n_rows`) was accepted silently and the published `assert_summarizer_contract` then certified the result, and it now raises `TypeError`; riding it, `frame.values` becomes read-only (C-66) and `map_estimate` rejects non-finite draws (C-57), and `CONFORMANCE_FLOOR` moves to `2.0.0` — a correct consumer changes its version constraint and re-locks, nothing else, ADR-028). This
+> unblocking pandas-free FAO ingestion; v1.10.1 makes `io.arrow.load` fail loudly on a parquet whose row order breaks the wire contract, #199; v1.10.2 changes no behaviour — it arms the documentation check in CI, turns eleven falsification tests from README-wording checks into behaviour checks, and records ADR-027 declining the construction shortcut; v1.11.0 corrects the published MAP-containment law, which was wrong on tied draws and so failed ~6% of rows on integer count posteriors — register C-88 — and makes the two IO codecs agree on a non-JSON metadata value, C-90; the rest of that release makes the governance documents match the code and adds the CI checks that keep them matching; **v2.0.0 is the first MAJOR** — a falsification audit found that a frame's `index` was never type-checked, so a frame (or any object with an `n_rows`) was accepted silently and the published `assert_summarizer_contract` then certified the result, and it now raises `TypeError`; riding it, `frame.values` becomes read-only (C-66) and `map_estimate` rejects non-finite draws (C-57), and `CONFORMANCE_FLOOR` moves to `2.0.0` — a correct consumer changes its version constraint and re-locks, nothing else, ADR-028; **v3.0.0 is the second MAJOR** — reconciliation silently lost a country's fatalities whenever its grid was all zeros in a draw, 2.9–7.3% of the fatality mass on the first production run (#283, register C-99); such a draw now borrows the pattern of a random donor draw from the same month and country, a group with no donor raises, every other draw is bit-identical, and `CONFORMANCE_FLOOR` moves to `3.0.0`, ADR-030). This
 > README is the design
 > bible; the contract it specifies is realised in `src/views_frames/` (index, frames,
 > io, conformance suite) plus the `src/views_frames_summarize/` sibling package
@@ -440,12 +440,13 @@ views-frames/
 │   ├── __init__.py                #   depends on views_frames + numpy only; never the reverse
 │   ├── proportional.py            # reconcile_proportional — per-draw top-down scaling
 │   ├── grouping.py                # reconcile_pgm_to_cm — group by (time, country)
+│   ├── donor_fill.py              # empty grid draw → a donor draw's pattern (ADR-030)
 │   ├── frames.py                  # prediction_frame_from_arrays adapter
 │   ├── validation.py              # fail-loud input guards
 │   ├── module.py                  # ReconciliationModule (holds the injected mapping)
 │   ├── result.py                  # ReconciliationResult — the frame plus HOW it was made
 │   └── conformance.py             # assert_reconcile_contract
-├── scripts/                       # standalone dev tools, none wired into CI
+├── scripts/                       # dev tools; check_arch_tree + check_doc_refs run in CI
 ├── examples/                      # runnable quickstarts (run by CI)
 └── tests/                         # flat: test_*.py + fixtures/
 ```
@@ -492,11 +493,21 @@ from views_frames_reconcile import ReconciliationModule
 
 # mapping is INJECTED by the caller (sourced from the producer; never fetched here):
 #   map_keys: (M, 2) int (time, priogrid_gid)   map_vals: (M,) int country_id
-reconciler = ReconciliationModule(map_keys, map_vals)
+reconciler = ReconciliationModule(map_keys, map_vals, seed=0)
 pgm_reconciled = reconciler.reconcile(cm_frame, pgm_frame)  # new pgm PredictionFrame
-# each (time, country) group's cells now sum, per draw, to the country total
-# (all-zero grid draws stay zero); zeros preserved; non-negative.
+# each (time, country) group's cells now sum, in EVERY draw, to the country total;
+# zeros preserved in draws that had grid mass; non-negative.
 ```
+
+**The country forecast is the authority — in every draw (3.0.0, ADR-030).** Scaling
+cannot place a positive country value on a draw whose grid cells are all zero. Until
+3.0.0 that draw stayed zero and the country's fatalities were silently missing from the
+grid: 2.9–7.3% of the fatality mass on the first production run (#283). Now such a draw
+borrows the pattern of a **donor** — a draw of the same `(time, country)` that has grid
+mass, chosen at random from `default_rng([seed, time, country])` — and is scaled like any
+other. The country decides how many; the grid model's own draws decide where. A group in
+which **no** draw has grid mass raises `ValueError` instead of returning a grid short of
+the country. `reconcile_result(...).filled_draws` reports how many draws were filled.
 
 > **Future DRY pass (deferred).** `grouping.py` labels grid rows by country with the
 > leaf's `cross_level_align_arrays` and overlaps `cross_level_align` (index.py). Folding

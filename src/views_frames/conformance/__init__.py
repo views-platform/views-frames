@@ -19,8 +19,8 @@ the envelope has one written authority rather than re-asserted copies that drift
     assert_frame_envelope(my_metric_frame())
 
 The floor is governed in ``GOVERNANCE.md``; ``CONFORMANCE_FLOOR`` records the version
-this suite belongs to. It moved to ``2.0.0`` with the 2.0.0 MAJOR (ADR-028) — the first
-move since the v1.0.0 freeze.
+this suite belongs to. It moved to ``2.0.0`` with the 2.0.0 MAJOR (ADR-028), the first
+move since the v1.0.0 freeze, and to ``3.0.0`` with the 3.0.0 MAJOR (ADR-030).
 """
 
 from __future__ import annotations
@@ -30,11 +30,12 @@ from typing import Any
 
 import numpy as np
 
-# Bumped to 2.0.0 on 2026-08-18 — the FIRST move since the freeze. `assert_summarizer_
-# contract` now rejects a frame whose index is not an index, which narrows what the
-# published suite accepts, and GOVERNANCE bumps the floor on any breaking change to any
-# published entry point. A consumer reading this learns which contract its CI asserts.
-CONFORMANCE_FLOOR = "2.0.0"
+# Bumped to 3.0.0 for the 3.0.0 MAJOR (ADR-030): `assert_reconcile_contract` now
+# requires every draw to sum to its country, where it used to require draws with an
+# empty grid to stay zero. GOVERNANCE bumps the floor on any breaking change to any
+# published entry point (the 2.0.0 move, ADR-028, was the first since the freeze). A
+# consumer reading this learns which contract its CI asserts.
+CONFORMANCE_FLOOR = "3.0.0"
 
 __all__ = [
     "CONFORMANCE_FLOOR",

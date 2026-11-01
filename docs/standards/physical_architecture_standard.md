@@ -91,6 +91,7 @@ src/views_frames_reconcile/ # top-down pgm→cm reconciliation (ADR-023)
 ├── module.py               # ReconciliationModule — orchestration, geography injected
 ├── proportional.py         # the numpy proportional reconciler (the approximation, C-62)
 ├── grouping.py             # pgm rows grouped to cm totals
+├── donor_fill.py           # empty grid draw gets a donor draw's pattern (ADR-030)
 ├── frames.py               # array → PredictionFrame adapters for this package
 ├── validation.py           # fail-loud validation of reconciliation inputs
 ├── result.py               # ReconciliationResult — the frame plus HOW it was made (D-12)

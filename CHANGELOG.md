@@ -4,6 +4,74 @@ All notable changes to `views-frames` are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) as governed in `GOVERNANCE.md`.
 
+## [3.0.0] — 2026-11-01
+
+**Reconciliation now places every country's fatalities on the grid.** When a country's
+grid is all zeros in a draw but the country forecast is positive, scaling has nothing to
+multiply. Until now that draw stayed zero and the country's fatalities were simply missing
+from the grid, with no error and no warning. On the first production run that was **2.9–7.3%
+of the fatality mass** (#283). Such a draw now borrows the pattern of a random donor draw
+from the same month and country, and is scaled like any other. If no draw of that month and
+country has any grid mass, the call raises.
+
+**If your grids always have mass where your countries do, you will not notice this
+release.** Every draw that was not empty comes out bit-identical. Change your version
+constraint, re-lock, and carry on:
+
+```diff
+- views-frames = ">=2.0.0,<3"
++ views-frames = ">=3.0.0,<4"
+```
+
+This is the package's **second MAJOR**, and `CONFORMANCE_FLOOR` moves `2.0.0` → `3.0.0`.
+The decision, the evidence and the alternatives considered are in **ADR-030**.
+
+### What actually changes
+
+| If you… | 2.x | 3.0.0 |
+|---|---|---|
+| reconcile a draw whose grid has mass | scaled to the country | **unchanged, bit-identical** |
+| reconcile an empty-grid draw with a positive country, where other draws of that month and country have mass | stays zero; the country's mass is lost | **filled from a donor draw, then scaled** |
+| reconcile a month and country where **no** draw has grid mass but the country is positive | returns zeros | `ValueError` naming the time and country |
+| reconcile a single-draw grid that is empty against a positive country | returns zeros | `ValueError` |
+| run `assert_reconcile_contract` | requires empty draws to stay zero | requires **every** draw to sum to its country |
+| read `ReconciliationResult.method` | `"proportional"` | `"proportional-donor-fill"` |
+
+Only the third and fourth rows can stop working code, and both mean the grid and country
+forecasts disagree about a whole country-month. The package now refuses to invent a pattern
+there, where it used to drop the country's mass silently.
+
+### Fixed
+
+- **Silent loss of country mass in reconciliation** (register C-99, Tier 1). The scaling
+  was exact (0 failures across 22.3M country-month-draws on the production run). All the
+  loss came from draws whose grid was empty. The contract called that "an edge, not a
+  failure" and the published conformance check required it, so every test passed.
+
+### Added
+
+- `ReconciliationModule(map_keys, map_vals, *, seed=0)`: the donor choice is drawn from
+  `numpy.random.default_rng([seed, time, country])`. The output is reproducible for a seed,
+  and doesn't depend on whether you reconcile one month at a time or all at once.
+- `ReconciliationResult.filled_draws`: how many draws were filled.
+- `METHOD_DONOR_FILL = "proportional-donor-fill"`, the method now reported.
+- `views_frames_reconcile/donor_fill.py`. `proportional.py` and `grouping.py` are
+  unchanged.
+
+### Changed
+
+- `assert_reconcile_contract`: sum-to-country now holds in every draw; zeros are preserved
+  in draws that had grid mass; a filled draw must be a scaled copy of a donor draw of its
+  own group. Each law now has a negative test. Before this release the sum law had none,
+  and could be deleted with the suite green.
+- `CONFORMANCE_FLOOR` `2.0.0` → `3.0.0`.
+
+### Tests
+
+- Realistic sparse fixtures (`tests/sparse_reconcile_case.py`, 94–99% zeros). The old
+  fixtures could not produce the case that lost mass.
+- Mutation testing of the new path: 23 of 23 mutations killed (#289).
+
 ## [2.0.0] — 2026-08-18
 
 **A frame's index must actually be an index.** Until now you could hand a frame anything as

@@ -73,11 +73,11 @@ def test_cross_level_alignment_law_is_time_varying():
 
 
 def test_conformance_floor_is_published():
-    """Moved for the first time in 2.0.0 (ADR-028).
+    """Moved to 3.0.0 with ADR-030's MAJOR (the reconcile sum law changed).
 
-    It stayed 1.0.0 for every release from the freeze until then.
+    It stayed 1.0.0 from the freeze until 2.0.0 (ADR-028), its first move.
     """
-    assert CONFORMANCE_FLOOR == "2.0.0"
+    assert CONFORMANCE_FLOOR == "3.0.0"
 
 
 # --- the published frame-envelope checker (ADR-020, C-46) --------------------
