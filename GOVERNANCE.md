@@ -57,6 +57,16 @@ for name, mod in (('views_frames', c), ('views_frames_summarize', s), ('views_fr
   to any of them, so reading `CONFORMANCE_FLOOR` tells a consumer exactly which contract
   version its CI asserts. Additive surface (a new law or method) is MINOR and does
   **not** bump the floor.
+- **The floor is not a safe dependency pin (#237).** It versions the conformance
+  suite, not the behaviour of the operations. Outputs can change above it in a MINOR
+  (the tower estimators did three times, in 1.2.0, 1.3.0 and 1.9.0), and a behaviour
+  can arrive in a MAJOR, as donor fill did in 3.0.0. A consumer that relies on a
+  behaviour should floor its dependency at the release that introduced it, for example
+  `views-frames>=3.0.0` for reconciliation that places every country's mass. A loose
+  floor such as `>=1.10.2` lets a lockfile or a resolver keep an old release while
+  every check stays green: views-datafactory's lock sat at 1.0.0 from June to August
+  2026, and on 2026-11-02 the `chrome_box` forecast lane still resolved 1.11.0 a day
+  after 3.0.0 shipped.
 
 ## Versioning (SemVer for a contract)
 
