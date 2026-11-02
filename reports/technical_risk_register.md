@@ -129,8 +129,11 @@ forgotten, and what turned "the consumers will pick it up" into three named lock
 
 **Execution record — 3.0.0, 2026-11-02 (ADR-030).** The second run.
 
-- **Riders:** none open. C-66 and C-57 rode 2.0.0, and C-43 was declined then with its
-  precondition rewritten to #89, so it does not ride a MAJOR.
+- **Rider missed: C-95.** Its trigger named "the next MAJOR, opened for another reason" as
+  the moment for its two-line fix, and 3.0.0 was that MAJOR. The checklist was not walked
+  for riders, and this record first said "none open", which was wrong (corrected
+  2026-11-02). C-95 now waits for the MAJOR after 3.0.0. C-43 still does not ride a MAJOR:
+  it was declined at 2.0.0 and its precondition rewritten to #89.
 - **Fan-out measured from the pins**, by scanning every views-platform `pyproject.toml`:
   five consumers had a constraint that excludes 3.0.0, or reach it through one that does.
 - **Adoption issues filed before the tag** (#293): views-pipeline-core#580 (calls the
@@ -287,7 +290,7 @@ The fill primitive makes densification a one-liner, which is the point (#203, fa
 |-------|-------|
 | ID | C-95 |
 | Tier | 4 |
-| Status | **awaiting** — the next MAJOR after 2.0.0 (changing it is a behaviour change on frozen surface; the comment half is already corrected) |
+| Status | **awaiting** — the next MAJOR after 3.0.0 (changing it is a behaviour change on frozen surface; the comment half is already corrected). 3.0.0 should have carried it and did not; see C-13's 3.0.0 execution record. |
 | Source | falsify audit follow-up (2026-08-18) — found while shipping C-66, which had to solve the same problem for the frames |
 | Trigger | When a consumer reports that constructing a `SpatioTemporalIndex` made their own `time`/`unit` array read-only — or, sooner, when the next MAJOR is opened for another reason, at which point aligning the index with the frames is a two-line rider. |
 | Location | `src/views_frames/index.py::SpatioTemporalIndex.__init__` (the two `setflags(write=False)` calls after `np.ascontiguousarray`). |
