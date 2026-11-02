@@ -486,7 +486,7 @@ Cross-refs: C-47 (eval provenance kept out of the generic header — the precede
 | ID | C-99 |
 | Tier | 1 |
 | Resolved | 2026-11-02 |
-| Resolution | Released in **3.0.0** (ADR-030): an empty-grid draw borrows the pattern of a random donor draw from the same `(time, country)`, and a group with no donor raises. Verified on the real archive (0 unplaced mass) and on the published wheel. |
+| Resolution | Released in **3.0.0** (ADR-030): an empty-grid draw borrows the pattern of a random donor draw from the same `(time, country)`, and a group with no donor raises. On the real archive the mass is no longer lost (0 unplaced). That figure is true by construction once a donor fills a draw, so it shows the mass is placed, not that it lands in the right cells. |
 | Source | views-models' first production run (`chrome_crate` → `chrome_box`, 2026-10-30), reported as #283; downstream investigation views-pipeline-core#579 |
 | Trigger | Any reconciliation where, for some `(time, country, draw)`, the country value is positive and every grid cell is zero. Common, not exotic: 94–96% of grid cells are zero in a conflict forecast. |
 | Location | `src/views_frames_reconcile/proportional.py:81-98` (the all-zero guard returns zeros); `src/views_frames_reconcile/conformance.py` (law 4 required it); `docs/CICs/Reconcile.md` §3/§6 ("an edge, not a failure"). |
@@ -509,6 +509,12 @@ conformance law (`TestEachLawHasTeeth`). Mutation testing killed 23 of 23 mutati
 path (#289). On the real 2026-10-30 archive the 3.0.0 reconciler left **0** unplaced mass on all
 three targets, filling exactly the 546,813 draws measured (#292). **Resolved 2026-11-02:** 3.0.0 is on
 PyPI (#294), installed from there into a clean venv, and passes `assert_reconcile_contract`.
+**What this does not show.** "0 unplaced" holds by construction, so it says nothing about
+whether a donor's pattern puts the mass in the right cells; testing that needs the grid
+before reconciliation, which the 2026-10-30 archive did not keep (ADR-030, Open Questions).
+**Adoption is separate.** The defect is fixed in this package. The production lane that
+exposed it still resolved views-frames 1.11.0 on 2026-11-02, because views-datafactory pinned
+`views-frames<2` (views-datafactory#527); views-models#663 then raises the lane's floors.
 
 ---
 

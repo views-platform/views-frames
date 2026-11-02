@@ -60,15 +60,18 @@ class TestScale:
         # Loose smoke: a reintroduced O(groups x N) grouping would balloon this.
         assert elapsed < 10.0, f"reconcile unexpectedly slow ({elapsed:.1f}s)"
 
-        # Correctness across many groups: conservation holds per draw, except
-        # all-zero-input draws (which stay zero) — checked on a spread of countries.
+        # Correctness across many groups: every draw sums to its country (ADR-030),
+        # including draws whose grid was all zeros, which donor fill places. Checked
+        # on a spread of countries plus every country that has such a draw, so the
+        # empty-grid case is always exercised rather than assumed.
         cmv = {int(u): cm.values[i] for i, u in enumerate(cm.index.unit)}
-        for c in (1, 137, 1000, 2000):
+        empty = {
+            int(c)
+            for c in np.unique(gcountry)
+            if (pgm.values[gcountry == c] == 0).all(axis=0).any()
+        }
+        assert empty, "the fixture must contain an empty-grid draw to check"
+        for c in sorted({1, 137, 1000, 2000} | empty):
             sel = np.nonzero(gcountry == c)[0]
-            inp_allzero = (pgm.values[sel] == 0).all(axis=0)
             grid_sum = out.values[sel].sum(axis=0)
-            active = ~inp_allzero
-            np.testing.assert_allclose(
-                grid_sum[active], cmv[c][active], rtol=1e-3, atol=1e-2
-            )
-            assert (grid_sum[inp_allzero] == 0).all()
+            np.testing.assert_allclose(grid_sum, cmv[c], rtol=1e-3, atol=1e-2)
