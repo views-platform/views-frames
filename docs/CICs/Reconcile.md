@@ -42,7 +42,7 @@ per call; geography is **injected**, never embedded (ADR-014).
 
 ## 2. Non-Goals (Explicit Exclusions)
 
-- **No geography embedding** — the `(time, priogrid_gid) → country_id` mapping is injected
+- **No geography embedding** — the `(time, priogrid_gid) → country code` mapping is injected
   as arrays (`map_keys`/`map_vals`); the package never fetches, embeds, or infers it
   (ADR-014). It holds no shapefiles, no PRIO-GRID↔country table.
 - **No IO of domain data, no plotting, no scoring** — it transforms frames to frames.
@@ -136,8 +136,12 @@ zeros, clamps to non-negative. The orchestration (grouping, validation, broadcas
 - **Country coverage** — every `(time, country)` the grid maps to has a forecast row in
   `cm_frame`.
 - `map_keys` is an `(M, 2)` int array of `(time, priogrid_gid)` pairs covering every `pgm`
-  row; `map_vals` is the length-`M` int `country_id` for each key. The mapping is the
-  consumer's (ADR-014); the package only applies it.
+  row; `map_vals` is the length-`M` int country code for each key. The mapping is the
+  consumer's (ADR-014); the package only applies it. **The code system is the consumer's
+  too:** the package groups by whatever integers it is given, so VIEWS `country_id`, GAUL
+  `gaul0_code` or any other system works, provided `cm_frame`'s units use the same one. A
+  mismatch with no shared codes raises; codes that are shared but mean different countries
+  cannot be detected here.
 
 ---
 
@@ -224,7 +228,7 @@ from views_frames import SpatialLevel
 from views_frames_reconcile import ReconciliationModule, ALIGNED_DRAWS, POINT_BROADCAST
 from views_frames_reconcile.frames import prediction_frame_from_arrays
 
-# inject the (time, priogrid_gid) -> country_id mapping (and, optionally, the donor seed)
+# inject the (time, priogrid_gid) -> country code mapping (and, optionally, the donor seed)
 module = ReconciliationModule(map_keys, map_vals, seed=0)   # map_keys (M,2), map_vals (M,)
 
 # aligned draws: cm carries the grid's S draws -> scaled draw-for-draw

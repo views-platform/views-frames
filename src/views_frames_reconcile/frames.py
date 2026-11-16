@@ -3,7 +3,7 @@
 Reconciliation works on views-frames `PredictionFrame`s at two spatial levels:
 country (`cm`) and PRIO-GRID (`pgm`). Both are built the same way from
 `(time, unit, values)` arrays — only the `SpatialLevel` and the unit identifier
-(`country_id` vs `priogrid_gid`) differ. Predictions here carry a real posterior
+(a country code vs `priogrid_gid`) differ. Predictions here carry a real posterior
 sample axis, so values are `(N, S)` with `S >= 1`.
 
 This is the reconciliation package's **own** I/O: it differs from the unfao
@@ -39,8 +39,9 @@ def prediction_frame_from_arrays(
 
     Args:
         time: 1-D integer array, length ``N`` (``month_id``).
-        unit: 1-D integer array, length ``N`` — ``country_id`` for
-            ``SpatialLevel.CM``, ``priogrid_gid`` for ``SpatialLevel.PGM``.
+        unit: 1-D integer array, length ``N`` — a country code for
+            ``SpatialLevel.CM`` (any system, e.g. VIEWS ``country_id`` or GAUL),
+            ``priogrid_gid`` for ``SpatialLevel.PGM``.
         values: ``(N, S)`` float32-coercible array of posterior samples.
         level: the frame's spatial level.
 
