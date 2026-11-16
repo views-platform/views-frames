@@ -84,7 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv run ruff format --check .
+      - run: uv run --python 3.12 ruff format --check .
 
   # The two scripts README §quickstart tells readers to run. They were advertised as
   # runnable and executed by nothing (register C-83), while notebooks/ has had a drift
@@ -156,4 +156,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv run lint-imports
+      - run: uv run --python 3.12 lint-imports
