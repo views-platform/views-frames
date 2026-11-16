@@ -1,6 +1,6 @@
 """Frames-native reconciliation orchestration (epic #31, story #36).
 
-`ReconciliationModule` holds the injected `(time, priogrid_gid) -> country_id`
+`ReconciliationModule` holds the injected `(time, priogrid_gid) -> country code`
 mapping (geography is injected, never embedded — views-frames ADR-014) and
 applies it: `reconcile(cm_frame, pgm_frame)` validates the inputs, gives every draw
 whose grid is empty but whose country is positive a donor draw's pattern (ADR-030),
@@ -60,11 +60,13 @@ class ReconciliationModule:
         *,
         seed: int = 0,
     ) -> None:
-        """Inject the `(time, priogrid_gid) -> country_id` mapping.
+        """Inject the `(time, priogrid_gid) -> country code` mapping.
 
         Args:
             map_keys: ``(M, 2)`` int array of ``(time, priogrid_gid)`` pairs.
-            map_vals: ``(M,)`` int ``country_id`` for each key.
+            map_vals: ``(M,)`` int country code for each key, in the caller's code
+                system (VIEWS ``country_id``, GAUL, ...); it must be the system
+                the cm frame's units use.
             seed: non-negative int; seeds the donor choice for draws whose grid is empty
                 (ADR-030). Group ``(time, country)`` draws from
                 ``default_rng([seed, time, country])``, so the same inputs and seed give

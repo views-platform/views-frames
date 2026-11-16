@@ -34,8 +34,9 @@ def reconcile_pgm_to_cm(
         pgm_frame: grid forecasts at PGM level, values ``(N_pg, S)``.
         cm_frame: country forecasts at CM level, values ``(N_cm, S)``.
         map_keys: ``(M, 2)`` int ``(time, priogrid_gid)`` covering every pgm row.
-        map_vals: ``(M,)`` int ``country_id`` for each key (injected; geography is
-            never embedded here — views-frames ADR-014).
+        map_vals: ``(M,)`` int country code for each key, in the caller's code
+            system (VIEWS ``country_id``, GAUL, ...), matching ``cm_frame``'s units
+            (injected; geography is never embedded here — views-frames ADR-014).
 
     Returns:
         A new pgm `PredictionFrame` (same index/metadata as ``pgm_frame``) whose
