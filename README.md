@@ -492,7 +492,7 @@ import numpy as np
 from views_frames_reconcile import ReconciliationModule
 
 # mapping is INJECTED by the caller (sourced from the producer; never fetched here):
-#   map_keys: (M, 2) int (time, priogrid_gid)   map_vals: (M,) int country_id
+#   map_keys: (M, 2) int (time, priogrid_gid)   map_vals: (M,) int country code (caller's system)
 reconciler = ReconciliationModule(map_keys, map_vals, seed=0)
 pgm_reconciled = reconciler.reconcile(cm_frame, pgm_frame)  # new pgm PredictionFrame
 # each (time, country) group's cells now sum, in EVERY draw, to the country total;
